@@ -42,12 +42,12 @@ Claude Code · Codex 의 세션·주간 한도와 일별 비용을 트레이 팝
 | 데이터 폴더 | `%LOCALAPPDATA%\costats` | `%LOCALAPPDATA%\AiUsageMonitor`(1.0.0 의 `costats-jhj` 는 첫 실행 때 자동 이동 — `Services/LegacyMigration.cs`) | `JsonSettingsStore.cs` · `JsonPulseSnapshotWriter.cs` · `ClaudeOAuthUsageFetcher.cs` · `App.xaml.cs` · `appsettings.json` |
 | 단일 실행 이름 · 시작프로그램 이름 | `costats` | `AiUsageMonitor` | `App.xaml.cs` · `SettingsViewModel.cs` |
 | 기본 단축키 | `Ctrl+Alt+U` | `Ctrl+Alt+Y` | `AppSettings.cs` · `appsettings.json` |
-| 아이콘 | costats 로고 | JHJ favicon(불꽃 황소) | `200.Source/costats.App/Resources/tray-icon.ico` |
+| 아이콘 | costats 로고 | 브랜드 색 바탕 + Tabler `gauge`(MIT) 글리프. 바꾸려면 `python 800.Deploy\Make-Icon.py <바탕색> <글리프색> <out.ico> <svg>` | `200.Source/costats.App/Resources/tray-icon.ico` · `tray-icon.source.svg` |
 | 설치 | zip + `install.ps1` | exe 를 실행하면 `%LOCALAPPDATA%\AiUsageMonitor\app` 에 스스로 설치 | `Services/SelfInstaller.cs` · `App.xaml.cs` |
 | 자동 업데이트 | 원본 저장소 릴리스 | **이 저장소 릴리스만**(`Costats:Update:Repository`). 비어 있으면 꺼짐. 상태 폴더는 `%LOCALAPPDATA%\AiUsageMonitor\updates`, 설정 창 「일반」에 `업데이트 확인` 버튼 | `UpdateOptions.cs` · `StartupUpdateCoordinator.cs` · `apply-update.ps1` · `appsettings.json` · `SettingsWindow.xaml` |
 | 색·글꼴 | 라벤더 | JHJ 팔레트 5종(bull·navy·emerald·violet·slate) × 라이트·다크 · Pretendard. 팔레트는 설정 창 견본으로 고른다 | `Services/ThemeManager.cs` · `App.xaml.cs` · 창 XAML 3개 |
 | 모델별 주간 한도 | 없음 | 주간 아래에 `주간 · Fable` 막대(응답 `limits[]` 의 `weekly_scoped`) | `ClaudeOAuthUsageFetcher.cs` · `UsagePulse.cs` · `ProviderPulseViewModel.cs` · `ModelWeekRow.cs` |
-| 설정 창 구성 | 구분선 나열 | 카드 4장(계정·화면·일반·Copilot) + 두 줄 하단. 설명은 툴팁으로, 콤보는 테마 색 템플릿 | `SettingsWindow.xaml` |
+| 설정 창 구성 | 구분선 나열 | 탭 4개(계정·화면·일반·Copilot) + 두 줄 하단. 설명은 툴팁으로, 탭·콤보는 테마 색 템플릿 | `SettingsWindow.xaml` |
 | 로그인 계정 표시 | 없음 | 설정 창 맨 위 「계정」에 Claude·Codex 계정 | `Services/AccountIdentityReader.cs` · `SettingsViewModel.cs` · `SettingsWindow.xaml` |
 | 버전 · 제작자 | 1.4.6 · fmdz | 1.0.0 · `제작 HyungJin Ju (메일 주소)` + GitHub 링크, 원저작자 표기 유지 | `200.Source/Directory.Build.props` · `costats.App.csproj` · `SettingsWindow.xaml` |
 | 제목 줄 · 테마 버튼 | 없음 | 상단 `AI 통합 사용량 모니터`(영어 `AI Usage Monitor`) 제목, 하단 반달 버튼으로 라이트/다크 전환(설정에 저장) | `GlassWidgetWindow.xaml` · `Services/ThemeManager.cs` · `AppSettings.cs` |

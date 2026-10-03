@@ -94,6 +94,51 @@
             </Setter>
         </Style>
 
+        <!-- 왜: 기본 TabControl 은 밝은 바탕·입체 탭이라 테마와 어긋난다 — 머리글은 밑줄형, 본문은 Panel 색 카드로 다시 그린다 -->
+        <Style x:Key="SettingsTabItem" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Head" Padding="12,7" Margin="0,0,2,0" BorderThickness="0,0,0,2" BorderBrush="Transparent"
+                                Background="Transparent" CornerRadius="6,6,0,0">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Head" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Head" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SettingsTabControl" TargetType="TabControl">
+            <Setter Property="ItemContainerStyle" Value="{StaticResource SettingsTabItem}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource DividerBrush}">
+                                <TabPanel IsItemsHost="True" Margin="0,0,0,-1" />
+                            </Border>
+                            <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource DividerBrush}"
+                                    BorderThickness="1,0,1,1" CornerRadius="0,0,10,10" Padding="12,12,12,12">
+                                <ContentPresenter ContentSource="SelectedContent" />
+                            </Border>
+                        </DockPanel>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- CheckBox Style -->
         <Style x:Key="SettingsCheckBox" TargetType="CheckBox">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
@@ -181,34 +226,20 @@
             <!-- Divider -->
             <Border Grid.Row="1" Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,16" />
 
-            <!-- Settings Content: one card per topic. Long explanations live in tooltips. -->
-            <StackPanel Grid.Row="2">
-                <StackPanel.Resources>
-                    <Style x:Key="Card" TargetType="Border">
-                        <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
-                        <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
-                        <Setter Property="BorderThickness" Value="1" />
-                        <Setter Property="CornerRadius" Value="10" />
-                        <Setter Property="Padding" Value="12,10,12,12" />
-                        <Setter Property="Margin" Value="0,0,0,10" />
-                    </Style>
-                    <Style x:Key="CardTitle" TargetType="TextBlock">
-                        <Setter Property="FontSize" Value="10.5" />
-                        <Setter Property="FontWeight" Value="SemiBold" />
-                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-                        <Setter Property="Margin" Value="0,0,0,8" />
-                    </Style>
+            <!-- Settings Content: one tab per topic. Long explanations live in tooltips. -->
+            <!-- 계약: MinHeight 는 가장 긴 탭(계정) 기준이다 — 탭을 바꿀 때 창 높이가 출렁이지 않게 한다 -->
+            <TabControl Grid.Row="2" Style="{StaticResource SettingsTabControl}" MinHeight="300" Margin="0,0,0,10">
+                <TabControl.Resources>
                     <Style x:Key="RowLabel" TargetType="TextBlock">
                         <Setter Property="FontSize" Value="12" />
                         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                         <Setter Property="VerticalAlignment" Value="Center" />
                     </Style>
-                </StackPanel.Resources>
+                </TabControl.Resources>
 
                 <!-- Accounts -->
-                <Border Style="{StaticResource Card}">
+                <TabItem Header="{loc:Tr 'Accounts'}">
                     <StackPanel>
-                        <TextBlock Text="{loc:Tr 'Accounts'}" Style="{StaticResource CardTitle}" />
                         <DockPanel Margin="0,0,0,4" ToolTip="{Binding ClaudeSourceText}">
                             <TextBlock Text="Claude" Width="52" DockPanel.Dock="Left" Style="{StaticResource RowLabel}" />
                             <TextBlock Text="{Binding ClaudeAccountText}" FontSize="12" TextTrimming="CharacterEllipsis"
@@ -268,12 +299,11 @@
                             </Button.Visibility>
                         </Button>
                     </StackPanel>
-                </Border>
+                </TabItem>
 
                 <!-- Appearance -->
-                <Border Style="{StaticResource Card}">
+                <TabItem Header="{loc:Tr 'Appearance'}">
                     <StackPanel>
-                        <TextBlock Text="{loc:Tr 'Appearance'}" Style="{StaticResource CardTitle}" />
                         <DockPanel Margin="0,0,0,10">
                             <ItemsControl ItemsSource="{Binding Palettes}" DockPanel.Dock="Right">
                                 <ItemsControl.ItemsPanel>
@@ -318,12 +348,11 @@
                             </TextBlock>
                         </DockPanel>
                     </StackPanel>
-                </Border>
+                </TabItem>
 
                 <!-- General -->
-                <Border Style="{StaticResource Card}">
+                <TabItem Header="{loc:Tr 'General'}">
                     <StackPanel>
-                        <TextBlock Text="{loc:Tr 'General'}" Style="{StaticResource CardTitle}" />
                         <CheckBox IsChecked="{Binding StartAtLogin}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
                                   ToolTip="{loc:Tr 'Automatically launch AI Usage Monitor when Windows starts.'}">
                             <TextBlock Text="{loc:Tr 'Start at login'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -383,12 +412,11 @@
                                        Visibility="{Binding MulticcRestartMessage, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
                         </StackPanel>
                     </StackPanel>
-                </Border>
+                </TabItem>
 
                 <!-- Copilot -->
-                <Border Style="{StaticResource Card}">
+                <TabItem Header="Copilot">
                     <StackPanel>
-                        <TextBlock Text="Copilot" Style="{StaticResource CardTitle}" />
                         <CheckBox IsChecked="{Binding CopilotEnabled}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,8"
                                   ToolTip="{loc:Tr 'Connect a GitHub personal access token to fetch usage data.'}">
                             <TextBlock Text="{loc:Tr 'Enable GitHub Copilot usage'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -428,8 +456,8 @@
                         <TextBlock Text="{Binding CopilotTokenStatus}" FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,6,0,0"
                                    Visibility="{Binding CopilotTokenStatus, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
                     </StackPanel>
-                </Border>
-            </StackPanel>
+                </TabItem>
+            </TabControl>
 
             <!-- Footer: version · author · links on one line, attribution below -->
             <StackPanel Grid.Row="3" Margin="2,4,2,0">
