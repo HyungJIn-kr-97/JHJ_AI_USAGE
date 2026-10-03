@@ -103,6 +103,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                 .Select(name => new ExtraAccountRow(
                     name,
+                    AccountProfileStore.LabelOf(name),
                     Loc.T(AccountIdentityReader.ReadClaude(Path.Combine(root, name))),
                     Path.Combine(root, name)))
                 .ToList()
@@ -112,25 +113,26 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void AddAccount()
     {
-        var name = NewAccountName.Trim();
-        if (!AccountProfileStore.IsValidName(name))
+        var label = NewAccountName.Trim();
+        var name = AccountProfileStore.ToFolderName(label);
+        if (name.Length == 0)
         {
-            AccountsMessage = Loc.T("Name: 1-24 letters, digits, - or _ (\"default\" is reserved).");
+            AccountsMessage = Loc.T("Enter the account's email or a short name.");
             return;
         }
 
         if (AccountProfileStore.Exists(name))
         {
-            AccountsMessage = Loc.T("\"{0}\" already exists.", name);
+            AccountsMessage = Loc.T("\"{0}\" already exists.", label);
             return;
         }
 
-        var dir = AccountProfileStore.Add(name);
+        var dir = AccountProfileStore.Add(name, label);
         NewAccountName = string.Empty;
-        AccountsRestartPending = true;
-        AccountsMessage = Loc.T("Added \"{0}\". Sign in in the terminal that opened, then restart.", name);
+        AccountsMessage = Loc.T("Added \"{0}\". Finish signing in in the terminal that opened — this window updates by itself.", label);
         OpenLoginTerminal(dir);
         RefreshAccounts();
+        _ = WatchSignInAsync(dir, label);
     }
 
     [RelayCommand]
@@ -139,7 +141,28 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (row is not null)
         {
             OpenLoginTerminal(row.ConfigDir);
-            AccountsMessage = Loc.T("Sign in to \"{0}\" in the terminal that opened.", row.Name);
+            AccountsMessage = Loc.T("Sign in to \"{0}\" in the terminal that opened.", row.Label);
+            _ = WatchSignInAsync(row.ConfigDir, row.Label);
+        }
+    }
+
+    // 왜: 로그인은 브라우저·터미널에서 끝나므로, 토큰 파일이 생기는 것을 지켜봐야 사용자가 창을 다시 열지 않아도 된다
+    private async Task WatchSignInAsync(string configDir, string label)
+    {
+        var deadline = DateTime.UtcNow.AddMinutes(10);
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            var account = AccountIdentityReader.ReadClaude(configDir);
+            if (account is "Not signed in" or "Unable to read account")
+            {
+                continue;
+            }
+
+            RefreshAccounts();
+            AccountsRestartPending = true;
+            AccountsMessage = Loc.T("\"{0}\" signed in as {1}. Restart to show its usage.", label, account);
+            return;
         }
     }
 
@@ -189,7 +212,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         System.Windows.Application.Current.Shutdown();
     }
 
-    // 계약: 로그인은 사용자가 이 터미널에서 직접 한다 — 앱은 폴더만 지정해 claude 를 띄운다
+    // 계약: 로그인은 사용자가 이 터미널(브라우저로 넘어감)에서 직접 한다 — 앱은 폴더만 지정해 `claude auth login` 을 띄운다
+    // 함정: 토큰은 CLAUDE_CONFIG_DIR 아래 .credentials.json 에 남는다 — 앱은 값을 읽지 않고 로그인 여부만 본다
     private static void OpenLoginTerminal(string configDir)
     {
         var info = new System.Diagnostics.ProcessStartInfo("cmd.exe")
@@ -198,6 +222,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         };
         info.ArgumentList.Add("/k");
         info.ArgumentList.Add("claude");
+        info.ArgumentList.Add("auth");
+        info.ArgumentList.Add("login");
         info.Environment["CLAUDE_CONFIG_DIR"] = configDir;
         System.Diagnostics.Process.Start(info);
     }

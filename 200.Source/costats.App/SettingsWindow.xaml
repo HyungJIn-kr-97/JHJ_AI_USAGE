@@ -269,7 +269,7 @@
                                                 Command="{Binding DataContext.SignInAccountCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}" />
                                         <StackPanel VerticalAlignment="Center" ToolTip="{Binding ConfigDir}">
-                                            <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
                                             <TextBlock Text="{Binding AccountText}" FontSize="10" TextTrimming="CharacterEllipsis"
                                                        Foreground="{DynamicResource TextFaintBrush}" />
                                         </StackPanel>
@@ -281,7 +281,7 @@
                             <Button Content="{loc:Tr 'Add account'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
                                     Style="{StaticResource SettingsButton}" Command="{Binding AddAccountCommand}" />
                             <TextBox Text="{Binding NewAccountName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Padding="6,4"
-                                     VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Account name (letters, digits, - or _)'}"
+                                     VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Email or a short name for the account'}"
                                      Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
                                      BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
                         </DockPanel>

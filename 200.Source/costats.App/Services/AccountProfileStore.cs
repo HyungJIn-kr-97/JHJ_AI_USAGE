@@ -27,8 +27,25 @@ public static class AccountProfileStore
         Regex.IsMatch(name, "^[A-Za-z0-9_-]{1,24}$") &&
         !name.Equals(DefaultName, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// 사용자가 적은 이메일·별명을 폴더 이름으로 접는다 — "jhj@atisys.co.kr" → "jhj-atisys-co-kr". 못 접으면 빈 문자열.
+    /// </summary>
+    public static string ToFolderName(string? label)
+    {
+        var folded = Regex.Replace((label ?? string.Empty).Trim().ToLowerInvariant(), "[^a-z0-9_-]+", "-").Trim('-');
+        if (folded.Length > 24)
+        {
+            folded = folded[..24].TrimEnd('-');
+        }
+
+        return IsValidName(folded) ? folded : string.Empty;
+    }
+
+    public static string LabelOf(string name) =>
+        LoadProfiles()[name]?["label"]?.GetValue<string>() is { Length: > 0 } label ? label : name;
+
     /// <returns>새 계정의 설정 폴더 경로</returns>
-    public static string Add(string name)
+    public static string Add(string name, string label)
     {
         var profiles = LoadProfiles();
 
@@ -40,7 +57,9 @@ public static class AccountProfileStore
 
         var dir = Path.Combine(RootDir, name);
         Directory.CreateDirectory(dir);
-        profiles[name] = NewProfile(dir, "Usage-only account");
+        var profile = NewProfile(dir, "Usage-only account");
+        profile["label"] = label;
+        profiles[name] = profile;
         Save(profiles);
         return dir;
     }
