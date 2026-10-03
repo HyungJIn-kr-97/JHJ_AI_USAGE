@@ -39,7 +39,7 @@ namespace costats.App.Services
 
             _taskbarIcon = new TaskbarIcon();
             _taskbarIcon.Icon = CreateIcon();
-            _taskbarIcon.ToolTipText = "costats (JHJ)";
+            _taskbarIcon.ToolTipText = Loc.T("AI Usage Monitor");
             _taskbarIcon.ContextMenu = BuildContextMenu();
             Loc.LanguageChanged += () => _taskbarIcon.ContextMenu = BuildContextMenu();
             _taskbarIcon.TrayLeftMouseUp += OnTrayLeftClick;

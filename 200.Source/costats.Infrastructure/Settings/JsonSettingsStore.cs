@@ -45,7 +45,7 @@ public sealed class JsonSettingsStore : ISettingsStore
     private static string GetSettingsPath()
     {
         var basePath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(basePath, "costats-jhj", "settings.json");
+        return Path.Combine(basePath, "AiUsageMonitor", "settings.json");
     }
 
     private static void BackupCorruptSettings(string path)

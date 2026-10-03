@@ -19,7 +19,7 @@ internal static class LocStrings
     public static readonly Dictionary<string, string> Korean = new()
     {
         // 팝업
-        ["Unified AI Usage"] = "AI 통합 사용량",
+        ["AI Usage Monitor"] = "AI 통합 사용량 모니터",
         ["FooterCodex"] = " - OpenAI 의 AI 코딩 도구",
         ["FooterClaude"] = " - Anthropic 의 Claude Code CLI",
         ["FooterCopilot"] = " - GitHub 의 AI 코딩 도구",
@@ -87,11 +87,11 @@ internal static class LocStrings
         ["Restart app to apply"] = "앱을 다시 시작해 적용",
         ["SYSTEM"] = "시스템",
         ["Start at login"] = "로그인 시 자동 실행",
-        ["Automatically launch costats when Windows starts."] = "Windows 를 시작할 때 이 앱을 자동으로 실행합니다.",
+        ["Automatically launch AI Usage Monitor when Windows starts."] = "Windows 를 시작할 때 이 앱을 자동으로 실행합니다.",
         ["Language"] = "언어",
         ["AUTOMATION"] = "자동화",
         ["Refresh interval"] = "새로고침 주기",
-        ["How often costats polls for usage data in the background."] = "백그라운드에서 사용량을 가져오는 주기입니다.",
+        ["How often AI Usage Monitor polls for usage data in the background."] = "백그라운드에서 사용량을 가져오는 주기입니다.",
         ["CLAUDE CODE"] = "CLAUDE CODE",
         ["Use multicc profiles"] = "여러 계정 함께 보기",
         ["Automatically detect and display all multicc profiles in the Claude tab."] = "등록된 계정을 Claude 탭에 모두 표시합니다.",

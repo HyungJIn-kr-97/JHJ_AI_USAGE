@@ -6,8 +6,8 @@ namespace costats.Infrastructure.Security;
 
 public sealed class CredentialVault : ICredentialVault
 {
-    private const string TargetPrefix = "costats:";
-    private const string Username = "costats";
+    private const string TargetPrefix = "AiUsageMonitor:";
+    private const string Username = "AiUsageMonitor";
 
     public Task SaveAsync(string key, string secret, CancellationToken cancellationToken)
     {

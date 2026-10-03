@@ -44,13 +44,13 @@ public sealed class StartupUpdateCoordinator
     {
         _options = options;
         _appBaseDirectory = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        _executablePath = Environment.ProcessPath ?? Path.Combine(_appBaseDirectory, "costats.App.exe");
+        _executablePath = Environment.ProcessPath ?? Path.Combine(_appBaseDirectory, "AiUsageMonitor.exe");
         _runtimeRid = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
         _currentVersion = ResolveCurrentVersion();
 
         _updatesRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "costats-jhj",
+            "AiUsageMonitor",
             "updates");
         _statePath = Path.Combine(_updatesRoot, "state.json");
         _pendingPath = Path.Combine(_updatesRoot, "pending.json");
@@ -63,7 +63,7 @@ public sealed class StartupUpdateCoordinator
             Timeout = TimeSpan.FromSeconds(30)
         };
 
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("costats", "1.0"));
+        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AiUsageMonitor", "1.0"));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
     }
 
@@ -280,7 +280,7 @@ public sealed class StartupUpdateCoordinator
 
             if (!TryFindStagedExecutable(stageDir, out var stagedExecutablePath))
             {
-                throw new FileNotFoundException("Staged update did not contain costats.App.exe.");
+                throw new FileNotFoundException("Staged update did not contain AiUsageMonitor.exe.");
             }
 
             var executableRelativePath = Path.GetRelativePath(stageDir, stagedExecutablePath);
@@ -382,7 +382,7 @@ public sealed class StartupUpdateCoordinator
     private static bool TryResolvePendingExecutable(PendingUpdate pending, out string stagedExePath, out string executableRelativePath)
     {
         stagedExePath = string.Empty;
-        executableRelativePath = "costats.App.exe";
+        executableRelativePath = "AiUsageMonitor.exe";
 
         if (string.IsNullOrWhiteSpace(pending.StagingDirectory) || !Directory.Exists(pending.StagingDirectory))
         {
@@ -412,14 +412,14 @@ public sealed class StartupUpdateCoordinator
 
     private static bool TryFindStagedExecutable(string stageDirectory, out string executablePath)
     {
-        executablePath = Path.Combine(stageDirectory, "costats.App.exe");
+        executablePath = Path.Combine(stageDirectory, "AiUsageMonitor.exe");
         if (File.Exists(executablePath))
         {
             return true;
         }
 
         var discovered = Directory
-            .EnumerateFiles(stageDirectory, "costats.App.exe", SearchOption.AllDirectories)
+            .EnumerateFiles(stageDirectory, "AiUsageMonitor.exe", SearchOption.AllDirectories)
             .FirstOrDefault();
 
         if (string.IsNullOrWhiteSpace(discovered))
@@ -516,7 +516,7 @@ public sealed class StartupUpdateCoordinator
         runtimeIdentifier = string.Empty;
         version = new Version(0, 0, 0);
 
-        if (!assetName.StartsWith("costats-win-", StringComparison.OrdinalIgnoreCase) ||
+        if (!assetName.StartsWith("AiUsageMonitor-win-", StringComparison.OrdinalIgnoreCase) ||
             !assetName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
             return false;
@@ -528,7 +528,7 @@ public sealed class StartupUpdateCoordinator
             return false;
         }
 
-        runtimeIdentifier = assetName["costats-".Length..markerIndex];
+        runtimeIdentifier = assetName["AiUsageMonitor-".Length..markerIndex];
         var versionText = assetName[(markerIndex + 2)..^4];
         return TryParseSemVer(versionText, out version);
     }
@@ -745,7 +745,7 @@ public sealed class StartupUpdateCoordinator
         public string Version { get; set; } = "0.0.0";
         public DateTimeOffset CreatedUtc { get; set; }
         public string StagingDirectory { get; set; } = string.Empty;
-        public string ExecutableRelativePath { get; set; } = "costats.App.exe";
+        public string ExecutableRelativePath { get; set; } = "AiUsageMonitor.exe";
         public int FailedAttempts { get; set; }
     }
 
@@ -761,7 +761,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$logDir = Join-Path $env:LOCALAPPDATA "costats-jhj\updates"
+$logDir = Join-Path $env:LOCALAPPDATA "AiUsageMonitor\updates"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logPath = Join-Path $logDir "apply-update.log"
 

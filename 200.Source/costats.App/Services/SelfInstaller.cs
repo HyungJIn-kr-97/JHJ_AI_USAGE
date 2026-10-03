@@ -5,13 +5,13 @@ using Microsoft.Win32;
 namespace costats.App.Services;
 
 /// <summary>
-/// 받은 exe 를 그대로 실행하면 고정 위치(%LOCALAPPDATA%\costats-jhj\app)에 스스로 설치하고 거기서 다시 뜬다.
+/// 받은 exe 를 그대로 실행하면 고정 위치(%LOCALAPPDATA%\AiUsageMonitor\app)에 스스로 설치하고 거기서 다시 뜬다.
 /// 계약: 설치 폴더는 이 앱 전용이다 — 업데이트가 폴더를 통째로 갈아 끼우므로 다른 파일을 두지 않는다.
 /// </summary>
 public static class SelfInstaller
 {
-    private const string AppName = "costats-jhj";
-    private const string ShortcutName = "AI 통합 사용량.lnk";
+    private const string AppName = "AiUsageMonitor";
+    private const string ShortcutName = "AI 통합 사용량 모니터.lnk";
     private static readonly string[] SiblingFiles = ["appsettings.json", "apply-update.ps1"];
 
     public static string InstallDir { get; } = Path.Combine(
@@ -33,7 +33,7 @@ public static class SelfInstaller
 
         var answer = System.Windows.MessageBox.Show(
             $"이 PC 에 설치하고 실행할까요?\n(Install to this PC and run?)\n\n{InstallDir}\n\n「아니요」를 고르면 설치 없이 이 위치에서 실행합니다.",
-            "AI 통합 사용량",
+            "AI 통합 사용량 모니터",
             System.Windows.MessageBoxButton.YesNo,
             System.Windows.MessageBoxImage.Question);
         if (answer != System.Windows.MessageBoxResult.Yes)
@@ -67,7 +67,7 @@ public static class SelfInstaller
         {
             System.Windows.MessageBox.Show(
                 $"설치하지 못했습니다. 이 위치에서 그대로 실행합니다.\n\n{ex.Message}",
-                "AI 통합 사용량",
+                "AI 통합 사용량 모니터",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Warning);
             return false;

@@ -9,7 +9,7 @@ namespace costats.App.Services;
 public sealed record UsageHistoryEntry(DateOnly Day, string Model, decimal Cost, long Tokens);
 
 /// <summary>
-/// 일별 사용량을 계정마다 파일로 쌓아 둔다 — %LOCALAPPDATA%\costats-jhj\history\.
+/// 일별 사용량을 계정마다 파일로 쌓아 둔다 — %LOCALAPPDATA%\AiUsageMonitor\history\.
 /// 왜: Claude Code 가 오래된 대화 기록을 스스로 지우므로, 로그만 읽어서는 90일·1년 범위를 채울 수 없다.
 /// 계약: 같은 (날짜, 모델)은 비용이 더 큰 쪽을 남긴다 — 로그가 일부 지워진 뒤의 작은 값이 옛 값을 덮지 못한다.
 /// </summary>
@@ -18,7 +18,7 @@ public static class UsageHistoryStore
     private const int KeepDays = 400;
 
     private static readonly string RootDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "costats-jhj", "history");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AiUsageMonitor", "history");
 
     private static readonly Dictionary<string, Dictionary<(DateOnly, string), UsageHistoryEntry>> Cache =
         new(StringComparer.OrdinalIgnoreCase);

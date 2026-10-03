@@ -325,10 +325,10 @@
                     <StackPanel>
                         <TextBlock Text="{loc:Tr 'General'}" Style="{StaticResource CardTitle}" />
                         <CheckBox IsChecked="{Binding StartAtLogin}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
-                                  ToolTip="{loc:Tr 'Automatically launch costats when Windows starts.'}">
+                                  ToolTip="{loc:Tr 'Automatically launch AI Usage Monitor when Windows starts.'}">
                             <TextBlock Text="{loc:Tr 'Start at login'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
                         </CheckBox>
-                        <DockPanel ToolTip="{loc:Tr 'How often costats polls for usage data in the background.'}">
+                        <DockPanel ToolTip="{loc:Tr 'How often AI Usage Monitor polls for usage data in the background.'}">
                             <ComboBox ItemsSource="{Binding RefreshOptions}"
                                       SelectedItem="{Binding SelectedRefreshOption}"
                                       Style="{StaticResource SettingsComboBox}"

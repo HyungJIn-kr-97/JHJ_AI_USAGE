@@ -7,10 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <RootNamespace>costats.App</RootNamespace>
-    <AssemblyName>costats.App</AssemblyName>
+    <AssemblyName>AiUsageMonitor</AssemblyName>
 
     <!-- App metadata -->
-    <Product>costats</Product>
+    <Product>AI Usage Monitor</Product>
     <Description>Usage statistics for Claude and Codex AI coding assistants</Description>
     <Company>jhj</Company>
     <Authors>jhj</Authors>

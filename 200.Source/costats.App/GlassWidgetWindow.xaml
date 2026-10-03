@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:costats.App"
         xmlns:loc="clr-namespace:costats.App.Localization"
         xmlns:views="clr-namespace:costats.App.Views"
-        Title="costats"
+        Title="AI Usage Monitor"
         Width="360"
         Height="816"
         FontFamily="Pretendard Variable, Pretendard, Malgun Gothic, Segoe UI"
@@ -162,7 +162,7 @@
                       </StackPanel>
                     </Border>
                 </Popup>
-                <TextBlock Text="{loc:Tr 'Unified AI Usage'}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
+                <TextBlock Text="{loc:Tr 'AI Usage Monitor'}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}" />
             </DockPanel>
             <Grid Margin="20,46,20,20">

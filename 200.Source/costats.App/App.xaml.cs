@@ -33,13 +33,14 @@ namespace costats.App
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             base.OnStartup(e);
+            LegacyMigration.Run();
             ApplyTheme();
 
             BootstrapEarlyLogger();
             RegisterExceptionHandlers();
 
             var version = Assembly.GetExecutingAssembly().GetName().Version;
-            Log.Information("costats starting (v{Version}, PID {Pid})", version, Environment.ProcessId);
+            Log.Information("AiUsageMonitor starting (v{Version}, PID {Pid})", version, Environment.ProcessId);
 
             if (SelfInstaller.TryInstallAndRelaunch())
             {
@@ -47,7 +48,7 @@ namespace costats.App
                 return;
             }
 
-            _singleInstance = new SingleInstanceCoordinator("costats-jhj");
+            _singleInstance = new SingleInstanceCoordinator("AiUsageMonitor");
             if (!_singleInstance.IsPrimary)
             {
                 _ = Task.Run(async () =>
@@ -135,7 +136,7 @@ namespace costats.App
                 Log.Fatal(ex, "Startup failed");
                 System.Windows.MessageBox.Show(
                     $"Startup error: {ex.Message}\n\n{ex.StackTrace}",
-                    "costats Error",
+                    "AI Usage Monitor",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 Shutdown(1);
@@ -166,14 +167,14 @@ namespace costats.App
         {
             var logDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "costats-jhj", "logs");
+                "AiUsageMonitor", "logs");
             Directory.CreateDirectory(logDir);
 
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Information()
                 .WriteTo.Debug()
                 .WriteTo.File(
-                    Path.Combine(logDir, "costats-.log"),
+                    Path.Combine(logDir, "AiUsageMonitor-.log"),
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 14,
                     outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}")

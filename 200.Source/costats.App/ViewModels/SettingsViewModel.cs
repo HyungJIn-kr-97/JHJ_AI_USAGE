@@ -27,7 +27,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly StartupUpdateCoordinator? _updateCoordinator;
     private readonly IMulticcDiscovery? _multiccDiscovery;
     private const string StartupRegistryKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-    private const string AppName = "costats-jhj";
+    private const string AppName = "AiUsageMonitor";
 
     public SettingsViewModel(
         ISettingsStore settingsStore,

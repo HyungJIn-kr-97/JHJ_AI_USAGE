@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Publishes costats for Windows x64 and ARM64.
+    Publishes AI Usage Monitor for Windows x64 and ARM64.
 
 .DESCRIPTION
     Creates self-contained, single-file executables for distribution.
@@ -67,7 +67,7 @@ $outputBase = Join-Path $PSScriptRoot "publish"
 
 $platforms = if ($Platform -eq "all") { @("win-x64", "win-arm64") } else { @("win-$Platform") }
 
-Write-Host "Building costats v$Version" -ForegroundColor Cyan
+Write-Host "Building AI Usage Monitor v$Version" -ForegroundColor Cyan
 Write-Host "Configuration: $Configuration" -ForegroundColor Gray
 Write-Host "Platforms: $($platforms -join ', ')" -ForegroundColor Gray
 Write-Host ""
@@ -96,7 +96,7 @@ foreach ($rid in $platforms) {
     }
 
     # Create ZIP archive
-    $zipPath = Join-Path $outputBase "costats-$rid-v$Version.zip"
+    $zipPath = Join-Path $outputBase "AiUsageMonitor-$rid-v$Version.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath }
     Compress-Archive -Path "$outputPath\*" -DestinationPath $zipPath
     # Hash via .NET: Get-FileHash fails to auto-load when Windows PowerShell inherits a PowerShell 7 PSModulePath.
