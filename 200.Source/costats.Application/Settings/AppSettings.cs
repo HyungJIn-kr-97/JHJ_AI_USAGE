@@ -41,4 +41,7 @@ public sealed class AppSettings
     /// Whether the GitHub Copilot personal usage provider is enabled.
     /// </summary>
     public bool CopilotEnabled { get; set; } = false;
+
+    // 계약: 켜야 Gemini 탭이 보이고 ~/.gemini 를 읽는다 — Gemini CLI 를 쓰지 않는 PC 에서 빈 탭이 뜨지 않게 기본은 꺼 둔다
+    public bool GeminiEnabled { get; set; } = false;
 }

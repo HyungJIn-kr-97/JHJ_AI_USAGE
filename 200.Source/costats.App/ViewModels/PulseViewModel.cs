@@ -22,6 +22,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
         _orchestrator = orchestrator;
         _settings = settings;
         isCopilotEnabled = settings.CopilotEnabled;
+        isGeminiEnabled = settings.GeminiEnabled;
         _displayNames = sources
             .Select(source => source.Profile)
             .GroupBy(profile => profile.ProviderId)
@@ -65,6 +66,9 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
     private ProviderPulseViewModel copilot = new();
 
     [ObservableProperty]
+    private ProviderPulseViewModel gemini = new();
+
+    [ObservableProperty]
     private string updatedLabel = "Updated never";
 
     [ObservableProperty]
@@ -79,6 +83,10 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
 
     [ObservableProperty]
     private bool isCopilotEnabled;
+
+    // 계약: 탭 번호는 0 Codex · 1 Claude · 2 Copilot · 3 Gemini 로 고정이다 — 꺼진 탭은 폭 0 으로 숨긴다
+    [ObservableProperty]
+    private bool isGeminiEnabled;
 
     [ObservableProperty]
     private string multiccSummary = string.Empty;
@@ -189,6 +197,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
     {
         0 => Codex,
         1 => Claude,
+        3 => IsGeminiEnabled ? Gemini : Codex,
         _ => IsCopilotEnabled ? Copilot : Codex
     };
 
@@ -211,6 +220,9 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 return "claude";
             }
 
+            if (SelectedTabIndex == 3)
+                return IsGeminiEnabled ? "gemini" : "codex";
+
             return IsCopilotEnabled ? "copilot" : "codex";
         }
     }
@@ -227,6 +239,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
             1 when IsMulticcActive && SelectedClaudeAccountId is null => Loc.T("All · {0} accounts", ClaudeProfiles.Count),
             1 when IsMulticcActive => ShortAccount(AccountIdentityReader.ReadClaude(AccountDirOf(SelectedClaudeAccountId!))),
             1 => ShortAccount(AccountIdentityReader.ReadClaude()),
+            3 => ShortAccount(AccountIdentityReader.ReadGemini()),
             _ => string.Empty
         };
     }
@@ -323,7 +336,8 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
         System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
         {
             IsCopilotEnabled = _settings.CopilotEnabled;
-            if (!IsCopilotEnabled && SelectedTabIndex > 1)
+            IsGeminiEnabled = _settings.GeminiEnabled;
+            if ((!IsCopilotEnabled && SelectedTabIndex == 2) || (!IsGeminiEnabled && SelectedTabIndex == 3))
             {
                 SelectedTabIndex = 1;
             }
@@ -339,6 +353,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 ProviderPulseViewModel? newCodex = null;
                 ProviderPulseViewModel? newClaude = null;
                 ProviderPulseViewModel? newCopilot = null;
+                ProviderPulseViewModel? newGemini = null;
 
                 // Aggregate cost/token totals across multicc profiles
                 decimal totalTodayCost = 0;
@@ -353,7 +368,8 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                     var displayName = _displayNames.TryGetValue(providerId, out var name) ? name : providerId;
                     var vm = ProviderPulseViewModel.FromReading(reading, displayName);
 
-                    if (providerId.Equals("copilot", StringComparison.OrdinalIgnoreCase) && !IsCopilotEnabled)
+                    if ((providerId.Equals("copilot", StringComparison.OrdinalIgnoreCase) && !IsCopilotEnabled) ||
+                        (providerId.Equals("gemini", StringComparison.OrdinalIgnoreCase) && !IsGeminiEnabled))
                     {
                         continue;
                     }
@@ -371,6 +387,10 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                     else if (providerId.Equals("copilot", StringComparison.OrdinalIgnoreCase))
                     {
                         newCopilot = vm;
+                    }
+                    else if (providerId.Equals("gemini", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newGemini = vm;
                     }
                     else if (providerId.StartsWith("claude:", StringComparison.OrdinalIgnoreCase))
                     {
@@ -427,6 +447,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 if (newCodex is not null) Codex = newCodex;
                 if (newClaude is not null) Claude = newClaude;
                 if (newCopilot is not null) Copilot = newCopilot;
+                if (newGemini is not null) Gemini = newGemini;
                 IsMulticcActive = isMulticc;
                 MulticcSummary = Loc.Tr(summaryText);
 

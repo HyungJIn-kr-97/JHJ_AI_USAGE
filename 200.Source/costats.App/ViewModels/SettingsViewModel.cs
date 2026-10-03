@@ -56,6 +56,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         multiccProfileCount = multiccProfileNames.Count;
 
         copilotEnabled = settings.CopilotEnabled;
+        geminiEnabled = settings.GeminiEnabled;
         _ = LoadCopilotTokenStatusAsync();
         RefreshAccounts();
     }
@@ -94,6 +95,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ClaudeSourceText = Loc.T("Claude Code login on this PC · {0}", AccountIdentityReader.ClaudeAccountFile());
         CodexAccountText = Loc.T(AccountIdentityReader.ReadCodex());
         CodexSourceText = Loc.T("Codex CLI login on this PC · {0}", AccountIdentityReader.CodexAuthFile());
+        GeminiAccountText = Loc.T(AccountIdentityReader.ReadGemini());
 
         var root = AccountProfileStore.RootDir;
         ExtraAccounts = Directory.Exists(root)
@@ -260,6 +262,19 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private bool copilotEnabled;
+
+    [ObservableProperty]
+    private bool geminiEnabled;
+
+    [ObservableProperty]
+    private string geminiAccountText = string.Empty;
+
+    partial void OnGeminiEnabledChanged(bool value)
+    {
+        _settings.GeminiEnabled = value;
+        _ = SaveSettingsAsync();
+        _ = _pulseOrchestrator.RefreshOnceAsync(RefreshTrigger.Silent, CancellationToken.None);
+    }
 
     [ObservableProperty]
     private bool hasCopilotToken;

@@ -54,6 +54,7 @@ Claude Code · Codex 의 세션·주간 한도와 일별 비용을 트레이 팝
 | 기간 선택 | 30일 고정 | Cost 옆 `7일`~`1년` 칩 6개(차트·모델 비중에 적용, 재시작하면 30일). 90·180일은 주 단위, 1년은 월 단위 막대 | `PulseViewModel.cs` · `ProviderPulseViewModel.cs` · `Services/UsageHistoryStore.cs` · `ExpenseAnalyzer.cs` |
 | 모델별 사용량 | 없음 | 차트 아래 도넛 + 목록 4줄, 막대 툴팁에 그날의 모델 | `ProviderPulseViewModel.cs` · `ModelUsageRow.cs` |
 | 사용량 조회용 계정 | multicc 설정 파일을 손으로 작성 | 설정 창에서 추가·로그인·삭제, 메인 팝업 우측 상단 드롭다운으로 계정 전환(All 포함). 계정이 하나면 그 메일 주소만 표시 | `Services/AccountProfileStore.cs` · `SettingsViewModel.cs` · `PulseViewModel.cs` · `AccountChip.cs` · `ExtraAccountRow.cs` |
+| Gemini | 없음 | 4번째 탭(설정 창 「Gemini」에서 켬, 기본 꺼짐). 한도는 Code Assist 비공개 API(`retrieveUserQuota`)에서 Pro·Flash 계열의 일일 사용률, 일별 토큰·비용은 `~/.gemini/tmp/<프로젝트>/chats/session-*.json(l)` 에서 | `GeminiLogSource.cs` · `GeminiQuotaFetcher.cs` · `RateCard.cs` · `PulseViewModel.cs` · `GlassWidgetWindow.xaml` · `SettingsWindow.xaml` |
 | 언어 | 영어만 | 한국어 기본, 설정 창에서 한국어/English 전환(즉시 반영, 설정에 저장) | `Localization/Loc.cs` · `Localization/LocStrings.cs` · 창 XAML 3개 · 뷰모델 3개 · `TrayHost.cs` |
 | 열 때 새로고침 | 선택 탭만 표시 없이 | 전체를 스피너와 함께 | `Services/TrayHost.cs` |
 | 일별 비용 차트 | 없음 | Cost 아래 막대(마우스를 올리면 날짜·비용·토큰) | `ProviderPulseViewModel.cs` · `DailyUsageBar.cs` · `GlassWidgetWindow.xaml` |
@@ -64,4 +65,5 @@ Claude Code · Codex 의 세션·주간 한도와 일별 비용을 트레이 팝
 - 일별 사용량은 `%LOCALAPPDATA%\AiUsageMonitor\history\<계정>.json` 에 쌓습니다. Claude Code 가 오래된 대화 기록을 지워도 여기 쌓인 날은 남습니다 — **이 폴더를 지우면 로그에 없는 과거는 되살릴 수 없습니다.**
 - 계정은 `~/.claude.json` 의 `oauthAccount` 와 `~/.codex/auth.json` 의 `id_token` 에서 이메일만 읽습니다.
 - 차트의 날짜는 원본 집계를 그대로 써서 **UTC 기준**입니다. 한국 시간 오전 9시 이전 사용분은 전날 막대에 들어갑니다.
-- 탭 번호(0 = Codex, 1 = Claude)는 원본 그대로입니다. 원본을 다시 받아 합칠 때 위 표의 파일만 다시 고치면 됩니다.
+- Gemini 함정: 개인 Google 계정의 Gemini CLI 로그인은 2026-06-18 에 막혀 **한도는 Code Assist Standard/Enterprise 좌석에서만** 나옵니다. 그 밖에는 토큰·비용 이력만 보이고, 비용은 API 단가로 환산한 추정입니다. CLI 가 30일 지난 세션을 스스로 지우므로 그 이전은 앱의 `history` 폴더에 쌓인 날만 남습니다. 토큰 갱신에 필요한 OAuth 클라이언트 값은 소스에 넣지 않고 설치된 gemini-cli 번들에서 읽으며, 갱신한 토큰은 파일에 쓰지 않습니다.
+- 탭 번호(0 = Codex, 1 = Claude, 2 = Copilot, 3 = Gemini)는 고정입니다. 0·1 은 원본 그대로입니다. 원본을 다시 받아 합칠 때 위 표의 파일만 다시 고치면 됩니다.

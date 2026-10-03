@@ -457,6 +457,23 @@
                                    Visibility="{Binding CopilotTokenStatus, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
                     </StackPanel>
                 </TabItem>
+
+                <!-- Gemini -->
+                <TabItem Header="Gemini">
+                    <StackPanel>
+                        <CheckBox IsChecked="{Binding GeminiEnabled}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
+                                  ToolTip="{loc:Tr 'Reads ~/.gemini: quota from the signed-in Code Assist seat, tokens and cost from session logs.'}">
+                            <TextBlock Text="{loc:Tr 'Show Gemini CLI usage'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <DockPanel Margin="0,0,0,10">
+                            <TextBlock Text="Gemini" Width="52" DockPanel.Dock="Left" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="{Binding GeminiAccountText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </DockPanel>
+                        <TextBlock Text="{loc:Tr 'Quota needs a Code Assist Standard/Enterprise seat. Personal Google sign-in was closed on 2026-06-18, so only token and cost history shows for it. Cost is an API-price estimate.'}"
+                                   FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFaintBrush}" />
+                    </StackPanel>
+                </TabItem>
             </TabControl>
 
             <!-- Footer: version · author · links on one line, attribution below -->

@@ -66,6 +66,33 @@ public static class AccountIdentityReader
         return isDefaultDir && !File.Exists(inDir) ? homeFile : inDir;
     }
 
+    /// <summary>
+    /// 계약: Gemini CLI 가 ~/.gemini/google_accounts.json 의 active 에 적어 둔 로그인 메일만 읽는다.
+    /// </summary>
+    public static string ReadGemini()
+    {
+        try
+        {
+            var path = GeminiAccountFile();
+            if (!File.Exists(path))
+            {
+                return NotSignedIn;
+            }
+
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var doc = JsonDocument.Parse(stream);
+            var active = GetString(doc.RootElement, "active");
+            return string.IsNullOrWhiteSpace(active) ? NotSignedIn : active;
+        }
+        catch (Exception)
+        {
+            return "Unable to read account";
+        }
+    }
+
+    public static string GeminiAccountFile() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "google_accounts.json");
+
     public static string CodexAuthFile()
     {
         var codexHome = Environment.GetEnvironmentVariable("CODEX_HOME");

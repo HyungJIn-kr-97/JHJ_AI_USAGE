@@ -105,6 +105,7 @@ public static class ThemeManager
             ["PlanTextCodexBrush"] = Frozen(dark ? "#34D399" : "#047857"),
             ["PlanTextClaudeBrush"] = Frozen(dark ? "#FDBA74" : "#C2410C"),
             ["PlanTextCopilotBrush"] = Frozen(dark ? "#C4B5FD" : "#4C1D95"),
+            ["PlanTextGeminiBrush"] = Frozen(dark ? "#93C5FD" : "#1E40AF"),
         };
 
         var merged = global::System.Windows.Application.Current.Resources.MergedDictionaries;

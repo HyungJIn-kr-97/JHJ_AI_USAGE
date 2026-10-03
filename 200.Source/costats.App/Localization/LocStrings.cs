@@ -14,6 +14,7 @@ internal static class LocStrings
         ["FooterCodex"] = " - OpenAI's AI coding assistant",
         ["FooterClaude"] = " - Anthropic's Claude Code CLI",
         ["FooterCopilot"] = " - GitHub's AI coding assistant",
+        ["FooterGemini"] = " - Google's Gemini CLI",
     };
 
     public static readonly Dictionary<string, string> Korean = new()
@@ -23,6 +24,15 @@ internal static class LocStrings
         ["FooterCodex"] = " - OpenAI 의 AI 코딩 도구",
         ["FooterClaude"] = " - Anthropic 의 Claude Code CLI",
         ["FooterCopilot"] = " - GitHub 의 AI 코딩 도구",
+        ["FooterGemini"] = " - Google 의 Gemini CLI",
+        ["Pro models · daily"] = "Pro 모델 · 일일",
+        ["Flash models · daily"] = "Flash 모델 · 일일",
+        ["No Gemini usage data available"] = "Gemini 사용량 데이터 없음",
+        ["Gemini disabled in Settings"] = "설정에서 Gemini 가 꺼져 있음",
+        ["Show Gemini CLI usage"] = "Gemini CLI 사용량 표시",
+        ["Reads ~/.gemini: quota from the signed-in Code Assist seat, tokens and cost from session logs."] = "~/.gemini 를 읽습니다 — 한도는 로그인된 Code Assist 좌석에서, 토큰·비용은 세션 로그에서 가져옵니다.",
+        ["Quota needs a Code Assist Standard/Enterprise seat. Personal Google sign-in was closed on 2026-06-18, so only token and cost history shows for it. Cost is an API-price estimate."] = "한도는 Code Assist Standard/Enterprise 좌석이 있어야 보입니다. 개인 Google 로그인은 2026-06-18 에 막혀 토큰·비용 이력만 나옵니다. 비용은 API 단가 환산 추정입니다.",
+        ["Gemini CLI login on this PC · {0}"] = "이 PC 의 Gemini CLI 로그인 · {0}",
         ["Session"] = "세션",
         ["Weekly"] = "주간",
         ["Premium requests"] = "프리미엄 요청",

@@ -260,6 +260,7 @@ namespace costats.App
                     services.AddSingleton<CopilotUsageFetcher>();
                     services.AddSingleton<ISignalSource, CodexLogSource>();
                     services.AddSingleton<ISignalSource, CopilotPersonalSource>();
+                    services.AddSingleton<ISignalSource, GeminiLogSource>();
                     // Multicc integration: conditionally register per-profile or default Claude source
                     services.AddSingleton<MulticcConfigReader>();
 

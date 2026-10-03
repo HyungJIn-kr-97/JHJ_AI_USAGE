@@ -49,6 +49,12 @@ public sealed class ExpenseAnalyzer
         return BuildDigest(slices, today, DefaultWindowDays);
     }
 
+    /// <summary>
+    /// 계약: 이미 일별·모델별로 모은 내역을 받아 같은 규칙(오늘·최근 30일)으로 요약한다 — 자기 로그 형식을 직접 읽는 제공자용.
+    /// </summary>
+    public ConsumptionDigest FromSlices(IReadOnlyList<ConsumptionSlice> slices) =>
+        BuildDigest(slices, DateOnly.FromDateTime(DateTime.Now), DefaultWindowDays);
+
     private static ConsumptionDigest BuildDigest(
         IReadOnlyList<ConsumptionSlice> slices,
         DateOnly today,
