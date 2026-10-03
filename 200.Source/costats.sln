@@ -1,17 +1,17 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.2.11415.280 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "costats.App", "src\costats.App\costats.App.csproj", "{14F21722-826C-419B-9484-21A2BC9C57DF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "costats.App", "costats.App\costats.App.csproj", "{14F21722-826C-419B-9484-21A2BC9C57DF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "costats.Core", "src\costats.Core\costats.Core.csproj", "{C1FA1382-E372-4368-96C6-6AFC7A4713CD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "costats.Core", "costats.Core\costats.Core.csproj", "{C1FA1382-E372-4368-96C6-6AFC7A4713CD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "costats.Application", "src\costats.Application\costats.Application.csproj", "{348B08A7-E1DF-42AD-913D-25697C41BFC5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "costats.Application", "costats.Application\costats.Application.csproj", "{348B08A7-E1DF-42AD-913D-25697C41BFC5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "costats.Infrastructure", "src\costats.Infrastructure\costats.Infrastructure.csproj", "{140A944B-C796-4F04-B9BB-E9C9C274754F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "costats.Infrastructure", "costats.Infrastructure\costats.Infrastructure.csproj", "{140A944B-C796-4F04-B9BB-E9C9C274754F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

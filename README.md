@@ -2,7 +2,7 @@
 
 Claude Code · Codex 의 세션·주간 한도와 일별 비용을 트레이 팝업으로 보여 주는 개인 도구입니다.
 [fmdz387/costats](https://github.com/fmdz387/costats) (MIT) 의 포크이고, 원본 README 는
-[README.upstream.md](README.upstream.md) 에 그대로 있습니다. **이 저장소가 원본입니다** — `JHJ_DEV` 에는 지도 한 줄만 있습니다.
+[900.Archive/upstream/README.upstream.md](900.Archive/upstream/README.upstream.md) 에 그대로 있습니다. **이 저장소가 원본입니다** — `JHJ_DEV` 에는 지도 한 줄만 있습니다.
 
 ## 설치
 
@@ -21,34 +21,34 @@ Claude Code · Codex 의 세션·주간 한도와 일별 비용을 트레이 팝
 
 | 하려는 것 | 방법 |
 |---|---|
-| 개발 빌드 | `dotnet build costats.sln -c Release` → `src\costats.App\bin\Release\…\costats.App.exe`. 개발 실행이라 설치·업데이트는 동작하지 않습니다 |
-| 설치용 exe · 업데이트 꾸러미 | `Build-Exe.bat` 더블클릭(버전을 올리려면 `Build-Exe.bat 1.0.1`) → `publish\win-x64\costats.App.exe` 와 `publish\costats-win-x64-v<버전>.zip` · `.zip.sha256` |
-| 릴리스 | 태그 `v<버전>` 으로 GitHub Release 를 만들고 **zip 과 .sha256 두 파일**을 올립니다. 예: `gh release create v1.0.1 publish\costats-win-x64-v1.0.1.zip publish\costats-win-x64-v1.0.1.zip.sha256` |
+| 개발 빌드 | `dotnet build 200.Source\costats.sln -c Release` → `200.Source\costats.App\bin\Release\…\costats.App.exe`. 개발 실행이라 설치·업데이트는 동작하지 않습니다 |
+| 설치용 exe · 업데이트 꾸러미 | `800.Deploy\Build-Exe.bat` 더블클릭(버전을 올리려면 `Build-Exe.bat 1.0.1`) → `800.Deploy\publish\win-x64\costats.App.exe` 와 `800.Deploy\publish\costats-win-x64-v<버전>.zip` · `.zip.sha256` |
+| 릴리스 | 태그 `v<버전>` 으로 GitHub Release 를 만들고 **zip 과 .sha256 두 파일**을 올립니다. 예: `gh release create v1.0.1 800.Deploy\publish\costats-win-x64-v1.0.1.zip 800.Deploy\publish\costats-win-x64-v1.0.1.zip.sha256` |
 
-- `publish\` 는 git 에 올라가지 않습니다.
+- `800.Deploy\publish\` 는 git 에 올라가지 않습니다.
 - 함정: 설치 폴더는 업데이트 때 **통째로 교체**됩니다. 그래서 설치 위치가 아닌 곳에서 띄운 exe 는 스스로 업데이트하지 않습니다.
 - 함정: 이 저장소는 **공개**여야 합니다 — 앱이 토큰 없이 `api.github.com/repos/HyungJIn-kr-97/JHJ_AI_USAGE/releases/latest` 를 읽습니다.
   업데이트 저장소를 원본(`fmdz387/costats`)으로 적으면 원본 릴리스가 이 포크를 덮어씁니다.
 - 빌드 중에는 이 폴더에서 띄운 개발 실행본을 bat 가 먼저 종료합니다(`bin\` 잠금). 설치본은 건드리지 않습니다.
-- 원본의 GitHub Actions(`.github/`)는 뺐습니다 — 릴리스는 위 명령으로 사람이 올립니다.
+- 원본의 GitHub Actions(`.github/`)는 뺐습니다 — 릴리스는 위 명령으로 사람이 올립니다. 원본에서 쓰지 않는 것(문서·MSIX 패키징·insights-cli·install.ps1)은 `900.Archive\upstream\` 에 참고용으로만 둡니다.
 
 ## 원본과 다른 점
 
 | 무엇 | 원본 | 이 포크 | 고친 파일 |
 |---|---|---|---|
-| 탭 배치 | Codex · Claude | Claude · Codex | `src/costats.App/GlassWidgetWindow.xaml` |
-| 처음 선택되는 탭 | Codex | Claude | `src/costats.App/ViewModels/PulseViewModel.cs` |
+| 탭 배치 | Codex · Claude | Claude · Codex | `200.Source/costats.App/GlassWidgetWindow.xaml` |
+| 처음 선택되는 탭 | Codex | Claude | `200.Source/costats.App/ViewModels/PulseViewModel.cs` |
 | 데이터 폴더 | `%LOCALAPPDATA%\costats` | `%LOCALAPPDATA%\costats-jhj` | `JsonSettingsStore.cs` · `JsonPulseSnapshotWriter.cs` · `ClaudeOAuthUsageFetcher.cs` · `App.xaml.cs` · `appsettings.json` |
 | 단일 실행 이름 · 시작프로그램 이름 | `costats` | `costats-jhj` | `App.xaml.cs` · `SettingsViewModel.cs` |
 | 기본 단축키 | `Ctrl+Alt+U` | `Ctrl+Alt+Y` | `AppSettings.cs` · `appsettings.json` |
-| 아이콘 | costats 로고 | JHJ favicon(불꽃 황소) | `src/costats.App/Resources/tray-icon.ico` |
+| 아이콘 | costats 로고 | JHJ favicon(불꽃 황소) | `200.Source/costats.App/Resources/tray-icon.ico` |
 | 설치 | zip + `install.ps1` | exe 를 실행하면 `%LOCALAPPDATA%\costats-jhj\app` 에 스스로 설치 | `Services/SelfInstaller.cs` · `App.xaml.cs` |
 | 자동 업데이트 | 원본 저장소 릴리스 | **이 저장소 릴리스만**(`Costats:Update:Repository`). 비어 있으면 꺼짐. 상태 폴더는 `%LOCALAPPDATA%\costats-jhj\updates`, 설정 창 「일반」에 `업데이트 확인` 버튼 | `UpdateOptions.cs` · `StartupUpdateCoordinator.cs` · `apply-update.ps1` · `appsettings.json` · `SettingsWindow.xaml` |
 | 색·글꼴 | 라벤더 | JHJ 팔레트 5종(bull·navy·emerald·violet·slate) × 라이트·다크 · Pretendard. 팔레트는 설정 창 견본으로 고른다 | `Services/ThemeManager.cs` · `App.xaml.cs` · 창 XAML 3개 |
 | 모델별 주간 한도 | 없음 | 주간 아래에 `주간 · Fable` 막대(응답 `limits[]` 의 `weekly_scoped`) | `ClaudeOAuthUsageFetcher.cs` · `UsagePulse.cs` · `ProviderPulseViewModel.cs` · `ModelWeekRow.cs` |
 | 설정 창 구성 | 구분선 나열 | 카드 4장(계정·화면·일반·Copilot) + 두 줄 하단. 설명은 툴팁으로, 콤보는 테마 색 템플릿 | `SettingsWindow.xaml` |
 | 로그인 계정 표시 | 없음 | 설정 창 맨 위 「계정」에 Claude·Codex 계정 | `Services/AccountIdentityReader.cs` · `SettingsViewModel.cs` · `SettingsWindow.xaml` |
-| 버전 · 제작자 | 1.4.6 · fmdz | 1.0.0 · `제작 HyungJin Ju (메일 주소)` + GitHub 링크, 원저작자 표기 유지 | `src/Directory.Build.props` · `costats.App.csproj` · `SettingsWindow.xaml` |
+| 버전 · 제작자 | 1.4.6 · fmdz | 1.0.0 · `제작 HyungJin Ju (메일 주소)` + GitHub 링크, 원저작자 표기 유지 | `200.Source/Directory.Build.props` · `costats.App.csproj` · `SettingsWindow.xaml` |
 | 제목 줄 · 테마 버튼 | 없음 | 상단 `AI 통합 사용량`(영어 `Unified AI Usage`) 제목, 하단 반달 버튼으로 라이트/다크 전환(설정에 저장) | `GlassWidgetWindow.xaml` · `Services/ThemeManager.cs` · `AppSettings.cs` |
 | 기간 선택 | 30일 고정 | Cost 옆 `7일`~`1년` 칩 6개(차트·모델 비중에 적용, 재시작하면 30일). 90·180일은 주 단위, 1년은 월 단위 막대 | `PulseViewModel.cs` · `ProviderPulseViewModel.cs` · `Services/UsageHistoryStore.cs` · `ExpenseAnalyzer.cs` |
 | 모델별 사용량 | 없음 | 차트 아래 도넛 + 목록 4줄, 막대 툴팁에 그날의 모델 | `ProviderPulseViewModel.cs` · `ModelUsageRow.cs` |

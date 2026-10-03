@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Updates version in:
-      - src/Directory.Build.props  (the .NET single source of truth)
+      - 200.Source/Directory.Build.props  (the .NET single source of truth)
       - tools/insights-cli/package.json  (npm package, optional)
       - tools/insights-cli/package-lock.json (npm lockfile, optional)
 
@@ -52,9 +52,9 @@ $ErrorActionPreference = "Stop"
 
 # ── Paths ────────────────────────────────────────────────────────────
 $repoRoot       = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$buildPropsPath = Join-Path $repoRoot "src\Directory.Build.props"
-$pkgJsonPath    = Join-Path $repoRoot "tools\insights-cli\package.json"
-$pkgLockPath    = Join-Path $repoRoot "tools\insights-cli\package-lock.json"
+$buildPropsPath = Join-Path $repoRoot "200.Source\Directory.Build.props"
+$pkgJsonPath    = Join-Path $repoRoot "900.Archive\upstream\tools\insights-cli\package.json"
+$pkgLockPath    = Join-Path $repoRoot "900.Archive\upstream\tools\insights-cli\package-lock.json"
 
 # ── Helpers ──────────────────────────────────────────────────────────
 function Get-CurrentVersion {
@@ -117,7 +117,7 @@ Write-Host "${label}Bumping version: $oldVersion -> $newVersion" -ForegroundColo
 Write-Host ""
 
 # ── 1. Update Directory.Build.props ──────────────────────────────────
-Write-Host "${label}  Updating src/Directory.Build.props" -ForegroundColor White
+Write-Host "${label}  Updating 200.Source/Directory.Build.props" -ForegroundColor White
 if (-not $DryRun) {
     $content = Get-Content -Path $buildPropsPath -Raw
     $content = $content -replace "(<VersionPrefix[^>]*>)$([regex]::Escape($oldVersion))(</VersionPrefix>)", "`${1}$newVersion`${2}"
@@ -160,7 +160,7 @@ Write-Host ""
 Write-Host "${label}Done! Version is now $newVersion" -ForegroundColor Green
 Write-Host ""
 Write-Host "Files updated:" -ForegroundColor Gray
-Write-Host "  - src/Directory.Build.props" -ForegroundColor Gray
+Write-Host "  - 200.Source/Directory.Build.props" -ForegroundColor Gray
 if ($IncludeCli) {
     Write-Host "  - tools/insights-cli/package.json" -ForegroundColor Gray
     Write-Host "  - tools/insights-cli/package-lock.json" -ForegroundColor Gray
@@ -168,4 +168,4 @@ if ($IncludeCli) {
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  git add -A && git commit -m 'v$newVersion'" -ForegroundColor Gray
-Write-Host "  .\scripts\publish.ps1" -ForegroundColor Gray
+Write-Host "  .\800.Deploy\publish.ps1" -ForegroundColor Gray

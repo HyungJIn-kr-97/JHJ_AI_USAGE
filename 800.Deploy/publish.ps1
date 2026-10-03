@@ -6,7 +6,7 @@
     Creates self-contained, single-file executables for distribution.
 
 .PARAMETER Version
-    Version number for the build (major.minor.patch). Defaults to VersionPrefix from src/Directory.Build.props.
+    Version number for the build (major.minor.patch). Defaults to VersionPrefix from 200.Source/Directory.Build.props.
 
 .PARAMETER Platform
     Target platform: x64, arm64, or all. Defaults to all.
@@ -34,7 +34,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Get-DefaultVersion {
-    $propsPath = Join-Path $PSScriptRoot "..\src\Directory.Build.props"
+    $propsPath = Join-Path $PSScriptRoot "..\200.Source\Directory.Build.props"
     if (-not (Test-Path $propsPath)) {
         return "1.0.0"
     }
@@ -62,8 +62,8 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 
 Assert-SemVer -Value $Version
 
-$projectPath = Join-Path $PSScriptRoot "..\src\costats.App\costats.App.csproj"
-$outputBase = Join-Path $PSScriptRoot "..\publish"
+$projectPath = Join-Path $PSScriptRoot "..\200.Source\costats.App\costats.App.csproj"
+$outputBase = Join-Path $PSScriptRoot "publish"
 
 $platforms = if ($Platform -eq "all") { @("win-x64", "win-arm64") } else { @("win-$Platform") }
 
@@ -99,7 +99,11 @@ foreach ($rid in $platforms) {
     $zipPath = Join-Path $outputBase "costats-$rid-v$Version.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath }
     Compress-Archive -Path "$outputPath\*" -DestinationPath $zipPath
-    $zipHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    # Hash via .NET: Get-FileHash fails to auto-load when Windows PowerShell inherits a PowerShell 7 PSModulePath.
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $zipStream = [System.IO.File]::OpenRead($zipPath)
+    try { $zipHash = ([System.BitConverter]::ToString($sha.ComputeHash($zipStream)) -replace '-', '').ToLowerInvariant() }
+    finally { $zipStream.Dispose(); $sha.Dispose() }
     $checksumPath = "$zipPath.sha256"
     Set-Content -Path $checksumPath -Value "$zipHash  $(Split-Path -Path $zipPath -Leaf)" -Encoding Ascii
 

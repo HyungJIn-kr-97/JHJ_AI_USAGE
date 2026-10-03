@@ -332,7 +332,7 @@ public sealed class StartupUpdateCoordinator
         }
 
         if (_appBaseDirectory.Contains(@"\bin\", StringComparison.OrdinalIgnoreCase) &&
-            _appBaseDirectory.Contains(@"\src\", StringComparison.OrdinalIgnoreCase))
+            _appBaseDirectory.Contains(@"\200.Source\", StringComparison.OrdinalIgnoreCase))
         {
             // Development runs should not self-update.
             return false;

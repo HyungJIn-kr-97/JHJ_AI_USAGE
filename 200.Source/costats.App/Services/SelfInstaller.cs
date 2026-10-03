@@ -79,7 +79,7 @@ public static class SelfInstaller
         var dir = BaseDir;
         return dir.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase) ||
                (dir.Contains(@"\bin\", StringComparison.OrdinalIgnoreCase) &&
-                dir.Contains(@"\src\", StringComparison.OrdinalIgnoreCase));
+                dir.Contains(@"\200.Source\", StringComparison.OrdinalIgnoreCase));
     }
 
     // 왜: 설치본이 떠 있으면 exe 가 잠겨 덮어쓸 수 없다

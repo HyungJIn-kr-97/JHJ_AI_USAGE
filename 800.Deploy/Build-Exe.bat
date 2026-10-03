@@ -1,19 +1,19 @@
 @echo off
 rem Build the installable exe (self-contained, single file) and the update package.
-rem Usage: Build-Exe.bat            -> version from src\Directory.Build.props
-rem        Build-Exe.bat 1.0.1      -> also writes 1.0.1 into src\Directory.Build.props
+rem Usage: Build-Exe.bat            -> version from 200.Source\Directory.Build.props
+rem        Build-Exe.bat 1.0.1      -> also writes 1.0.1 into 200.Source\Directory.Build.props
 setlocal
 cd /d "%~dp0"
 
 if not "%~1"=="" (
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\bump-version.ps1" -Version %~1
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bump-version.ps1" -Version %~1
     if errorlevel 1 goto :fail
 )
 
 rem A dev-build instance started from this folder locks bin\ and breaks publish. Installed copies are left alone.
-powershell -NoProfile -Command "Get-Process costats.App -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '%~dp0*' } | Stop-Process -Force"
+powershell -NoProfile -Command "$root = (Resolve-Path '%~dp0..').Path; Get-Process costats.App -ErrorAction SilentlyContinue | Where-Object { $_.Path -like ($root + '\200.Source\*') } | Stop-Process -Force"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\publish.ps1" -Platform x64
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0publish.ps1" -Platform x64
 if errorlevel 1 goto :fail
 
 echo.
