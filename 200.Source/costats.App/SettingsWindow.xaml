@@ -102,7 +102,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="Head" Padding="12,7" Margin="0,0,2,0" BorderThickness="0,0,0,2" BorderBrush="Transparent"
+                        <Border x:Name="Head" Padding="4,7" Margin="0,0,2,0" BorderThickness="0,0,0,2" BorderBrush="Transparent"
                                 Background="Transparent" CornerRadius="6,6,0,0">
                             <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
@@ -127,7 +127,8 @@
                     <ControlTemplate TargetType="TabControl">
                         <DockPanel>
                             <Border DockPanel.Dock="Top" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource DividerBrush}">
-                                <TabPanel IsItemsHost="True" Margin="0,0,0,-1" />
+                                <!-- 함정: TabPanel 은 머리글 합이 폭을 넘으면 두 줄로 접는다(영어에서 발생) — 한 줄 균등 배치로 고정한다 -->
+                                <UniformGrid IsItemsHost="True" Rows="1" Margin="0,0,0,-1" />
                             </Border>
                             <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource DividerBrush}"
                                     BorderThickness="1,0,1,1" CornerRadius="0,0,10,10" Padding="12,12,12,12">
@@ -302,7 +303,7 @@
                 </TabItem>
 
                 <!-- Appearance -->
-                <TabItem Header="{loc:Tr 'Appearance'}">
+                <TabItem Header="{loc:Tr 'Display'}">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,10">
                             <ItemsControl ItemsSource="{Binding Palettes}" DockPanel.Dock="Right">

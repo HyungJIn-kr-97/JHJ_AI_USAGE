@@ -58,7 +58,7 @@ internal static class LocStrings
         ["All · {0} accounts"] = "전체 · 계정 {0}개",
         ["Weekly · {0}"] = "주간 · {0}",
         ["Theme"] = "테마",
-        ["Appearance"] = "화면",
+        ["Display"] = "화면",
         ["General"] = "일반",
         ["About"] = "정보",
         ["Daily cost"] = "일별 비용",
