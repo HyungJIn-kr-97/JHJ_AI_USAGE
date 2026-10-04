@@ -12,7 +12,8 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     /// <summary>
     /// 계약: "claude:work" 같은 계정별 ID 에서 종류("claude")만 돌려준다 — 화면의 색·링크 분기는 이 값으로 한다.
     /// </summary>
-    public string ProviderKind => ProviderId.Split(':')[0];
+    // 함정: 사용량이 없으면 ProviderId 에 표시 이름("Codex")이 들어온다 — 소문자로 접어야 링크·색 트리거가 맞는다
+    public string ProviderKind => ProviderId.Split(':')[0].ToLowerInvariant();
 
     partial void OnProviderIdChanged(string value) => OnPropertyChanged(nameof(ProviderKind));
 
@@ -80,6 +81,13 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private string monthCostText = "--";
 
+    // 계약: 최근 30일 합계를 30 으로 나눈 하루치 — 기간 칩과 무관하게 「최근 30일」 줄과 같은 창이다
+    [ObservableProperty]
+    private string avgCostText = "--";
+
+    [ObservableProperty]
+    private string avgTokensText = "--";
+
     [ObservableProperty]
     private bool hasCostData;
 
@@ -143,6 +151,20 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private string modelsHeaderText = "Models";
 
+    // 계약: 선택한 기간의 토큰을 유형별로 나눈 줄 — 유형을 모르는 옛 이력은 마지막 "Unknown" 줄로 모인다
+    [ObservableProperty]
+    private IReadOnlyList<TokenTypeRow> tokenTypes = [];
+
+    [ObservableProperty]
+    private bool hasTokenTypes;
+
+    [ObservableProperty]
+    private string tokenTypesHeaderText = "Token types";
+
+    // 계약: 차트 아래 눈금 — 칸마다 그 구간이 시작하는 날짜(또는 달)를 왼쪽 정렬로 적는다
+    [ObservableProperty]
+    private IReadOnlyList<string> axisLabels = [];
+
     private const int MaxModelRows = 4;
 
     [ObservableProperty]
@@ -176,6 +198,13 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private string creditsText = "--";
 
+    // 계약: false 면 팝업이 그 한도 막대를 숨긴다 — Gemini 가 한도를 못 받았을 때만 false 가 된다
+    [ObservableProperty]
+    private bool hasSessionQuota = true;
+
+    [ObservableProperty]
+    private bool hasWeekQuota = true;
+
     public static ProviderPulseViewModel FromReading(ProviderReading reading, string displayNameFallback)
     {
         var vm = new ProviderPulseViewModel
@@ -190,6 +219,13 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         PopulateWeekMetrics(vm, reading);
         PopulateExtraUsage(vm, reading);
         PopulateCostData(vm, reading);
+
+        // 왜: Gemini 는 Code Assist 좌석이 없으면 한도가 안 온다 — 그때 「0% 사용」 막대는 한도가 남은 것처럼 읽힌다
+        if (string.Equals(vm.ProviderId, "gemini", StringComparison.OrdinalIgnoreCase))
+        {
+            vm.HasSessionQuota = reading.Usage?.SessionLimit is not null;
+            vm.HasWeekQuota = reading.Usage?.WeekLimit is not null;
+        }
 
         // Set overall status based on the higher of session or week utilization
         var sessionPercent = vm.SessionProgress * 100.0;
@@ -210,9 +246,18 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
                 Loc.Tr($"{(int)Math.Round(quota.UsedPercent)}% used"),
                 quota.ResetsAt is { } resetsAt ? Loc.Tr($"Resets {UsageFormatter.ResetCountdown(resetsAt)}") : string.Empty))
             .ToList();
+        // 왜: 탭을 바꿀 때 창 높이가 출렁이지 않게 한다 — 모델별 한도가 없는 도구도 같은 자리를 빈 값으로 차지한다
+        if (vm.ModelWeeks.Count == 0)
+        {
+            vm.ModelWeeks = [new ModelWeekRow(Loc.T("Weekly · per model"), 0, "--", string.Empty)];
+        }
 
         // 왜: 아래 문장들은 코어·인프라 층이 영어로 만들어 준다 — 화면에 나가기 직전에 한 번에 옮긴다
-        vm.StatusSummary = Loc.Tr(vm.StatusSummary);
+        // 왜: 「방금 갱신」은 읽은 순간의 말이라 열어 둔 사이 낡는다 — 갱신 시각을 함께 적어 언제 값인지 알게 한다
+        var updatedAt = vm.StatusSummary.StartsWith("Updated ", StringComparison.Ordinal)
+            ? $" · {reading.CapturedAt.ToLocalTime():yyyy-MM-dd HH:mm}"
+            : string.Empty;
+        vm.StatusSummary = Loc.Tr(vm.StatusSummary) + updatedAt;
         vm.SessionUsageLabel = Loc.Tr(vm.SessionUsageLabel);
         vm.WeekUsageLabel = Loc.Tr(vm.WeekUsageLabel);
         vm.SessionResetText = Loc.Tr(vm.SessionResetText);
@@ -331,6 +376,8 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         if (consumption is null || (consumption.TodayTokens.TotalConsumed == 0 && consumption.RollingWindowTokens.TotalConsumed == 0))
         {
             vm.HasCostData = false;
+            // 왜: 비용이 없어도 차트·모델·토큰 유형 구역은 빈 값으로 그린다 — 탭마다 창 높이가 달라지지 않게
+            PopulateDailyBars(vm, consumption);
             return;
         }
 
@@ -347,6 +394,8 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         var windowCost = consumption.RollingWindowCostUsd;
         vm.MonthCostText = UsageFormatter.FormatCurrency(windowCost);
         vm.MonthTokensText = UsageFormatter.FormatTokenCount(windowTokens);
+        vm.AvgCostText = UsageFormatter.FormatCurrency(windowCost / 30m);
+        vm.AvgTokensText = UsageFormatter.FormatTokenCount(windowTokens / 30);
 
         // Compact single-line cost for stacked multicc cards
         var todayFormatted = UsageFormatter.FormatCurrency(todayCost);
@@ -357,16 +406,24 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         PopulateDailyBars(vm, consumption);
     }
 
-    private static void PopulateDailyBars(ProviderPulseViewModel vm, ConsumptionDigest consumption)
+    private static void PopulateDailyBars(ProviderPulseViewModel vm, ConsumptionDigest? consumption)
     {
+        vm.ChartTitleText = Loc.T(RangeDays <= 30 ? "Daily cost" : RangeDays <= 180 ? "Weekly cost" : "Monthly cost");
+        vm.ModelsHeaderText = RangeDays == 365 ? Loc.T("Models · 1 year") : Loc.T("Models · {0} days", RangeDays);
+        vm.TokenTypesHeaderText = RangeDays == 365 ? Loc.T("Token types · 1 year") : Loc.T("Token types · {0} days", RangeDays);
+
         // 왜: DailyBreakdown 은 일×모델 단위다 — 모델 이름을 접어 합친 뒤, 로그에서 이미 지워진 날은 쌓아 둔 이력으로 메운다
-        var current = consumption.DailyBreakdown
+        var current = (consumption?.DailyBreakdown ?? [])
             .GroupBy(slice => (slice.Period, Model: ShortModelName(slice.ModelIdentifier)))
             .Select(group => new costats.App.Services.UsageHistoryEntry(
                 group.Key.Period,
                 group.Key.Model,
                 group.Sum(s => s.ComputedCostUsd),
-                group.Sum(s => (long)s.Tokens.TotalConsumed)));
+                group.Sum(s => (long)s.Tokens.TotalConsumed),
+                group.Sum(s => (long)s.Tokens.StandardInput),
+                group.Sum(s => (long)s.Tokens.GeneratedOutput),
+                group.Sum(s => (long)s.Tokens.CachedInput),
+                group.Sum(s => (long)s.Tokens.CacheWriteInput)));
 
         var today = DateOnly.FromDateTime(DateTime.Now);
         var start = today.AddDays(-(RangeDays - 1));
@@ -379,11 +436,17 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             .Select(bucket => entries.Where(e => e.Day >= bucket.From && e.Day <= bucket.To).ToList())
             .ToList();
         var peak = totals.Select(list => list.Sum(e => e.Cost)).DefaultIfEmpty(0m).Max();
+        var peakFormat = RangeDays <= 30 ? "total {0} · best day {1}" : RangeDays <= 180 ? "total {0} · best week {1}" : "total {0} · best month {1}";
 
         if (peak <= 0)
         {
-            vm.HasDailyBars = false;
-            vm.HasModelUsages = false;
+            // 계약: 데이터가 없어도 막대 자리·눈금·헤더는 그대로 두고 값만 비운다 — 창 높이를 지키기 위해서다
+            vm.DailyBars = buckets.Select(b => new DailyUsageBar(0, $"{b.Label}\n--", false)).ToList();
+            vm.AxisLabels = BuildAxisLabels(buckets);
+            vm.DailyPeakText = Loc.T(peakFormat, "--", "--");
+            vm.HasDailyBars = true;
+            PopulateModelUsages(vm, entries);
+            PopulateTokenTypes(vm, entries);
             return;
         }
 
@@ -405,12 +468,59 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         }
 
         PopulateModelUsages(vm, entries);
+        PopulateTokenTypes(vm, entries);
 
         vm.DailyBars = bars;
-        vm.ChartTitleText = Loc.T(RangeDays <= 30 ? "Daily cost" : RangeDays <= 180 ? "Weekly cost" : "Monthly cost");
-        vm.DailyPeakText = Loc.T("total {0} · peak {1}", UsageFormatter.FormatCurrency(entries.Sum(e => e.Cost)), UsageFormatter.FormatCurrency(peak));
+        // 왜: 막대 하나가 하루인지 한 주인지 한 달인지 숫자만으로는 알 수 없다 — 최고값에 단위를 붙인다
+        vm.DailyPeakText = Loc.T(peakFormat, UsageFormatter.FormatCurrency(entries.Sum(e => e.Cost)), UsageFormatter.FormatCurrency(peak));
         vm.DailyStartLabel = start.ToString(RangeDays <= 30 ? "MM-dd" : "yyyy-MM-dd");
+        vm.AxisLabels = BuildAxisLabels(buckets);
         vm.HasDailyBars = true;
+    }
+
+    // 계약: 막대 수가 적으면 막대마다, 많으면 같은 폭의 구간 몇 개로 나눠 구간 첫 막대의 시작일을 적는다
+    private static List<string> BuildAxisLabels(List<(DateOnly From, DateOnly To, string Label)> buckets)
+    {
+        var format = RangeDays <= 180 ? "MM-dd" : "yy-MM";
+        var segments = buckets.Count <= 7 ? buckets.Count : RangeDays <= 180 ? 5 : 6;
+        return Enumerable.Range(0, segments)
+            .Select(i => buckets[i * buckets.Count / segments].From.ToString(format))
+            .ToList();
+    }
+
+    private static readonly System.Windows.Media.Brush[] TokenTypeColors = CreateModelColors("#5B8DEF", "#3FB68B", "#E6B450", "#C98A5B", "#8F847C");
+
+    private static void PopulateTokenTypes(ProviderPulseViewModel vm, IReadOnlyList<costats.App.Services.UsageHistoryEntry> entries)
+    {
+        var total = entries.Sum(e => e.Tokens);
+        var typed = entries.Sum(e => e.TypedTokens);
+
+        // 계약: 네 기본 유형은 0 이어도 "--" 로 늘 그린다 — 줄 수가 같아야 탭·기간을 바꿔도 창 높이가 같다
+        var parts = new List<(string Name, string Hint, long Tokens, int Color)>
+        {
+            ("Input", "Fresh input sent to the model (not cached)", entries.Sum(e => e.Input), 0),
+            ("Output", "Text the model generated", entries.Sum(e => e.Output), 1),
+            ("Cache read", "Input re-read from the prompt cache (cheapest)", entries.Sum(e => e.CacheRead), 2),
+            ("Cache write", "Input stored into the prompt cache", entries.Sum(e => e.CacheWrite), 3),
+            // 왜: 유형 칸이 생기기 전에 쌓인 이력은 나눌 수 없다 — 숨기면 합계가 안 맞으므로 따로 보인다
+            ("Unknown", "Older history saved before token types were recorded", Math.Max(0, total - typed), 4)
+        };
+
+        vm.TokenTypes = parts
+            .Where(part => part.Tokens > 0 || part.Color < 4)
+            .Select(part =>
+            {
+                var share = total <= 0 ? 0 : (double)part.Tokens / total;
+                return new TokenTypeRow(
+                    Loc.T(part.Name),
+                    part.Tokens > 0 ? UsageFormatter.FormatTokenCount(part.Tokens) : "--",
+                    part.Tokens <= 0 ? string.Empty : share < 0.01 ? "<1%" : $"{share:P0}",
+                    share,
+                    TokenTypeColors[part.Color],
+                    $"{Loc.T(part.Name)} · {Loc.T("{0} tokens", UsageFormatter.FormatTokenCount(part.Tokens))}\n{Loc.T(part.Hint)}");
+            })
+            .ToList();
+        vm.HasTokenTypes = true;
     }
 
     /// <summary>
@@ -453,7 +563,8 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             .Select(group => (
                 Name: group.Key,
                 Cost: group.Sum(e => e.Cost),
-                Tokens: group.Sum(e => e.Tokens)))
+                Tokens: group.Sum(e => e.Tokens),
+                Types: TypeLine(group)))
             .OrderByDescending(m => m.Cost)
             .ThenByDescending(m => m.Tokens)
             .ToList();
@@ -461,7 +572,9 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         var total = models.Sum(m => m.Cost);
         if (models.Count == 0 || total <= 0)
         {
-            vm.HasModelUsages = false;
+            // 계약: 모델이 없어도 구역은 남긴다 — 도넛 자리(76px)가 높이를 잡아 주므로 줄은 비워 둔다
+            vm.ModelUsages = [];
+            vm.HasModelUsages = true;
             return;
         }
 
@@ -470,7 +583,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         var rest = models.Skip(shown.Count).ToList();
         if (rest.Count > 0)
         {
-            shown.Add((Loc.T("Others ({0})", rest.Count), rest.Sum(m => m.Cost), rest.Sum(m => m.Tokens)));
+            shown.Add((Loc.T("Others ({0})", rest.Count), rest.Sum(m => m.Cost), rest.Sum(m => m.Tokens), string.Empty));
         }
 
         var rows = new List<ModelUsageRow>(shown.Count);
@@ -484,15 +597,34 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
                 m.Name,
                 UsageFormatter.FormatCurrency(m.Cost),
                 $"{share:P0}",
-                $"{m.Name}\n{UsageFormatter.FormatCurrency(m.Cost)} · {Loc.T("{0} tokens", UsageFormatter.FormatTokenCount(m.Tokens))}",
+                $"{m.Name}\n{UsageFormatter.FormatCurrency(m.Cost)} · {Loc.T("{0} tokens", UsageFormatter.FormatTokenCount(m.Tokens))}{m.Types}",
                 ModelColors[Math.Min(i, ModelColors.Length - 1)],
                 BuildDonutSlice(startAngle, sweep)));
             startAngle += sweep;
         }
 
         vm.ModelUsages = rows;
-        vm.ModelsHeaderText = RangeDays == 365 ? Loc.T("Models · 1 year") : Loc.T("Models · {0} days", RangeDays);
         vm.HasModelUsages = true;
+    }
+
+    // 계약: 모델 툴팁에 붙는 유형별 토큰 줄 — 유형을 모르는 기록뿐이면 빈 문자열
+    private static string TypeLine(IEnumerable<costats.App.Services.UsageHistoryEntry> entries)
+    {
+        var list = entries.ToList();
+        if (list.Sum(e => e.TypedTokens) <= 0)
+        {
+            return string.Empty;
+        }
+
+        return "\n" + string.Join(" · ", new (string Name, long Tokens)[]
+            {
+                ("Input", list.Sum(e => e.Input)),
+                ("Output", list.Sum(e => e.Output)),
+                ("Cache read", list.Sum(e => e.CacheRead)),
+                ("Cache write", list.Sum(e => e.CacheWrite))
+            }
+            .Where(part => part.Tokens > 0)
+            .Select(part => $"{Loc.T(part.Name)} {UsageFormatter.FormatTokenCount(part.Tokens)}"));
     }
 
     // 왜: 라이트·다크 양쪽 배경에서 다 읽히는 색만 골랐다 — 마지막 회색은 "Others" 몫이다

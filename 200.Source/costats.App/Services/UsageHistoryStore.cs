@@ -6,7 +6,13 @@ namespace costats.App.Services;
 /// <summary>
 /// 일×모델 단위 사용량 한 건.
 /// </summary>
-public sealed record UsageHistoryEntry(DateOnly Day, string Model, decimal Cost, long Tokens);
+/// 계약: Input~CacheWrite 는 토큰 유형별 몫이다 — 이 칸이 생기기 전에 쌓인 날은 전부 0 이고, 그 차이(Tokens − 합)가 "유형 미상"이다.
+public sealed record UsageHistoryEntry(
+    DateOnly Day, string Model, decimal Cost, long Tokens,
+    long Input = 0, long Output = 0, long CacheRead = 0, long CacheWrite = 0)
+{
+    public long TypedTokens => Input + Output + CacheRead + CacheWrite;
+}
 
 /// <summary>
 /// 일별 사용량을 계정마다 파일로 쌓아 둔다 — %LOCALAPPDATA%\AiUsageMonitor\history\.
@@ -36,7 +42,10 @@ public static class UsageHistoryStore
         foreach (var entry in current)
         {
             var id = (entry.Day, entry.Model);
-            if (!known.TryGetValue(id, out var old) || entry.Cost > old.Cost || entry.Tokens > old.Tokens)
+            // 왜: 유형 칸이 없던 옛 기록은 같은 값의 새 기록으로 갈아야 유형 통계가 채워진다 — 값이 줄어든 기록으로는 갈지 않는다
+            var fillsTypes = known.TryGetValue(id, out var old) && old.TypedTokens == 0 && entry.TypedTokens > 0 &&
+                             entry.Cost >= old.Cost && entry.Tokens >= old.Tokens;
+            if (old is null || entry.Cost > old.Cost || entry.Tokens > old.Tokens || fillsTypes)
             {
                 known[id] = entry;
                 changed = true;

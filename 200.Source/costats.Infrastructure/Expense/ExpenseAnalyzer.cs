@@ -40,12 +40,12 @@ public sealed class ExpenseAnalyzer
     /// <summary>
     /// Produces a consumption digest for Codex.
     /// </summary>
-    public async Task<ConsumptionDigest> AnalyzeCodexAsync(CancellationToken cancellationToken = default)
+    public async Task<ConsumptionDigest> AnalyzeCodexAsync(CancellationToken cancellationToken = default, string? codexHome = null)
     {
         var today = DateOnly.FromDateTime(DateTime.Now);
         var windowStart = today.AddDays(-(DefaultWindowDays - 1));
 
-        var slices = await LogDigestor.DigestCodexLogsAsync(windowStart, today, cancellationToken).ConfigureAwait(false);
+        var slices = await LogDigestor.DigestCodexLogsAsync(windowStart, today, cancellationToken, codexHome).ConfigureAwait(false);
         return BuildDigest(slices, today, DefaultWindowDays);
     }
 

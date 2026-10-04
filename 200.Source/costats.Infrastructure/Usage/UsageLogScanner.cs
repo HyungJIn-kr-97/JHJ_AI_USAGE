@@ -12,10 +12,11 @@ internal sealed class UsageLogScanner
     private const int FileReadBufferSize = 16 * 1024;
     private const int MaxDedupeKeyCount = 200_000;
 
-    public Task<UsageLogResult> ScanCodexAsync(CancellationToken cancellationToken)
+    // 계약: codexHome 이 null 이면 기본 계정(CODEX_HOME 또는 ~/.codex), 아니면 그 폴더의 세션만 읽는다
+    public Task<UsageLogResult> ScanCodexAsync(CancellationToken cancellationToken, string? codexHome = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.Run(() => ScanCodexCore(cancellationToken), cancellationToken);
+        return Task.Run(() => ScanCodexCore(cancellationToken, codexHome), cancellationToken);
     }
 
     public Task<UsageLogResult> ScanClaudeAsync(CancellationToken cancellationToken)
@@ -30,7 +31,7 @@ internal sealed class UsageLogScanner
         return Task.Run(() => ScanClaudeCore(configDir, cancellationToken), cancellationToken);
     }
 
-    private UsageLogResult ScanCodexCore(CancellationToken cancellationToken)
+    private UsageLogResult ScanCodexCore(CancellationToken cancellationToken, string? codexHome)
     {
         var now = DateTimeOffset.UtcNow;
         var sessionCutoff = now - _sessionWindow;
@@ -44,7 +45,7 @@ internal sealed class UsageLogScanner
         DateTimeOffset? latest = null;
         string? latestSessionId = null;
 
-        foreach (var file in EnumerateCodexFiles(weekCutoff))
+        foreach (var file in EnumerateCodexFiles(weekCutoff, codexHome))
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var stream = new FileStream(file, new FileStreamOptions
@@ -410,10 +411,10 @@ internal sealed class UsageLogScanner
         return new UsageLogResult(sessionTokens, weekTokens, latest, sessionStart, null);
     }
 
-    private static IEnumerable<string> EnumerateCodexFiles(DateTimeOffset oldestRelevant)
+    private static IEnumerable<string> EnumerateCodexFiles(DateTimeOffset oldestRelevant, string? codexHome)
     {
         var roots = new List<string>();
-        var env = Environment.GetEnvironmentVariable("CODEX_HOME");
+        var env = codexHome ?? Environment.GetEnvironmentVariable("CODEX_HOME");
         if (!string.IsNullOrWhiteSpace(env))
         {
             roots.Add(Path.Combine(env.Trim(), "sessions"));

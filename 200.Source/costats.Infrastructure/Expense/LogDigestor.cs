@@ -116,18 +116,20 @@ public static class LogDigestor
     public static Task<IReadOnlyList<ConsumptionSlice>> DigestCodexLogsAsync(
         DateOnly since,
         DateOnly until,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? codexHome = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.Run(() => DigestCodexLogsCore(since, until, cancellationToken), cancellationToken);
+        return Task.Run(() => DigestCodexLogsCore(since, until, cancellationToken, codexHome), cancellationToken);
     }
 
     private static IReadOnlyList<ConsumptionSlice> DigestCodexLogsCore(
         DateOnly since,
         DateOnly until,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? codexHome)
     {
-        var logDir = GetCodexLogDirectory();
+        var logDir = GetCodexLogDirectory(codexHome);
         if (!Directory.Exists(logDir))
             return [];
 
@@ -473,9 +475,9 @@ public static class LogDigestor
         return Path.Combine(home, ".claude", "projects");
     }
 
-    private static string GetCodexLogDirectory()
+    private static string GetCodexLogDirectory(string? overrideHome)
     {
-        var codexHome = Environment.GetEnvironmentVariable("CODEX_HOME");
+        var codexHome = overrideHome ?? Environment.GetEnvironmentVariable("CODEX_HOME");
         if (!string.IsNullOrWhiteSpace(codexHome))
             return Path.Combine(codexHome.Trim(), "sessions");
 

@@ -174,20 +174,30 @@ public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
             while (!stoppingToken.IsCancellationRequested)
             {
                 TimeSpan currentInterval;
+                CancellationToken timerToken;
                 lock (_intervalLock)
                 {
                     currentInterval = _refreshInterval;
                     _timerCts?.Dispose();
                     _timerCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    timerToken = _timerCts.Token;
                 }
 
                 try
                 {
-                    using var timer = new PeriodicTimer(currentInterval);
-                    while (await timer.WaitForNextTickAsync(_timerCts.Token).ConfigureAwait(false))
+                    // 왜: 「시작한 때로부터 5분마다」가 아니라 시계 눈금(:00 · :05 …)에 맞춘다 — 언제 갱신될지 사용자가 미리 안다
+                    var next = NextBoundary(_clock.UtcNow.ToLocalTime(), currentInterval);
+                    NextRefreshAt = next;
+
+                    // 함정: Task.Delay 는 절전 중 흐른 시간을 세지 않는다 — 짧게 끊어 자면서 벽시계와 다시 맞춘다
+                    TimeSpan remaining;
+                    while ((remaining = next - _clock.UtcNow) > TimeSpan.Zero)
                     {
-                        await RefreshOnceAsync(RefreshTrigger.Scheduled, _timerCts.Token).ConfigureAwait(false);
+                        var nap = remaining < TimeSpan.FromSeconds(30) ? remaining : TimeSpan.FromSeconds(30);
+                        await Task.Delay(nap, timerToken).ConfigureAwait(false);
                     }
+
+                    await RefreshOnceAsync(RefreshTrigger.Scheduled, timerToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
                 {
@@ -205,6 +215,15 @@ public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
             _logger.LogCritical(ex, "PulseOrchestrator crashed");
             throw;
         }
+    }
+
+    public DateTimeOffset? NextRefreshAt { get; private set; }
+
+    // 계약: now 보다 뒤인 첫 눈금 — 로컬 자정부터 interval 간격으로 센다(분 단위 주기는 정시에 맞아떨어진다)
+    private static DateTimeOffset NextBoundary(DateTimeOffset localNow, TimeSpan interval)
+    {
+        var step = Math.Max(TimeSpan.FromSeconds(1).Ticks, interval.Ticks);
+        return new DateTimeOffset((localNow.Ticks / step + 1) * step, localNow.Offset);
     }
 
     private bool ShouldShowShimmer(RefreshTrigger trigger)

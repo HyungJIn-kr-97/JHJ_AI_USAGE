@@ -62,6 +62,17 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 
 Assert-SemVer -Value $Version
 
+# Hash via .NET: Get-FileHash fails to auto-load when Windows PowerShell inherits a PowerShell 7 PSModulePath.
+function Write-Checksum {
+    param([string]$Path)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($Path)
+    try { $hash = ([System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToLowerInvariant() }
+    finally { $stream.Dispose(); $sha.Dispose() }
+    $checksumPath = "$Path.sha256"
+    Set-Content -Path $checksumPath -Value "$hash  $(Split-Path -Path $Path -Leaf)" -Encoding Ascii
+    return $checksumPath
+}
 $projectPath = Join-Path $PSScriptRoot "..\200.Source\costats.App\costats.App.csproj"
 $outputBase = Join-Path $PSScriptRoot "publish"
 
@@ -99,26 +110,39 @@ foreach ($rid in $platforms) {
     $zipPath = Join-Path $outputBase "AiUsageMonitor-$rid-v$Version.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath }
     Compress-Archive -Path "$outputPath\*" -DestinationPath $zipPath
-    # Hash via .NET: Get-FileHash fails to auto-load when Windows PowerShell inherits a PowerShell 7 PSModulePath.
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    $zipStream = [System.IO.File]::OpenRead($zipPath)
-    try { $zipHash = ([System.BitConverter]::ToString($sha.ComputeHash($zipStream)) -replace '-', '').ToLowerInvariant() }
-    finally { $zipStream.Dispose(); $sha.Dispose() }
-    $checksumPath = "$zipPath.sha256"
-    Set-Content -Path $checksumPath -Value "$zipHash  $(Split-Path -Path $zipPath -Leaf)" -Encoding Ascii
-
+    $checksumPath = Write-Checksum -Path $zipPath
     Write-Host "Created: $zipPath" -ForegroundColor Green
     Write-Host "Checksum: $checksumPath" -ForegroundColor Green
+
+    # Offline installer: the single-file exe installs itself on first run (SelfInstaller), so it ships as-is.
+    $exeAsset = Join-Path $outputBase "AiUsageMonitor-$rid-v$Version.exe"
+    Copy-Item -Path (Join-Path $outputPath "AiUsageMonitor.exe") -Destination $exeAsset -Force
+    $null = Write-Checksum -Path $exeAsset
+    Write-Host "Created: $exeAsset" -ForegroundColor Green
     Write-Host ""
 }
 
+# Web installer: small .NET Framework 4.8 exe that lists GitHub releases and installs the chosen version.
+Write-Host "Building web installer..." -ForegroundColor Yellow
+$setupProject = Join-Path $PSScriptRoot "..\200.Source\costats.Setup\costats.Setup.csproj"
+$setupOut = Join-Path $outputBase "setup"
+dotnet build $setupProject --configuration Release --output $setupOut -p:VersionPrefix=$Version -p:Version=$Version
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to build web installer" -ForegroundColor Red
+    exit 1
+}
+$setupAsset = Join-Path $outputBase "AiUsageMonitor-Setup.exe"
+Copy-Item -Path (Join-Path $setupOut "AiUsageMonitor-Setup.exe") -Destination $setupAsset -Force
+$null = Write-Checksum -Path $setupAsset
+Write-Host "Created: $setupAsset" -ForegroundColor Green
+Write-Host ""
 Write-Host "Build complete!" -ForegroundColor Cyan
 Write-Host "Output directory: $outputBase" -ForegroundColor Gray
 
 # Show file sizes
 Write-Host ""
 Write-Host "Artifacts:" -ForegroundColor Yellow
-Get-ChildItem $outputBase -Filter "*.zip" | ForEach-Object {
+Get-ChildItem $outputBase -File | Where-Object { $_.Extension -in ".zip", ".exe" } | ForEach-Object {
     $sizeMB = [math]::Round($_.Length / 1MB, 2)
     Write-Host "  $($_.Name) - $sizeMB MB" -ForegroundColor Gray
 }

@@ -1,0 +1,599 @@
+<UserControl x:Class="costats.App.Views.SettingsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:costats.App"
+             xmlns:loc="clr-namespace:costats.App.Localization"
+             FontFamily="Pretendard Variable, Pretendard, Malgun Gothic, Segoe UI">
+
+    <UserControl.Resources>
+        <!-- Light color palette with WCAG AA contrast -->
+        <!-- 색 브러시는 App 리소스(Themes/Bull.*.xaml)에서 온다 -->
+
+        <!-- ComboBox Style -->
+        <!-- 함정: 기본 ComboBox 템플릿은 배경이 밝은 색으로 고정이라 Background 만 바꿔서는 다크가 안 된다 — 템플릿을 통째로 갈아야 한다 -->
+        <Style x:Key="SettingsComboItem" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Row" Background="Transparent" Padding="10,6" CornerRadius="4">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SettingsComboBox" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource SettingsComboItem}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Box" Background="{DynamicResource SubtleOverlayBrush}"
+                                                BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="6">
+                                            <Path Data="M0,0 L4,4 L8,0" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.5"
+                                                  HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Box" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" IsHitTestVisible="False"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              Margin="12,7,26,7" VerticalAlignment="Center" />
+                            <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True"
+                                   Focusable="False" PopupAnimation="Fade" VerticalOffset="4">
+                                <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource DividerBrush}"
+                                        BorderThickness="1" CornerRadius="6" Padding="4"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 계약: 입력도 되고 추천 목록도 고를 수 있는 콤보 — PART_EditableTextBox 가 있어야 IsEditable 이 동작한다 -->
+        <Style x:Key="SettingsEditableCombo" TargetType="ComboBox" BasedOn="{StaticResource SettingsComboBox}">
+            <Setter Property="IsEditable" Value="True" />
+            <Setter Property="Cursor" Value="IBeam" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Focusable="False" ClickMode="Press" Cursor="Hand"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Box" Background="{DynamicResource BgBrush}"
+                                                BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="4">
+                                            <Path Data="M0,0 L4,4 L8,0" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.5"
+                                                  HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <TextBox x:Name="PART_EditableTextBox" Margin="2,0,22,0" Padding="4,4" BorderThickness="0" Background="Transparent"
+                                     Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}"
+                                     FontSize="{TemplateBinding FontSize}" VerticalContentAlignment="Center" />
+                            <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True"
+                                   Focusable="False" PopupAnimation="Fade" VerticalOffset="4">
+                                <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource DividerBrush}"
+                                        BorderThickness="1" CornerRadius="6" Padding="4"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+
+        <!-- 왜: 기본 TabControl 은 밝은 바탕·입체 탭이라 테마와 어긋난다 — 머리글은 밑줄형, 본문은 Panel 색 카드로 다시 그린다 -->
+        <Style x:Key="SettingsTabItem" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Head" Padding="4,7" Margin="0,0,2,0" BorderThickness="0,0,0,2" BorderBrush="Transparent"
+                                Background="Transparent" CornerRadius="6,6,0,0">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Head" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Head" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SettingsTabControl" TargetType="TabControl">
+            <Setter Property="ItemContainerStyle" Value="{StaticResource SettingsTabItem}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource DividerBrush}">
+                                <!-- 함정: TabPanel 은 머리글 합이 폭을 넘으면 두 줄로 접는다(영어에서 발생) — 한 줄 균등 배치로 고정한다 -->
+                                <UniformGrid IsItemsHost="True" Rows="1" Margin="0,0,0,-1" />
+                            </Border>
+                            <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource DividerBrush}"
+                                    BorderThickness="1,0,1,1" CornerRadius="0,0,10,10" Padding="12,12,12,12">
+                                <ContentPresenter ContentSource="SelectedContent" VerticalAlignment="Top" />
+                            </Border>
+                        </DockPanel>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- CheckBox Style -->
+        <Style x:Key="SettingsCheckBox" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border x:Name="CheckBorder" Width="20" Height="20" CornerRadius="4"
+                                    Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                    VerticalAlignment="Center">
+                                <Path x:Name="CheckMark" Data="M3,7 L7,11 L13,3" Stroke="{DynamicResource AccentInkBrush}" StrokeThickness="2"
+                                      Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      Width="12" Height="10" Stretch="Uniform" />
+                            </Border>
+                            <ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckBorder" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Button Style -->
+        <Style x:Key="SettingsButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource SubtleOverlayBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource PressedOverlayBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- 계약: 계정 한 줄 — 위는 사용자가 고치는 명칭·유형, 아래는 실제 로그인 계정과 버튼. 이 PC 로그인 줄에는 삭제가 없다 -->
+        <DataTemplate x:Key="AccountRowTemplate">
+            <Border Margin="0,0,0,6" Padding="8,6" CornerRadius="6" Background="{DynamicResource SubtleOverlayBrush}">
+                <StackPanel>
+                    <DockPanel>
+                        <ComboBox DockPanel.Dock="Right" Width="96" Margin="6,0,0,0" Style="{StaticResource SettingsEditableCombo}"
+                                  ItemsSource="{Binding DataContext.TypeSuggestions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  Text="{Binding AccountType, UpdateSourceTrigger=PropertyChanged}"
+                                  ToolTip="{loc:Tr 'Account type — type freely or pick one. Default is shown first when the popup opens.'}" />
+                        <TextBox Text="{Binding DisplayNameText, UpdateSourceTrigger=LostFocus}" FontSize="12" Padding="6,4"
+                                 VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Account name shown in the popup'}"
+                                 Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                 BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
+                    </DockPanel>
+                    <DockPanel Margin="0,5,0,0">
+                        <Button Content="{loc:Tr 'Remove'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                                Style="{StaticResource SettingsButton}" CommandParameter="{Binding}"
+                                Command="{Binding DataContext.RemoveRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Visibility="{Binding IsMain, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}" />
+                        <Button Content="{loc:Tr 'Sign in'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                                Style="{StaticResource SettingsButton}" CommandParameter="{Binding}"
+                                Command="{Binding DataContext.SignInRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Visibility="{Binding IsSignedIn, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}"
+                                ToolTip="{loc:Tr 'Opens the official CLI sign-in in your browser. Signing in again switches the account.'}" />
+                        <Button Content="{loc:Tr 'Sign out'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                                Style="{StaticResource SettingsButton}" CommandParameter="{Binding}"
+                                Command="{Binding DataContext.SignOutRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Visibility="{Binding IsSignedIn, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                        <TextBlock Text="{Binding AccountText}" FontSize="11" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFaintBrush}" ToolTip="{Binding ConfigDir}" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!-- 계약: 팝업 창 안(제목 줄 아래 ~ 하단 줄 위)에 끼워 쓰는 설정 화면이다 — 머리글과 닫기는 팝업 제목 줄의 「설정 ✕」가 맡는다 -->
+        <Grid x:Name="RootGrid">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+
+            <!-- Divider -->
+
+            <!-- 왜: 앱 자체 설정(일반·화면)과 도구별 설정(계정·Copilot·Gemini)을 위아래로 나눈다 — 탭 다섯 개를 한 줄에 두면 어디에 무엇이 있는지 안 보인다 -->
+            <Grid Grid.Row="2" Margin="0,0,0,10">
+                <Grid.Resources>
+                        <Style x:Key="RowLabel" TargetType="TextBlock">
+                            <Setter Property="FontSize" Value="12" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                        </Style>
+                </Grid.Resources>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="{loc:Tr 'App settings'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" Margin="2,0,0,6" />
+                <TabControl Grid.Row="1" Style="{StaticResource SettingsTabControl}" Margin="0,0,0,14">
+                <!-- General -->
+                <TabItem Header="{loc:Tr 'General'}">
+                    <StackPanel>
+                        <CheckBox IsChecked="{Binding StartAtLogin}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
+                                  ToolTip="{loc:Tr 'Automatically launch AI Usage Monitor when Windows starts.'}">
+                            <TextBlock Text="{loc:Tr 'Start at login'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding PinTrayIcon}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
+                                  ToolTip="{loc:Tr 'Keep the icon on the taskbar instead of the hidden icons (^), so one click opens the popup.'}">
+                            <TextBlock Text="{loc:Tr 'Always show icon on taskbar'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding RefreshOnOpen}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
+                                  ToolTip="{loc:Tr 'Fetch usage again every time the popup opens. Off: only the background interval refreshes.'}">
+                            <TextBlock Text="{loc:Tr 'Refresh when opened'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <DockPanel ToolTip="{loc:Tr 'How often AI Usage Monitor polls for usage data in the background.'}">
+                            <ComboBox ItemsSource="{Binding RefreshOptions}"
+                                      SelectedItem="{Binding SelectedRefreshOption}"
+                                      Style="{StaticResource SettingsComboBox}"
+                                      DockPanel.Dock="Right" HorizontalAlignment="Right" Width="96">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="{loc:Tr 'Refresh interval'}" Style="{StaticResource RowLabel}" />
+                        </DockPanel>
+                        <DockPanel Margin="0,10,0,0">
+                            <Button Content="{loc:Tr 'Check for updates'}" DockPanel.Dock="Right" Padding="10,4" FontSize="11"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding CheckForUpdatesCommand}" />
+                            <TextBlock Style="{StaticResource RowLabel}">
+                                <Run Text="{loc:Tr 'Current'}" /><Run Text="{Binding Version, StringFormat=' v{0}', Mode=OneWay}" FontWeight="SemiBold" />
+                            </TextBlock>
+                        </DockPanel>
+                        <!-- 계약: GitHub 최신 릴리스와 지금 버전을 나란히 보인다 — 개발 빌드에서도 비교는 된다 -->
+                        <DockPanel Margin="0,6,0,0">
+                            <TextBlock DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center">
+                                <Hyperlink Command="{Binding OpenReleasesCommand}" Foreground="{DynamicResource AccentBrush}">
+                                    <Run Text="{loc:Tr 'GitHub releases'}" />
+                                </Hyperlink>
+                            </TextBlock>
+                            <TextBlock Text="{Binding LatestReleaseText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                        <TextBlock Text="{Binding VersionCompareText}" FontSize="11" Margin="0,2,0,0" Foreground="{DynamicResource AccentBrush}"
+                                   Visibility="{Binding VersionCompareText, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+                        <!-- 계약: 고른 버전을 받아 설치한다(낮은 버전 = 되돌리기). 설치본에서만 동작한다 -->
+                        <DockPanel Margin="0,8,0,0">
+                            <Button Content="{loc:Tr 'Install this version'}" DockPanel.Dock="Right" Padding="10,4" FontSize="11" Margin="6,0,0,0"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding InstallSelectedReleaseCommand}" />
+                            <ComboBox ItemsSource="{Binding Releases}" SelectedItem="{Binding SelectedRelease}" Style="{StaticResource SettingsComboBox}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </DockPanel>
+                        <TextBlock Text="{Binding UpdateStatusText}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextMutedBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <Trigger Property="Text" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!-- Shown only when extra accounts exist -->
+                        <StackPanel Margin="0,10,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MulticcDetected}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <CheckBox IsChecked="{Binding MulticcEnabled}" Style="{StaticResource SettingsCheckBox}"
+                                      ToolTip="{loc:Tr 'Automatically detect and display all multicc profiles in the Claude tab.'}">
+                                <TextBlock FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}">
+                                    <Run Text="{loc:Tr 'Use multicc profiles'}" /><Run Text="  " /><Run Text="{Binding MulticcProfileCount, Mode=OneWay}" Foreground="{DynamicResource TextMutedBrush}" />
+                                </TextBlock>
+                            </CheckBox>
+                            <TextBlock Text="{Binding MulticcRestartMessage}" FontSize="11" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,0"
+                                       Visibility="{Binding MulticcRestartMessage, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+                        </StackPanel>
+                    </StackPanel>
+                </TabItem>
+                <!-- Appearance -->
+                <TabItem Header="{loc:Tr 'Display'}">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,10">
+                            <ItemsControl ItemsSource="{Binding Palettes}" DockPanel.Dock="Right">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Cursor="Hand" Margin="6,0,0,0" FocusVisualStyle="{x:Null}" ToolTip="{Binding Name}"
+                                                Command="{Binding DataContext.SelectPaletteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding Name}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="ring" Width="24" Height="24" CornerRadius="12" BorderThickness="2"
+                                                            BorderBrush="Transparent" Background="Transparent">
+                                                        <Border Width="16" Height="16" CornerRadius="8" Background="{Binding Swatch}" />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter TargetName="ring" Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}" />
+                                                        </DataTrigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="ring" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{loc:Tr 'Theme'}" Style="{StaticResource RowLabel}" />
+                        </DockPanel>
+                        <DockPanel>
+                            <Button Content="English" DockPanel.Dock="Right" Padding="10,4" FontSize="11" Margin="4,0,0,0"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding SetLanguageCommand}" CommandParameter="en" />
+                            <Button Content="한국어" DockPanel.Dock="Right" Padding="10,4" FontSize="11"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding SetLanguageCommand}" CommandParameter="ko" />
+                            <TextBlock Style="{StaticResource RowLabel}">
+                                <Run Text="{loc:Tr 'Language'}" /><Run Text=" · " /><Run Text="{Binding LanguageLabel, Mode=OneWay}" Foreground="{DynamicResource TextMutedBrush}" />
+                            </TextBlock>
+                        </DockPanel>
+                    </StackPanel>
+                </TabItem>
+                </TabControl>
+                <TextBlock Grid.Row="2" Text="{loc:Tr 'Accounts &amp; AI tools'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" Margin="2,0,0,6" />
+                <TabControl Grid.Row="3" Style="{StaticResource SettingsTabControl}">
+                <!-- Accounts -->
+                <TabItem Header="{loc:Tr 'Accounts'}">
+                    <!-- 계약: 도구마다 구역 하나 — 기본 계정 줄, 추가 계정 목록, 추가 입력이 그 도구 것만 모여 있다 -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource GutterScrollViewer}">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,6" ToolTip="{Binding ClaudeSourceText}">
+                            <TextBlock Text="Claude" DockPanel.Dock="Left" Style="{StaticResource RowLabel}" FontWeight="SemiBold" />
+                            <TextBlock Text="{loc:Tr 'Name · Type'}" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFaintBrush}" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding ClaudeAccounts}" ItemTemplate="{StaticResource AccountRowTemplate}" />
+                        <DockPanel>
+                            <Button Content="{loc:Tr 'Add account'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding AddAccountCommand}" />
+                            <TextBox Text="{Binding NewAccountName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Padding="6,4"
+                                     VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Extra Claude account (usage only) — email or a short name'}"
+                                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                     BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
+                        </DockPanel>
+
+                        <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,12,0,10" />
+
+                        <!-- Codex -->
+                        <DockPanel Margin="0,0,0,6" ToolTip="{Binding CodexSourceText}">
+                            <TextBlock Text="Codex" DockPanel.Dock="Left" Style="{StaticResource RowLabel}" FontWeight="SemiBold" />
+                            <TextBlock Text="{loc:Tr 'Name · Type'}" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFaintBrush}" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding CodexAccounts}" ItemTemplate="{StaticResource AccountRowTemplate}" />
+                        <DockPanel>
+                            <Button Content="{loc:Tr 'Add account'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding AddCodexAccountCommand}" />
+                            <TextBox Text="{Binding NewCodexAccountName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Padding="6,4"
+                                     VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Extra Codex account (usage only) — email or a short name'}"
+                                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                     BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
+                        </DockPanel>
+<TextBlock Text="{Binding AccountsMessage}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Visibility="{Binding AccountsMessage, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding AccountsMessageIsSuccess}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <!-- 계약: 로그인 CLI 가 뒤에서 도는 동안만 보인다 — 코드 칸은 브라우저가 코드를 보여 주는 로그인(Claude)일 때만 -->
+                        <DockPanel Margin="0,6,0,0" Visibility="{Binding LoginInProgress, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                            <Button Content="{loc:Tr 'Cancel'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding CancelLoginCommand}" />
+                            <Button Content="{loc:Tr 'Apply code'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding SubmitLoginCodeCommand}"
+                                    Visibility="{Binding LoginAcceptsCode, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                            <TextBox Text="{Binding LoginCodeInput, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Padding="6,4"
+                                     VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Paste the code the browser shows after signing in'}"
+                                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                     BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}"
+                                     Visibility="{Binding LoginAcceptsCode, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                        </DockPanel>
+                        <Button Content="{loc:Tr 'Restart app to apply'}" HorizontalAlignment="Left" Padding="10,5" FontSize="11" Margin="0,6,0,0"
+                                Style="{StaticResource SettingsButton}" Command="{Binding RestartAppCommand}">
+                            <Button.Visibility>
+                                <Binding Path="AccountsRestartPending">
+                                    <Binding.Converter>
+                                        <BooleanToVisibilityConverter />
+                                    </Binding.Converter>
+                                </Binding>
+                            </Button.Visibility>
+                        </Button>
+                    </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                <!-- Copilot -->
+                <TabItem Header="Copilot">
+                    <StackPanel>
+                        <CheckBox IsChecked="{Binding CopilotEnabled}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,8"
+                                  ToolTip="{loc:Tr 'Connect a GitHub personal access token to fetch usage data.'}">
+                            <TextBlock Text="{loc:Tr 'Enable GitHub Copilot usage'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <DockPanel ToolTip="{loc:Tr 'Personal access token'}">
+                            <Button Content="{loc:Tr 'Clear'}"
+                                    Command="{Binding ClearCopilotTokenCommand}" Padding="10,4" FontSize="11" Margin="4,0,0,0"
+                                    IsEnabled="{Binding IsCopilotTokenBusy, Converter={x:Static local:BoolNegationConverter.Instance}}"
+                                    Style="{StaticResource SettingsButton}" DockPanel.Dock="Right" />
+                            <Button Content="{loc:Tr 'Save'}"
+                                    Click="OnSaveCopilotTokenClick" Padding="10,4" FontSize="11" Margin="6,0,0,0"
+                                    IsEnabled="{Binding IsCopilotTokenBusy, Converter={x:Static local:BoolNegationConverter.Instance}}"
+                                    Style="{StaticResource SettingsButton}" DockPanel.Dock="Right" />
+                            <Grid>
+                                <PasswordBox x:Name="CopilotTokenBox" Height="26" VerticalContentAlignment="Center"
+                                             Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                             BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}"
+                                             IsEnabled="{Binding IsCopilotTokenBusy, Converter={x:Static local:BoolNegationConverter.Instance}}" />
+                                <TextBlock Text="********" FontSize="12" Foreground="{DynamicResource TextFaintBrush}" Margin="8,0"
+                                           HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasCopilotToken}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ElementName=CopilotTokenBox, Path=IsKeyboardFocused}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DockPanel>
+                        <TextBlock Text="{Binding CopilotTokenStatus}" FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,6,0,0"
+                                   Visibility="{Binding CopilotTokenStatus, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+                    </StackPanel>
+                </TabItem>
+                <!-- Gemini -->
+                <TabItem Header="Gemini">
+                    <StackPanel>
+                        <CheckBox IsChecked="{Binding GeminiEnabled}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
+                                  ToolTip="{loc:Tr 'Reads ~/.gemini: quota from the signed-in Code Assist seat, tokens and cost from session logs.'}">
+                            <TextBlock Text="{loc:Tr 'Show Gemini CLI usage'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <DockPanel Margin="0,0,0,10">
+                            <TextBlock Text="Gemini" Width="52" DockPanel.Dock="Left" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="{Binding GeminiAccountText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </DockPanel>
+                        <TextBlock Text="{loc:Tr 'Quota needs a Code Assist Standard/Enterprise seat. Personal Google sign-in was closed on 2026-06-18, so only token and cost history shows for it. Cost is an API-price estimate.'}"
+                                   FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFaintBrush}" />
+                    </StackPanel>
+                </TabItem>
+                </TabControl>
+            </Grid>
+
+            <!-- Footer: version · author · links on one line, attribution below -->
+            <StackPanel Grid.Row="3" Margin="2,4,2,0">
+                <TextBlock FontSize="11" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis">
+                    <Run Text="{Binding Version, StringFormat='v{0}', Mode=OneWay}" FontWeight="SemiBold" /><Run Text="  ·  " /><Run Text="{loc:Tr 'Made by'}" /><Run Text=" HyungJin Ju (" /><Hyperlink NavigateUri="mailto:gudwls9730@gmail.com" RequestNavigate="OnLinkNavigate"
+                               Foreground="{DynamicResource AccentBrush}">gudwls9730@gmail.com</Hyperlink><Run Text=")" />
+                </TextBlock>
+                <DockPanel Margin="0,3,0,0">
+                    <TextBlock FontSize="11" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                        <Hyperlink NavigateUri="https://github.com/HyungJIn-kr-97" RequestNavigate="OnLinkNavigate" ToolTip="github.com/HyungJIn-kr-97"
+                                   Foreground="{DynamicResource AccentBrush}">GitHub</Hyperlink>
+                    </TextBlock>
+                    <TextBlock Text="{loc:Tr 'Based on costats by fmdz (MIT License)'}" FontSize="10" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFaintBrush}" />
+                </DockPanel>
+            </StackPanel>
+        </Grid>
+</UserControl>

@@ -6,6 +6,7 @@ using H.NotifyIcon;
 using costats.App.Localization;
 using costats.App.ViewModels;
 using costats.Application.Pulse;
+using costats.Application.Settings;
 using costats.Core.Pulse;
 using Microsoft.Win32;
 using Serilog;
@@ -19,21 +20,21 @@ namespace costats.App.Services
 
         private readonly TaskbarIcon _taskbarIcon;
         private readonly GlassWidgetWindow _widgetWindow;
-        private readonly SettingsWindow _settingsWindow;
         private readonly IPulseOrchestrator _pulseOrchestrator;
         private readonly PulseViewModel _viewModel;
         private readonly TaskbarPositionService _taskbarPosition;
+        private readonly AppSettings _settings;
 
         public TrayHost(
             PulseViewModel viewModel,
             GlassWidgetWindow widgetWindow,
-            SettingsWindow settingsWindow,
             IPulseOrchestrator pulseOrchestrator,
-            TaskbarPositionService taskbarPosition)
+            TaskbarPositionService taskbarPosition,
+            AppSettings settings)
         {
+            _settings = settings;
             _viewModel = viewModel;
             _widgetWindow = widgetWindow;
-            _settingsWindow = settingsWindow;
             _pulseOrchestrator = pulseOrchestrator;
             _taskbarPosition = taskbarPosition;
 
@@ -44,6 +45,7 @@ namespace costats.App.Services
             Loc.LanguageChanged += () => _taskbarIcon.ContextMenu = BuildContextMenu();
             _taskbarIcon.TrayLeftMouseUp += OnTrayLeftClick;
             _taskbarIcon.ForceCreate(enablesEfficiencyMode: false);
+            TrayPinService.ApplyAfterIconShown(_settings.PinTrayIcon);
 
             SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
             _widgetWindow.SizeChanged += OnWidgetSizeChanged;
@@ -121,34 +123,27 @@ namespace costats.App.Services
 
         public void ShowSettings()
         {
-            // Center on screen
-            var workArea = SystemParameters.WorkArea;
-            _settingsWindow.Left = (workArea.Width - _settingsWindow.Width) / 2 + workArea.Left;
-            _settingsWindow.Top = (workArea.Height - _settingsWindow.Height) / 2 + workArea.Top;
-
-            if (!_settingsWindow.IsVisible)
-            {
-                _settingsWindow.Show();
-            }
-
-            _settingsWindow.Activate();
+            // 왜: 설정은 팝업 안의 화면이다 — 팝업을 띄운 뒤 그 안에서 설정으로 넘긴다
+            ShowWidget();
+            _widgetWindow.OpenSettings();
         }
 
         public void ShowWidget()
         {
+            _widgetWindow.FitToWorkArea();
             PositionWidget();
 
             var wasVisible = _widgetWindow.IsVisible;
 
             if (!wasVisible)
             {
+                _viewModel.SelectDefaultAccounts();
                 _widgetWindow.Show();
             }
 
             _widgetWindow.Activate();
 
-            // Silent refresh for the currently selected provider when panel opens
-            if (!wasVisible)
+            if (!wasVisible && _settings.RefreshOnOpen)
             {
                 _ = RefreshSelectedProviderAsync().ContinueWith(
                     t => Log.Warning(t.Exception!.GetBaseException(), "Silent provider refresh failed"),
@@ -188,7 +183,6 @@ namespace costats.App.Services
             SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
             _taskbarIcon.Dispose();
             _widgetWindow.Close();
-            _settingsWindow.Close();
         }
 
         private void OnWidgetSizeChanged(object sender, SizeChangedEventArgs e)

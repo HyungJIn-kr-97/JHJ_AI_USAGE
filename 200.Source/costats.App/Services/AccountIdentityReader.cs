@@ -93,9 +93,10 @@ public static class AccountIdentityReader
     public static string GeminiAccountFile() => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "google_accounts.json");
 
-    public static string CodexAuthFile()
+    /// <param name="home">CODEX_HOME 으로 쓰는 폴더. null 이면 기본 계정(CODEX_HOME 또는 ~/.codex).</param>
+    public static string CodexAuthFile(string? home = null)
     {
-        var codexHome = Environment.GetEnvironmentVariable("CODEX_HOME");
+        var codexHome = home ?? Environment.GetEnvironmentVariable("CODEX_HOME");
         if (string.IsNullOrWhiteSpace(codexHome))
         {
             codexHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
@@ -104,11 +105,13 @@ public static class AccountIdentityReader
         return Path.Combine(codexHome, "auth.json");
     }
 
-    public static string ReadCodex()
+    public static string ReadCodex() => ReadCodex(null);
+
+    public static string ReadCodex(string? home)
     {
         try
         {
-            var path = CodexAuthFile();
+            var path = CodexAuthFile(home);
             if (!File.Exists(path))
             {
                 return NotSignedIn;

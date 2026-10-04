@@ -14,8 +14,12 @@ public sealed class CodexOAuthUsageFetcher : IDisposable
 
     private readonly HttpClient _httpClient;
 
-    public CodexOAuthUsageFetcher()
+    private readonly string? _codexHome;
+
+    // 계약: codexHome 이 null 이면 기본 계정(CODEX_HOME 또는 ~/.codex)의 auth.json 을 읽는다
+    public CodexOAuthUsageFetcher(string? codexHome = null)
     {
+        _codexHome = codexHome;
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri(BaseUrl),
@@ -62,10 +66,10 @@ public sealed class CodexOAuthUsageFetcher : IDisposable
         }
     }
 
-    private static async Task<CodexCredentials?> LoadCredentialsAsync()
+    private async Task<CodexCredentials?> LoadCredentialsAsync()
     {
         // Check for CODEX_HOME environment variable first
-        var codexHome = Environment.GetEnvironmentVariable("CODEX_HOME");
+        var codexHome = _codexHome ?? Environment.GetEnvironmentVariable("CODEX_HOME");
         string authPath;
 
         if (!string.IsNullOrWhiteSpace(codexHome))

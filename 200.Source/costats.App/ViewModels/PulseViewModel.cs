@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,12 +17,47 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
     private readonly IDisposable _subscription;
     private readonly Dictionary<string, string> _displayNames;
 
-    public PulseViewModel(IPulseOrchestrator orchestrator, AppSettings settings, IEnumerable<ISignalSource> sources)
+    private readonly ISettingsStore _settingsStore;
+
+    // 계약: 접힘 상태는 계정 VM 이 아니라 여기에 둔다 — 계정 VM 은 갱신마다 새로 만들어져 상태를 못 지킨다
+    [ObservableProperty]
+    private bool isChartExpanded;
+
+    [ObservableProperty]
+    private bool isModelsExpanded;
+
+    [ObservableProperty]
+    private bool isTokenTypesExpanded;
+
+    partial void OnIsChartExpandedChanged(bool value) => SaveSection("chart", value);
+
+    partial void OnIsModelsExpandedChanged(bool value) => SaveSection("models", value);
+
+    partial void OnIsTokenTypesExpandedChanged(bool value) => SaveSection("tokenTypes", value);
+
+    private void SaveSection(string name, bool expanded)
+    {
+        _settings.CollapsedSections.Remove(name);
+        if (!expanded)
+        {
+            _settings.CollapsedSections.Add(name);
+        }
+
+        _ = _settingsStore.SaveAsync(_settings, CancellationToken.None);
+    }
+
+    public PulseViewModel(IPulseOrchestrator orchestrator, AppSettings settings, IEnumerable<ISignalSource> sources, ISettingsStore settingsStore)
     {
         _orchestrator = orchestrator;
         _settings = settings;
+        _settingsStore = settingsStore;
+        isChartExpanded = !settings.CollapsedSections.Contains("chart");
+        isModelsExpanded = !settings.CollapsedSections.Contains("models");
+        isTokenTypesExpanded = !settings.CollapsedSections.Contains("tokenTypes");
         isCopilotEnabled = settings.CopilotEnabled;
         isGeminiEnabled = settings.GeminiEnabled;
+        _pendingClaudeDefault = AccountMeta.DefaultIdOf(settings, "claude");
+        _pendingCodexDefault = AccountMeta.DefaultIdOf(settings, "codex");
         _displayNames = sources
             .Select(source => source.Profile)
             .GroupBy(profile => profile.ProviderId)
@@ -31,6 +66,36 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
         Providers = new ObservableCollection<ProviderPulseViewModel>();
         _subscription = orchestrator.PulseStream.Subscribe(this);
         Loc.LanguageChanged += OnLanguageChanged;
+
+        // 왜: 남은 시간은 초 단위로 줄어든다 — 갱신 주기와 따로 1초마다 문구만 다시 쓴다
+        _nextRefreshTicker = new System.Windows.Threading.DispatcherTimer(
+            TimeSpan.FromSeconds(1),
+            System.Windows.Threading.DispatcherPriority.Background,
+            (_, _) => UpdateNextRefreshText(),
+            System.Windows.Application.Current.Dispatcher);
+    }
+
+    private readonly System.Windows.Threading.DispatcherTimer _nextRefreshTicker;
+
+    // 계약: "다음 갱신 10:45 · 4:12 후" — 예약이 아직 없으면 빈 문자열
+    [ObservableProperty]
+    private string nextRefreshText = string.Empty;
+
+    private void UpdateNextRefreshText()
+    {
+        if (_orchestrator.NextRefreshAt is not { } next)
+        {
+            NextRefreshText = string.Empty;
+            return;
+        }
+
+        var left = next - DateTimeOffset.Now;
+        if (left < TimeSpan.Zero)
+        {
+            left = TimeSpan.Zero;
+        }
+
+        NextRefreshText = Loc.T("Next refresh {0} · in {1}", next.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), $"{(int)left.TotalMinutes}:{left.Seconds:00}");
     }
 
     // 왜: 칩 라벨과 계정 VM 의 문장은 만들 때의 언어로 굳는다 — 언어가 바뀌면 다시 만들어야 한다
@@ -121,20 +186,153 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
     /// </summary>
     public bool ShowClaudeStacked => IsMulticcActive && SelectedClaudeAccountId is null;
 
+    // 계약: Claude 탭에서 계정 카드를 쌓아 보이는 중인지 — 통계 구역 위에 「어느 계정의 통계인지」를 적을 때 쓴다
+    public bool IsStackedClaudeView => ShowClaudeStacked && SelectedTabIndex == 1;
+
+    // 왜: 「전체」에서도 통계는 한 계정 것을 보인다 — 유형이 「기본」인 계정, 없으면 이 PC 에 사용 기록이 있는 계정
+    // 함정: 사용량 조회 전용 계정은 로컬 로그가 없어 비용이 전부 「--」다 — 사용률 순 첫 계정을 그대로 쓰면 빈 통계가 뜬다
+    private ProviderPulseViewModel StatsFallback(IReadOnlyList<ProviderPulseViewModel> profiles) =>
+        profiles.FirstOrDefault(p => string.Equals(p.ProviderId, AccountMeta.DefaultIdOf(_settings, "claude"), StringComparison.OrdinalIgnoreCase))
+        ?? profiles.FirstOrDefault(p => p.HasCostData)
+        ?? profiles[0];
+
     /// <summary>
     /// 계약: 제목 줄의 계정 드롭다운은 Claude 탭에서 계정이 여럿일 때만 열린다.
     /// </summary>
-    public bool CanSwitchAccount => SelectedTabIndex == 1;
+    public bool CanSwitchAccount => SelectedTabIndex is 0 or 1;
+
+    private const string CodexMainId = "codex";
+
+    // 계약: 키는 providerId("codex" 또는 "codex:<이름>") — Codex 탭은 이 중 선택된 계정 하나만 보인다
+    private readonly Dictionary<string, ProviderPulseViewModel> _codexAccounts = new(StringComparer.OrdinalIgnoreCase);
+
+    public ObservableCollection<AccountChip> CodexAccountChips { get; } = new();
+
+    [ObservableProperty]
+    private string selectedCodexAccountId = CodexMainId;
+
+    // 계약: 제목 줄 드롭다운은 지금 탭의 도구 계정만 보인다 — 도구마다 계정을 따로 고른다
+    public ObservableCollection<AccountChip> ActiveAccountChips => SelectedTabIndex == 0 ? CodexAccountChips : ClaudeAccountChips;
+
+    // 함정: 첫 갱신 전에는 계정 칩이 없다 — 고를 칩이 생길 때까지 기본 계정을 들고 있다가 동기화 뒤에 고른다
+    private string? _pendingClaudeDefault;
+    private string? _pendingCodexDefault;
+
+    // 계약: 팝업이 새로 열릴 때 부른다 — 유형이 「기본」인 계정이 없으면 지금 선택을 그대로 둔다
+    public void SelectDefaultAccounts()
+    {
+        _pendingClaudeDefault = AccountMeta.DefaultIdOf(_settings, "claude");
+        _pendingCodexDefault = AccountMeta.DefaultIdOf(_settings, "codex");
+        ApplyPendingDefaults();
+    }
+
+    // 계약: 설정에서 계정 명칭·유형을 고친 뒤 부른다 — 칩 라벨·제목을 다시 만들고 기본 계정을 다시 고른다
+    public void ApplyAccountMeta()
+    {
+        if (_lastState is not null)
+        {
+            OnNext(_lastState);
+        }
+
+        SelectDefaultAccounts();
+    }
+
+    private void ApplyPendingDefaults()
+    {
+        if (_pendingClaudeDefault is { } claudeId &&
+            ClaudeAccountChips.FirstOrDefault(c => string.Equals(c.Id, claudeId, StringComparison.OrdinalIgnoreCase)) is { } claudeChip)
+        {
+            _pendingClaudeDefault = null;
+            SelectedClaudeAccountId = claudeChip.Id;
+        }
+
+        if (_pendingCodexDefault is { } codexId &&
+            CodexAccountChips.FirstOrDefault(c => string.Equals(c.Id, codexId, StringComparison.OrdinalIgnoreCase)) is { Id: { } codexChipId })
+        {
+            _pendingCodexDefault = null;
+            SelectedCodexAccountId = codexChipId;
+        }
+    }
+
+    [RelayCommand]
+    private void SelectAccount(string? providerId)
+    {
+        if (SelectedTabIndex == 0)
+        {
+            SelectedCodexAccountId = providerId ?? CodexMainId;
+        }
+        else
+        {
+            SelectedClaudeAccountId = providerId;
+        }
+    }
+
+    partial void OnSelectedCodexAccountIdChanged(string value)
+    {
+        ApplySelectedCodexAccount();
+        RefreshActiveAccount();
+        foreach (var chip in CodexAccountChips)
+        {
+            chip.IsSelected = chip.Id == value;
+        }
+    }
+
+    private void ApplySelectedCodexAccount()
+    {
+        if (_codexAccounts.TryGetValue(SelectedCodexAccountId, out var selected) ||
+            _codexAccounts.TryGetValue(CodexMainId, out selected))
+        {
+            Codex = selected;
+            OnPropertyChanged(nameof(SelectedProvider));
+            OnPropertyChanged(nameof(SelectedProviderId));
+        }
+    }
+
+    private void SyncCodexAccountChips()
+    {
+        var ids = new List<string> { CodexMainId };
+        ids.AddRange(_codexAccounts.Keys
+            .Where(id => !id.Equals(CodexMainId, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
+        var wanted = ids
+            .Select(id => (Id: id, Label: AccountMeta.DisplayNameOf(_settings, id),
+                Detail: WithType(id, ShortAccount(AccountIdentityReader.ReadCodex(CodexDirOf(id))))))
+            .ToList();
+
+        if (wanted.SequenceEqual(CodexAccountChips.Select(c => (c.Id!, c.Label, c.Detail))))
+        {
+            return;
+        }
+
+        if (wanted.All(w => w.Id != SelectedCodexAccountId))
+        {
+            SelectedCodexAccountId = CodexMainId;
+        }
+
+        CodexAccountChips.Clear();
+        foreach (var (id, label, detail) in wanted)
+        {
+            CodexAccountChips.Add(new AccountChip(id, label, detail) { IsSelected = id == SelectedCodexAccountId });
+        }
+    }
+
+    private static string CodexNameOf(string providerId) => providerId[(providerId.IndexOf(':') + 1)..];
+
+    // 계약: "codex" 는 이 PC 의 기본 로그인(null), "codex:<이름>" 은 CodexAccountStore 가 만든 폴더다
+    private static string? CodexDirOf(string providerId) =>
+        providerId.Contains(':') ? CodexAccountStore.DirOf(CodexNameOf(providerId)) : null;
 
     partial void OnIsMulticcActiveChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowClaudeStacked));
+        OnPropertyChanged(nameof(IsStackedClaudeView));
         OnPropertyChanged(nameof(CanSwitchAccount));
     }
 
     partial void OnSelectedClaudeAccountIdChanged(string? value)
     {
         OnPropertyChanged(nameof(ShowClaudeStacked));
+        OnPropertyChanged(nameof(IsStackedClaudeView));
         ApplySelectedClaudeAccount();
         RefreshActiveAccount();
         foreach (var chip in ClaudeAccountChips)
@@ -156,7 +354,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
             return;
         }
 
-        Claude = ClaudeProfiles.FirstOrDefault(p => p.ProviderId == SelectedClaudeAccountId) ?? ClaudeProfiles[0];
+        Claude = ClaudeProfiles.FirstOrDefault(p => p.ProviderId == SelectedClaudeAccountId) ?? StatsFallback(ClaudeProfiles);
         OnPropertyChanged(nameof(SelectedProvider));
         OnPropertyChanged(nameof(SelectedProviderId));
     }
@@ -164,13 +362,18 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
     private void SyncClaudeAccountChips()
     {
         // 왜: 계정이 하나뿐이어도 드롭다운을 열 수 있어야 "Add account" 로 가는 길이 보인다
-        var wanted = new List<(string? Id, string Label)> { (null, Loc.T(ClaudeProfiles.Count == 0 ? "This PC" : "All")) };
+        var wanted = new List<(string? Id, string Label, string Detail)>
+        {
+            (null, Loc.T(ClaudeProfiles.Count == 0 ? "This PC" : "All"),
+                ClaudeProfiles.Count == 0 ? ShortAccount(AccountIdentityReader.ReadClaude()) : Loc.T("Every account, stacked"))
+        };
         wanted.AddRange(ClaudeProfiles
             .OrderBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(p => ((string?)p.ProviderId, p.DisplayName)));
+            .Select(p => ((string?)p.ProviderId, p.DisplayName,
+                WithType(p.ProviderId, ShortAccount(AccountIdentityReader.ReadClaude(AccountDirOf(p.ProviderId)))))));
 
         // 왜: 갱신마다 칩을 새로 만들면 깜빡이고 마우스 오버가 풀린다 — 목록이 달라졌을 때만 다시 만든다
-        if (wanted.Select(w => (w.Id, w.Label)).SequenceEqual(ClaudeAccountChips.Select(c => (c.Id, c.Label))))
+        if (wanted.SequenceEqual(ClaudeAccountChips.Select(c => (c.Id, c.Label, c.Detail))))
         {
             return;
         }
@@ -181,14 +384,15 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
         }
 
         ClaudeAccountChips.Clear();
-        foreach (var (id, label) in wanted)
+        foreach (var (id, label, detail) in wanted)
         {
-            var detail = id is null
-                ? (ClaudeProfiles.Count == 0 ? ShortAccount(AccountIdentityReader.ReadClaude()) : Loc.T("Every account, stacked"))
-                : ShortAccount(AccountIdentityReader.ReadClaude(AccountDirOf(id)));
             ClaudeAccountChips.Add(new AccountChip(id, label, detail) { IsSelected = id == SelectedClaudeAccountId });
         }
     }
+
+    // 계약: 드롭다운 보조 줄은 「유형 · 메일」 — 유형이 비어 있으면 메일만
+    private string WithType(string id, string account) =>
+        AccountMeta.TypeOf(_settings, id) is { Length: > 0 } type ? $"{type} · {account}" : account;
 
     /// <summary>
     /// Returns the currently selected provider based on tab index.
@@ -209,7 +413,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
         get
         {
             if (SelectedTabIndex == 0)
-                return "codex";
+                return _codexAccounts.ContainsKey(SelectedCodexAccountId) ? SelectedCodexAccountId : CodexMainId;
 
             if (SelectedTabIndex == 1)
             {
@@ -235,7 +439,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
     {
         ActiveAccountText = SelectedTabIndex switch
         {
-            0 => ShortAccount(AccountIdentityReader.ReadCodex()),
+            0 => ShortAccount(AccountIdentityReader.ReadCodex(CodexDirOf(SelectedCodexAccountId))),
             1 when IsMulticcActive && SelectedClaudeAccountId is null => Loc.T("All · {0} accounts", ClaudeProfiles.Count),
             1 when IsMulticcActive => ShortAccount(AccountIdentityReader.ReadClaude(AccountDirOf(SelectedClaudeAccountId!))),
             1 => ShortAccount(AccountIdentityReader.ReadClaude()),
@@ -286,8 +490,10 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
 
     partial void OnSelectedTabIndexChanged(int value)
     {
+        OnPropertyChanged(nameof(IsStackedClaudeView));
         RefreshActiveAccount();
         OnPropertyChanged(nameof(CanSwitchAccount));
+        OnPropertyChanged(nameof(ActiveAccountChips));
         OnPropertyChanged(nameof(SelectedProvider));
         OnPropertyChanged(nameof(SelectedProviderId));
     }
@@ -350,6 +556,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 // ── Build all data in local variables first (no UI mutations yet) ──
                 var newProviders = new List<ProviderPulseViewModel>();
                 var claudeProfileList = new List<ProviderPulseViewModel>();
+                var codexAccounts = new Dictionary<string, ProviderPulseViewModel>(StringComparer.OrdinalIgnoreCase);
                 ProviderPulseViewModel? newCodex = null;
                 ProviderPulseViewModel? newClaude = null;
                 ProviderPulseViewModel? newCopilot = null;
@@ -365,7 +572,9 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
 
                 foreach (var (providerId, reading) in value.Providers)
                 {
-                    var displayName = _displayNames.TryGetValue(providerId, out var name) ? name : providerId;
+                    // 왜: 계정 줄의 제목은 사용자가 정한 명칭이다 — 폴더 이름("jhj-atisys-co-kr")을 보이지 않는다
+                    var displayName = providerId.Contains(':') ? AccountMeta.DisplayNameOf(_settings, providerId)
+                        : _displayNames.TryGetValue(providerId, out var name) ? name : providerId;
                     var vm = ProviderPulseViewModel.FromReading(reading, displayName);
 
                     if ((providerId.Equals("copilot", StringComparison.OrdinalIgnoreCase) && !IsCopilotEnabled) ||
@@ -376,9 +585,10 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
 
                     newProviders.Add(vm);
 
-                    if (providerId.Equals("codex", StringComparison.OrdinalIgnoreCase))
+                    if (providerId.Equals("codex", StringComparison.OrdinalIgnoreCase) ||
+                        providerId.StartsWith("codex:", StringComparison.OrdinalIgnoreCase))
                     {
-                        newCodex = vm;
+                        codexAccounts[providerId] = vm;
                     }
                     else if (providerId.Equals("claude", StringComparison.OrdinalIgnoreCase))
                     {
@@ -418,6 +628,17 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 // Sort claude profiles by session utilization descending (worst-first)
                 claudeProfileList.Sort((a, b) => b.SessionProgress.CompareTo(a.SessionProgress));
 
+                // 함정: 부분 갱신은 한 계정만 실어 온다 — 지난 계정 목록에 덮어써야 다른 계정이 사라지지 않는다
+                foreach (var (id, vm) in codexAccounts)
+                {
+                    _codexAccounts[id] = vm;
+                }
+
+                if (!_codexAccounts.TryGetValue(SelectedCodexAccountId, out newCodex))
+                {
+                    _codexAccounts.TryGetValue(CodexMainId, out newCodex);
+                }
+
                 var isMulticc = claudeProfileList.Count > 0;
 
                 // Build summary text
@@ -425,7 +646,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 if (isMulticc)
                 {
                     newClaude = claudeProfileList.FirstOrDefault(p => p.ProviderId == SelectedClaudeAccountId)
-                        ?? claudeProfileList[0]; // worst-case for backward compat
+                        ?? StatsFallback(claudeProfileList);
 
                     var total = claudeProfileList.Count;
                     var critical = claudeProfileList.Count(p => p.SessionProgress >= 0.95);
@@ -472,6 +693,8 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 ClaudeProfiles.Clear();
                 foreach (var p in claudeProfileList) ClaudeProfiles.Add(p);
                 SyncClaudeAccountChips();
+                SyncCodexAccountChips();
+                ApplyPendingDefaults();
             }
 
             RefreshActiveAccount();
@@ -494,6 +717,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
 
     public void Dispose()
     {
+        _nextRefreshTicker.Stop();
         _subscription.Dispose();
     }
 }

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 계약: 웹 설치 관리자 — Windows 10/11 에 기본으로 있는 .NET Framework 4.8 로 만들어 런타임 없이 수백 KB 로 돈다 -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>AiUsageMonitor-Setup</AssemblyName>
+    <RootNamespace>costats.Setup</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationIcon>..\costats.App\Resources\tray-icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Product>AI 통합 사용량 모니터 설치</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
+
+</Project>

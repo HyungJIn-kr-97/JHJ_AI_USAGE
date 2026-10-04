@@ -111,6 +111,11 @@ namespace costats.App
 
                 var settingsStore = new JsonSettingsStore();
                 var settings = await settingsStore.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                // 왜: 설정은 켜져 있는데 Run 등록이 없거나 옛 경로인 경우가 있다(폴더 이동·업데이트·다른 환경에서 켠 경우) — 시작할 때마다 맞춘다
+                if (settings.StartAtLogin)
+                {
+                    costats.App.ViewModels.SettingsViewModel.SetStartupRegistryValue(true);
+                }
 
                 await Dispatcher.InvokeAsync(() =>
                 {
@@ -259,6 +264,10 @@ namespace costats.App
                     services.AddSingleton<ISourceSelector, SourceSelector>();
                     services.AddSingleton<CopilotUsageFetcher>();
                     services.AddSingleton<ISignalSource, CodexLogSource>();
+                    foreach (var codexAccount in CodexAccountStore.List())
+                    {
+                        services.AddSingleton<ISignalSource>(new CodexLogSource(codexAccount, CodexAccountStore.DirOf(codexAccount)));
+                    }
                     services.AddSingleton<ISignalSource, CopilotPersonalSource>();
                     services.AddSingleton<ISignalSource, GeminiLogSource>();
                     // Multicc integration: conditionally register per-profile or default Claude source
@@ -312,7 +321,6 @@ namespace costats.App
                     services.AddSingleton<PulseViewModel>();
                     services.AddSingleton<SettingsViewModel>();
                     services.AddSingleton<GlassWidgetWindow>();
-                    services.AddSingleton<SettingsWindow>();
                     services.AddSingleton<TaskbarPositionService>();
                     services.AddSingleton<TrayHost>();
                     services.AddSingleton<HotkeyService>();

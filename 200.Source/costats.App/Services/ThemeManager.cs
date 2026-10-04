@@ -102,6 +102,7 @@ public static class ThemeManager
             ["SessionTextBrush"] = Frozen(tone.Accent),
             ["WeeklyBarBrush"] = Frozen(tone.Brand),
             ["WeeklyTextBrush"] = Frozen(tone.Brand),
+            ["SuccessBrush"] = Frozen(dark ? "#34D399" : "#047857"),
             ["PlanTextCodexBrush"] = Frozen(dark ? "#34D399" : "#047857"),
             ["PlanTextClaudeBrush"] = Frozen(dark ? "#FDBA74" : "#C2410C"),
             ["PlanTextCopilotBrush"] = Frozen(dark ? "#C4B5FD" : "#4C1D95"),

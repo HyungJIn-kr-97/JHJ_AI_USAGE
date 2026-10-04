@@ -13,14 +13,15 @@ namespace costats.App
     public partial class GlassWidgetWindow : Window
     {
         private readonly IGlassBackdropService _backdropService;
-        private readonly SettingsWindow _settingsWindow;
+        private readonly SettingsViewModel _settingsViewModel;
+        private bool _settingsOpen;
 
         private readonly costats.Application.Settings.AppSettings _settings;
         private readonly costats.Application.Settings.ISettingsStore _settingsStore;
 
         public GlassWidgetWindow(
             PulseViewModel viewModel,
-            SettingsWindow settingsWindow,
+            SettingsViewModel settingsViewModel,
             IGlassBackdropService backdropService,
             costats.Application.Settings.AppSettings settings,
             costats.Application.Settings.ISettingsStore settingsStore)
@@ -30,13 +31,24 @@ namespace costats.App
             InitializeComponent();
             DataContext = viewModel;
             _backdropService = backdropService;
-            _settingsWindow = settingsWindow;
+            _settingsViewModel = settingsViewModel;
+            SettingsView.DataContext = settingsViewModel;
             SourceInitialized += OnSourceInitialized;
             MouseLeftButtonDown += OnMouseLeftButtonDown;
             Deactivated += OnDeactivated;
             KeyDown += (_, e) =>
             {
-                if (e.Key == Key.Escape)
+                if (e.Key != Key.Escape)
+                {
+                    return;
+                }
+
+                // 왜: 설정이 열려 있을 때의 Esc 는 「설정에서 나가기」다 — 팝업까지 닫으면 한 번에 두 단계를 건너뛴다
+                if (_settingsOpen)
+                {
+                    SetSettingsOpen(false);
+                }
+                else
                 {
                     Hide();
                 }
@@ -79,31 +91,31 @@ namespace costats.App
             if (e.PropertyName is nameof(PulseViewModel.IsMulticcActive) or
                 nameof(PulseViewModel.SelectedTabIndex) or
                 nameof(PulseViewModel.ShowClaudeStacked) or
-                nameof(PulseViewModel.SelectedProvider))
+                nameof(PulseViewModel.SelectedProvider) or
+                nameof(PulseViewModel.Claude) or
+                nameof(PulseViewModel.Codex) or
+                nameof(PulseViewModel.Copilot) or
+                nameof(PulseViewModel.Gemini) or
+                nameof(PulseViewModel.IsChartExpanded) or
+                nameof(PulseViewModel.IsModelsExpanded) or
+                nameof(PulseViewModel.IsTokenTypesExpanded))
             {
                 UpdateWindowHeight();
             }
         }
 
-        private void UpdateWindowHeight()
+        // 왜: 탭·계정·접힘에 따라 창 높이가 바뀌면 화면이 흔들린다 — 창은 작업 영역 높이(100%)로 고정하고 본문만 스크롤한다
+        // 계약: 위아래 여백 12px 씩은 TrayHost 의 위치 계산과 맞춘 값이다
+        public void FitToWorkArea()
         {
-            // Defer to Loaded priority so the height change renders in the same frame
-            // as panel visibility changes from MultiDataTrigger bindings.
-            // Without this, the window resizes before panels swap, causing a visible flash.
-            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            var target = SystemParameters.WorkArea.Height - 24;
+            if (Math.Abs(Height - target) > 1.0)
             {
-                var vm = DataContext as PulseViewModel;
-                if (vm is null) return;
-
-                // 계약: 모델별 주간 한도(Fable 등)는 한 줄에 66 을 더 쓴다
-                var stacked = vm.ShowClaudeStacked && vm.SelectedTabIndex == 1;
-                var targetHeight = stacked ? 746.0 : 816.0 + vm.SelectedProvider.ModelWeeks.Count * 66.0;
-                if (Math.Abs(Height - targetHeight) > 1.0)
-                {
-                    Height = targetHeight;
-                }
-            });
+                Height = target;
+            }
         }
+
+        private void UpdateWindowHeight() => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, FitToWorkArea);
 
         private void OnAccountItemClick(object sender, RoutedEventArgs e)
         {
@@ -136,18 +148,54 @@ namespace costats.App
             System.Windows.Application.Current.Shutdown();
         }
 
-        private void OnSettingsClick(object sender, RoutedEventArgs e)
-        {
-            var workArea = SystemParameters.WorkArea;
-            _settingsWindow.Left = (workArea.Width - _settingsWindow.Width) / 2 + workArea.Left;
-            _settingsWindow.Top = (workArea.Height - _settingsWindow.Height) / 2 + workArea.Top;
+        private void OnCloseWindowClick(object sender, RoutedEventArgs e) => Hide();
 
-            if (!_settingsWindow.IsVisible)
+        // 계약: 톱니와 제목 줄의 「설정 ✕」는 같은 토글이다 — 열려 있으면 닫고 닫혀 있으면 연다
+        private void OnSettingsClick(object sender, RoutedEventArgs e) => SetSettingsOpen(!_settingsOpen);
+
+        /// <summary>트레이 메뉴의 「설정」이 부른다 — 팝업을 띄운 뒤 설정 화면으로 넘긴다.</summary>
+        public void OpenSettings() => SetSettingsOpen(true);
+
+        // 계약: 설정은 제목 줄 아래 ~ 하단 줄 위를 덮고, 오른쪽에서 밀려 들어왔다가 오른쪽으로 빠진다
+        private void SetSettingsOpen(bool open)
+        {
+            if (_settingsOpen == open)
             {
-                _settingsWindow.Show();
+                return;
             }
 
-            _settingsWindow.Activate();
+            _settingsOpen = open;
+            // 왜: 설정 화면에서는 계정 전환이 쓸모없다 — 제목에 " · 설정" 을 잇고 그 자리에는 돌아가기만 둔다
+            SettingsTitleChip.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            AccountToggle.Visibility = open ? Visibility.Collapsed : Visibility.Visible;
+            TitleSuffix.Text = open ? " · " + costats.App.Localization.Loc.T("Settings") : string.Empty;
+
+            var width = Math.Max(1, ActualWidth);
+            if (open)
+            {
+                _settingsViewModel.RefreshAccounts();
+                SettingsHost.Visibility = Visibility.Visible;
+                SettingsSlide.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty,
+                    new System.Windows.Media.Animation.DoubleAnimation(width, 0, TimeSpan.FromMilliseconds(220))
+                    {
+                        EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+                    });
+                return;
+            }
+
+            var slideOut = new System.Windows.Media.Animation.DoubleAnimation(0, width, TimeSpan.FromMilliseconds(180))
+            {
+                EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn }
+            };
+            slideOut.Completed += (_, _) =>
+            {
+                // 함정: 빠지는 도중에 다시 열면 이 콜백이 늦게 온다 — 그때 접어 버리면 방금 연 설정이 사라진다
+                if (!_settingsOpen)
+                {
+                    SettingsHost.Visibility = Visibility.Collapsed;
+                }
+            };
+            SettingsSlide.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, slideOut);
         }
 
         private void OnUsageLinkNavigate(object sender, RequestNavigateEventArgs e)

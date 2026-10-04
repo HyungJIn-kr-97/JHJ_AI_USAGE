@@ -77,6 +77,20 @@ public sealed class BoolToVisibilityConverter : IValueConverter
 }
 
 /// <summary>
+/// 계약: 넘치는 높이(ScrollableHeight)가 몇 px 뿐이면 스크롤바를 숨긴다 — 한 화면에 다 보이는데 막대만 뜨는 일을 막는다.
+/// </summary>
+public sealed class ScrollableToVisibilityConverter : IValueConverter
+{
+    public static ScrollableToVisibilityConverter Instance { get; } = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is double extra && extra > 4 ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
 /// Negates a boolean value.
 /// </summary>
 public sealed class BoolNegationConverter : IValueConverter

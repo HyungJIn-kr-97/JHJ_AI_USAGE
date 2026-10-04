@@ -14,6 +14,12 @@ using System.Reflection;
 
 namespace costats.App.Services.Updates;
 
+/// <summary>GitHub 릴리스 하나 — 설정 화면의 버전 비교·선택 설치에 쓴다.</summary>
+public sealed record ReleaseInfo(Version Version, string Tag, DateTimeOffset? PublishedAt, string HtmlUrl, bool Prerelease, bool HasPackage)
+{
+    public string Label => PublishedAt is { } at ? $"v{Version.ToString(3)} · {at.ToLocalTime():yyyy-MM-dd}" : $"v{Version.ToString(3)}";
+}
+
 public sealed class StartupUpdateCoordinator
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -100,7 +106,7 @@ public sealed class StartupUpdateCoordinator
                 return false;
             }
 
-            if (!TryParseSemVer(pending.Version, out var pendingVersion) || pendingVersion <= _currentVersion)
+            if (!TryParseSemVer(pending.Version, out var pendingVersion) || !IsInstallable(pending, pendingVersion))
             {
                 SafeDeleteFile(_pendingPath);
                 SafeDeleteDirectory(pending.StagingDirectory);
@@ -251,54 +257,9 @@ public sealed class StartupUpdateCoordinator
                 return UpdateCheckResult.UpToDate;
             }
 
-            var downloadsDir = Path.Combine(_updatesRoot, "downloads");
-            Directory.CreateDirectory(downloadsDir);
-            var zipPath = Path.Combine(downloadsDir, zipAsset.Name);
-            await DownloadToFileAsync(zipAsset.DownloadUrl, zipPath, cancellationToken).ConfigureAwait(false);
-
-            var expectedHash = await TryResolveChecksumAsync(release, zipAsset, cancellationToken).ConfigureAwait(false);
-            if (!string.IsNullOrWhiteSpace(expectedHash))
-            {
-                var actualHash = await ComputeSha256Async(zipPath, cancellationToken).ConfigureAwait(false);
-                if (!string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidDataException("Downloaded update checksum does not match release checksum.");
-                }
-            }
-
-            var stageDir = Path.Combine(
-                _updatesRoot,
-                "staging",
-                $"{releaseVersion.Major}.{releaseVersion.Minor}.{releaseVersion.Build}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}");
-            if (Directory.Exists(stageDir))
-            {
-                Directory.Delete(stageDir, recursive: true);
-            }
-
-            Directory.CreateDirectory(stageDir);
-            ZipFile.ExtractToDirectory(zipPath, stageDir, overwriteFiles: true);
-
-            if (!TryFindStagedExecutable(stageDir, out var stagedExecutablePath))
-            {
-                throw new FileNotFoundException("Staged update did not contain AiUsageMonitor.exe.");
-            }
-
-            var executableRelativePath = Path.GetRelativePath(stageDir, stagedExecutablePath);
-            var pendingUpdate = new PendingUpdate
-            {
-                Version = releaseVersion.ToString(3),
-                CreatedUtc = DateTimeOffset.UtcNow,
-                StagingDirectory = stageDir,
-                ExecutableRelativePath = executableRelativePath
-            };
-
-            await WriteJsonAsync(_pendingPath, pendingUpdate, cancellationToken).ConfigureAwait(false);
-
+            await StageAsync(release, zipAsset, releaseVersion, allowDowngrade: false, cancellationToken).ConfigureAwait(false);
             state.LastSeenVersion = releaseVersion.ToString(3);
             await WriteJsonAsync(_statePath, state, cancellationToken).ConfigureAwait(false);
-
-            SafeDeleteFile(zipPath);
-            CleanupOldStagingDirectories(stageDir);
 
             return UpdateCheckResult.UpdateStaged;
         }
@@ -313,9 +274,156 @@ public sealed class StartupUpdateCoordinator
         }
     }
 
+    // 계약: 받은 zip 을 검증해 staging 에 풀고 pending.json 을 남긴다 — 실제 교체는 TryApplyPendingUpdateAsync 가 한다
+    private async Task StageAsync(ReleaseDocument release, ReleaseAsset zipAsset, Version releaseVersion, bool allowDowngrade, CancellationToken cancellationToken)
+    {
+        var downloadsDir = Path.Combine(_updatesRoot, "downloads");
+        Directory.CreateDirectory(downloadsDir);
+        var zipPath = Path.Combine(downloadsDir, zipAsset.Name);
+        await DownloadToFileAsync(zipAsset.DownloadUrl, zipPath, cancellationToken).ConfigureAwait(false);
+
+        var expectedHash = await TryResolveChecksumAsync(release, zipAsset, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(expectedHash))
+        {
+            var actualHash = await ComputeSha256Async(zipPath, cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("Downloaded update checksum does not match release checksum.");
+            }
+        }
+
+        var stageDir = Path.Combine(
+            _updatesRoot,
+            "staging",
+            $"{releaseVersion.Major}.{releaseVersion.Minor}.{releaseVersion.Build}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}");
+        if (Directory.Exists(stageDir))
+        {
+            Directory.Delete(stageDir, recursive: true);
+        }
+
+        Directory.CreateDirectory(stageDir);
+        ZipFile.ExtractToDirectory(zipPath, stageDir, overwriteFiles: true);
+
+        if (!TryFindStagedExecutable(stageDir, out var stagedExecutablePath))
+        {
+            throw new FileNotFoundException("Staged update did not contain AiUsageMonitor.exe.");
+        }
+
+        var executableRelativePath = Path.GetRelativePath(stageDir, stagedExecutablePath);
+        var pendingUpdate = new PendingUpdate
+        {
+            Version = releaseVersion.ToString(3),
+            CreatedUtc = DateTimeOffset.UtcNow,
+            StagingDirectory = stageDir,
+            ExecutableRelativePath = executableRelativePath,
+            AllowDowngrade = allowDowngrade
+        };
+
+        await WriteJsonAsync(_pendingPath, pendingUpdate, cancellationToken).ConfigureAwait(false);
+        SafeDeleteFile(zipPath);
+        CleanupOldStagingDirectories(stageDir);
+    }
+
     private static string BuildLatestReleaseUri(string repository)
     {
         return $"https://api.github.com/repos/{repository}/releases/latest";
+    }
+
+    public Version CurrentVersion => _currentVersion;
+
+    public string ReleasesPageUrl => $"https://github.com/{_options.Repository}/releases";
+
+    // 계약: 설치 폴더에서 돌 때만 true — 개발 빌드(bin\)·다운로드 폴더 실행은 비교만 하고 설치는 못 한다
+    public bool CanInstall => _options.Enabled && CanSelfUpdate();
+
+    private readonly Dictionary<Version, ReleaseDocument> _releaseCache = [];
+
+    /// <summary>
+    /// GitHub 릴리스 목록(최신 순). 계약: 이 PC 의 RID 용 zip 이 있는 릴리스만 HasPackage=true 다.
+    /// 함정: 업데이트가 꺼져 있어도(개발 빌드) 비교는 해야 하므로 CanSelfUpdate 를 보지 않는다.
+    /// </summary>
+    public async Task<IReadOnlyList<ReleaseInfo>> GetReleasesAsync(CancellationToken cancellationToken)
+    {
+        var uri = $"https://api.github.com/repos/{_options.Repository}/releases?per_page=30";
+        using var response = await _httpClient.GetAsync(uri, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        var list = new List<ReleaseInfo>();
+        lock (_releaseCache)
+        {
+            _releaseCache.Clear();
+            foreach (var element in document.RootElement.EnumerateArray())
+            {
+                var release = ParseReleaseElement(element);
+                if (release is null || element.TryGetProperty("draft", out var draft) && draft.GetBoolean())
+                {
+                    continue;
+                }
+
+                var tag = element.TryGetProperty("tag_name", out var tagElement) ? tagElement.GetString() ?? string.Empty : string.Empty;
+                if (!TryParseSemVer(tag, out var version))
+                {
+                    continue;
+                }
+
+                var published = element.TryGetProperty("published_at", out var p) && p.ValueKind == JsonValueKind.String &&
+                                DateTimeOffset.TryParse(p.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at)
+                    ? at
+                    : (DateTimeOffset?)null;
+                var url = element.TryGetProperty("html_url", out var u) ? u.GetString() ?? ReleasesPageUrl : ReleasesPageUrl;
+
+                _releaseCache[version] = release;
+                list.Add(new ReleaseInfo(version, tag, published, url, release.Prerelease, TryGetBestAsset(release, out _, out _)));
+            }
+        }
+
+        return list.OrderByDescending(r => r.Version).ToList();
+    }
+
+    /// <summary>
+    /// 고른 버전을 받아 설치 준비까지 한다 — 낮은 버전(되돌리기)도 된다. 적용은 TryApplyPendingUpdateAsync(manualTrigger: true).
+    /// 계약: GetReleasesAsync 로 목록을 먼저 읽어 둔 버전만 받는다.
+    /// </summary>
+    public async Task<UpdateCheckResult> StageReleaseAsync(Version version, CancellationToken cancellationToken)
+    {
+        if (!CanInstall)
+        {
+            return UpdateCheckResult.Disabled;
+        }
+
+        ReleaseDocument? release;
+        lock (_releaseCache)
+        {
+            _releaseCache.TryGetValue(version, out release);
+        }
+
+        if (release is null || !TryGetBestAsset(release, out var zipAsset, out var assetVersion))
+        {
+            return UpdateCheckResult.CheckFailed;
+        }
+
+        if (!await _checkLock.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false))
+        {
+            return UpdateCheckResult.AlreadyRunning;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(_updatesRoot);
+            await StageAsync(release, zipAsset, assetVersion, allowDowngrade: assetVersion < _currentVersion, cancellationToken).ConfigureAwait(false);
+            return UpdateCheckResult.UpdateStaged;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Trace.WriteLine($"[costats-update] stage {version} failed: {ex}");
+            return UpdateCheckResult.CheckFailed;
+        }
+        finally
+        {
+            _checkLock.Release();
+        }
     }
 
     private bool CanSelfUpdate()
@@ -376,7 +484,7 @@ public sealed class StartupUpdateCoordinator
             return false;
         }
 
-        return TryParseSemVer(pending.Version, out var pendingVersion) && pendingVersion > _currentVersion;
+        return TryParseSemVer(pending.Version, out var pendingVersion) && IsInstallable(pending, pendingVersion);
     }
 
     private static bool TryResolvePendingExecutable(PendingUpdate pending, out string stagedExePath, out string executableRelativePath)
@@ -649,8 +757,11 @@ public sealed class StartupUpdateCoordinator
     private static async Task<ReleaseDocument?> ParseReleaseAsync(Stream stream, CancellationToken cancellationToken)
     {
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
-        var root = document.RootElement;
+        return ParseReleaseElement(document.RootElement);
+    }
 
+    private static ReleaseDocument? ParseReleaseElement(JsonElement root)
+    {
         if (!root.TryGetProperty("assets", out var assetsElement) || assetsElement.ValueKind != JsonValueKind.Array)
         {
             return null;
@@ -747,7 +858,13 @@ public sealed class StartupUpdateCoordinator
         public string StagingDirectory { get; set; } = string.Empty;
         public string ExecutableRelativePath { get; set; } = "AiUsageMonitor.exe";
         public int FailedAttempts { get; set; }
+
+        // 계약: 사용자가 낮은 버전을 골라 설치할 때만 true — 자동 업데이트는 내려가지 않는다
+        public bool AllowDowngrade { get; set; }
     }
+
+    private bool IsInstallable(PendingUpdate pending, Version pendingVersion) =>
+        pendingVersion > _currentVersion || (pending.AllowDowngrade && pendingVersion != _currentVersion);
 
     private const string UpdaterScriptContents = """
 param(

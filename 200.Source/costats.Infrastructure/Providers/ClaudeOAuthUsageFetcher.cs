@@ -161,13 +161,17 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
                 return;
             }
 
+            // 함정: npm 설치본은 claude.cmd 다 — 배치 파일은 cmd.exe 를 거쳐야 뜨고, 입력을 닫아 주지 않으면 대화형으로 매달린다
+            var isBatch = claudePath.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase)
+                || claudePath.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
             using var process = new Process();
             process.StartInfo = new ProcessStartInfo
             {
-                FileName = claudePath,
-                Arguments = "/status",
+                FileName = isBatch ? "cmd.exe" : claudePath,
+                Arguments = isBatch ? $"/c \"\"{claudePath}\" /status\"" : "/status",
                 UseShellExecute = false,
                 CreateNoWindow = true,
+                RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
@@ -179,10 +183,11 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
             }
 
             process.Start();
+            process.StandardInput.Close();
 
-            // Wait up to 5 seconds for the process to complete
+            // 왜: node 로 뜨는 CLI 는 부팅 직후 5초를 넘긴다(실측 평소 2초) — 넉넉히 기다려야 갱신 전에 죽이지 않는다
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(5));
+            cts.CancelAfter(TimeSpan.FromSeconds(20));
 
             try
             {
@@ -213,7 +218,7 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
         var candidates = new[]
         {
             Path.Combine(home, ".local", "bin", "claude.exe"),
-            Path.Combine(home, ".local", "bin", "claude"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm", "claude.cmd"),
         };
 
         foreach (var path in candidates)
@@ -237,11 +242,14 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
                 RedirectStandardOutput = true
             };
             process.Start();
-            var output = process.StandardOutput.ReadLine();
+            var lines = process.StandardOutput.ReadToEnd().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             process.WaitForExit(2000);
-            if (!string.IsNullOrWhiteSpace(output) && File.Exists(output))
+            // 함정: where 의 첫 줄은 확장자 없는 sh 스크립트(npm\claude)일 수 있다 — Windows 가 실행할 수 있는 .exe · .cmd 만 고른다
+            var runnable = lines.FirstOrDefault(l => l.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && File.Exists(l))
+                ?? lines.FirstOrDefault(l => l.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) && File.Exists(l));
+            if (runnable is not null)
             {
-                return output;
+                return runnable;
             }
         }
         catch

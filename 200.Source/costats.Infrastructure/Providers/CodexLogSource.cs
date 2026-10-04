@@ -12,10 +12,25 @@ public sealed class CodexLogSource : ISignalSource
     private static readonly TimeSpan DefaultWeekDuration = TimeSpan.FromDays(7);
 
     private readonly UsageLogScanner _scanner = new();
-    private readonly CodexOAuthUsageFetcher _oauthFetcher = new();
+    private readonly CodexOAuthUsageFetcher _oauthFetcher;
     private readonly ExpenseAnalyzer _expenseAnalyzer = new();
+    private readonly string? _codexHome;
 
-    public ProviderProfile Profile => ProviderCatalog.Codex;
+    public CodexLogSource()
+    {
+        _oauthFetcher = new CodexOAuthUsageFetcher();
+        Profile = ProviderCatalog.Codex;
+    }
+
+    // 계약: 추가 계정은 자기 CODEX_HOME 폴더만 읽고 "codex:<이름>" 으로 따로 집계된다
+    public CodexLogSource(string name, string codexHome)
+    {
+        _codexHome = codexHome;
+        _oauthFetcher = new CodexOAuthUsageFetcher(codexHome);
+        Profile = new ProviderProfile($"{ProviderCatalog.Codex.ProviderId}:{name}", name, ProviderCatalog.Codex.BrandColorHex);
+    }
+
+    public ProviderProfile Profile { get; }
 
     public async Task<ProviderReading> ReadAsync(CancellationToken cancellationToken)
     {
@@ -25,7 +40,7 @@ public sealed class CodexLogSource : ISignalSource
         var oauthTask = _oauthFetcher.FetchAsync(cancellationToken);
 
         // Log scan and expense analysis both read the same files - run sequentially to halve peak memory
-        var logResult = await _scanner.ScanCodexAsync(cancellationToken).ConfigureAwait(false);
+        var logResult = await _scanner.ScanCodexAsync(cancellationToken, _codexHome).ConfigureAwait(false);
         var consumption = await SafeAnalyzeExpenseAsync(cancellationToken).ConfigureAwait(false);
 
         var oauthResult = await oauthTask.ConfigureAwait(false);
@@ -168,7 +183,7 @@ public sealed class CodexLogSource : ISignalSource
     {
         try
         {
-            return await _expenseAnalyzer.AnalyzeCodexAsync(cancellationToken).ConfigureAwait(false);
+            return await _expenseAnalyzer.AnalyzeCodexAsync(cancellationToken, _codexHome).ConfigureAwait(false);
         }
         catch
         {

@@ -20,6 +20,37 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <local:BoolNegationConverter x:Key="BoolNegationConverter" />
 
+        <!-- 계약: 구역 머리글 — 누르면 그 구역을 접고 편다. 화살표가 아래면 펼친 상태다 -->
+        <Style x:Key="SectionToggle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Path x:Name="chevron" Data="M0,0 L4,4 L0,8" Stroke="{DynamicResource TextMutedBrush}" StrokeThickness="1.3"
+                                  Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5" />
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="chevron" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <RotateTransform Angle="90" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Accent colors -->
         <SolidColorBrush x:Key="CodexAccent" Color="#10B981" />
         <SolidColorBrush x:Key="ClaudeAccent" Color="#F97316" />
@@ -80,6 +111,45 @@
                 <Border Width="4" Height="14" CornerRadius="2" Background="{DynamicResource AccentBrush}"
                         DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,8,0" />
 
+                <!-- 계약: 창 닫기 — 팝업을 숨길 뿐 앱은 트레이에 남는다(Esc · 바깥 클릭과 같다) -->
+                <Button DockPanel.Dock="Right" VerticalAlignment="Center" Cursor="Hand" Margin="8,0,0,0" Width="20" Height="20"
+                        Click="OnCloseWindowClick" FocusVisualStyle="{x:Null}" ToolTip="{loc:Tr 'Close'}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="closeBorder" CornerRadius="5" Background="Transparent">
+                                <TextBlock Text="✕" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="closeBorder" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!-- 계약: 설정이 본문에 끼워져 있는 동안 계정 자리 대신 보인다 — 누르면 설정이 닫힌다 -->
+                <Button x:Name="SettingsTitleChip" DockPanel.Dock="Right" VerticalAlignment="Center" Cursor="Hand" Visibility="Collapsed"
+                        Click="OnSettingsClick" FocusVisualStyle="{x:Null}" ToolTip="{loc:Tr 'Close settings'}">
+                    <!-- 왜: 테두리 알약은 계정 드롭다운·창 닫기 ✕ 와 겹쳐 보여 이질적이었다 — 링크처럼 글자만 두고 올렸을 때만 바탕을 준다 -->
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="backBorder" CornerRadius="5" Padding="6,2" Background="Transparent">
+                                <TextBlock x:Name="backText" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}">
+                                    <Run Text="‹ " /><Run Text="{loc:Tr 'Back'}" />
+                                </TextBlock>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="backBorder" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                                    <Setter TargetName="backText" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
                 <!-- Account switcher: plain text with one account, a dropdown once extra Claude accounts exist -->
                 <ToggleButton x:Name="AccountToggle" DockPanel.Dock="Right" VerticalAlignment="Center" Cursor="Hand"
                               FocusVisualStyle="{x:Null}" IsEnabled="{Binding CanSwitchAccount}"
@@ -117,11 +187,11 @@
                     <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource WindowBorderBrush}"
                             BorderThickness="1" CornerRadius="8" Padding="4" MinWidth="190">
                       <StackPanel>
-                        <ItemsControl ItemsSource="{Binding ClaudeAccountChips}">
+                        <ItemsControl ItemsSource="{Binding ActiveAccountChips}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Button Cursor="Hand" FocusVisualStyle="{x:Null}" Click="OnAccountItemClick"
-                                            Command="{Binding DataContext.SelectClaudeAccountCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            Command="{Binding DataContext.SelectAccountCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                             CommandParameter="{Binding Id}">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
@@ -166,8 +236,11 @@
                       </StackPanel>
                     </Border>
                 </Popup>
-                <TextBlock Text="{loc:Tr 'AI Usage Monitor'}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}" />
+                <!-- 계약: TitleSuffix 는 설정 화면일 때만 " · 설정" 이 된다 — 지금 어느 화면인지는 제목이 말한다 -->
+                <TextBlock FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}">
+                    <Run Text="{loc:Tr 'AI Usage Monitor'}" /><Run x:Name="TitleSuffix" FontWeight="Normal" Foreground="{DynamicResource TextMutedBrush}" />
+                </TextBlock>
             </DockPanel>
             <Grid Margin="20,46,20,20">
                 <Grid.RowDefinitions>
@@ -178,7 +251,7 @@
                 </Grid.RowDefinitions>
 
             <!-- Tab bar with icons -->
-            <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid x:Name="TabBar" Grid.Row="0" Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
@@ -339,11 +412,11 @@
                 <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,16" />
             </StackPanel>
 
-            <!-- Content area: Single provider view (shown when NOT multicc active on Claude tab) -->
-            <!-- Both panels overlay in Grid.Row="2". Using Hidden (not Collapsed) prevents
-                 layout-pass thrashing during tab switch — no element is removed/added to layout,
-                 only render visibility toggles, eliminating the flicker. -->
-            <StackPanel Grid.Row="2" DataContext="{Binding SelectedProvider}">
+            <!-- 왜: 창은 작업 영역 높이로 고정이다 — 본문이 넘치면 창이 아니라 본문이 스크롤된다 -->
+            <ScrollViewer x:Name="BodyScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" Focusable="False"
+                          Style="{StaticResource GutterScrollViewer}">
+            <StackPanel>
+                <StackPanel x:Name="ProviderBody" DataContext="{Binding SelectedProvider}">
                 <StackPanel.Style>
                     <Style TargetType="StackPanel">
                         <Setter Property="Visibility" Value="Visible" />
@@ -353,7 +426,7 @@
                                     <Condition Binding="{Binding DataContext.SelectedTabIndex, RelativeSource={RelativeSource AncestorType=Window}}" Value="1" />
                                     <Condition Binding="{Binding DataContext.ShowClaudeStacked, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
                                 </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Hidden" />
+                                <Setter Property="Visibility" Value="Collapsed" />
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -364,9 +437,14 @@
                     <StackPanel DockPanel.Dock="Left">
                         <TextBlock Text="{Binding DisplayName}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                         <TextBlock Text="{Binding StatusSummary}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,3,0,0" />
+                        <!-- 계약: 예약 갱신은 시계 눈금에 맞는다 — 다음 시각과 남은 시간을 1초마다 다시 쓴다(모든 탭 공통 값) -->
+                        <TextBlock Text="{Binding DataContext.NextRefreshText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                   FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,3,0,0" MinHeight="14" />
                     </StackPanel>
+                    <!-- 왜: 머리글 우측에 요금제 배지와 「사용량 보기」 링크를 세로로 묶는다 — 주간 구역 아래에 두면 모델 한도 막대 사이에 끼어 눈에 안 띈다 -->
+                    <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch">
                     <!-- Plan chip badge (only visible when PlanText is not empty) -->
-                    <Border x:Name="PlanChip" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    <Border x:Name="PlanChip" HorizontalAlignment="Right" VerticalAlignment="Top"
                             CornerRadius="4" BorderThickness="1" Padding="6,2"
                             Visibility="{Binding PlanText, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
                         <Border.Style>
@@ -431,59 +509,6 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </Border>
-                </DockPanel>
-
-                <!-- Divider -->
-                <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,14" />
-
-                <!-- Session section -->
-                <StackPanel Margin="0,0,0,16">
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="{loc:Tr 'Session'}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ProviderKind}" Value="copilot">
-                                        <Setter Property="Text" Value="{loc:Tr 'Premium requests'}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ProviderKind}" Value="gemini">
-                                        <Setter Property="Text" Value="{loc:Tr 'Pro models · daily'}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding SessionProgress}" Maximum="1" Foreground="{DynamicResource SessionAccent}" />
-                    <DockPanel Margin="0,8,0,0">
-                        <TextBlock Text="{Binding SessionUsageLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left" />
-                        <TextBlock Text="{Binding SessionResetText}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" DockPanel.Dock="Right" HorizontalAlignment="Right" />
-                    </DockPanel>
-                </StackPanel>
-
-                <!-- Weekly section -->
-                <StackPanel Margin="0,0,0,16">
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="{loc:Tr 'Weekly'}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ProviderKind}" Value="copilot">
-                                        <Setter Property="Text" Value="{loc:Tr 'Chat requests'}" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ProviderKind}" Value="gemini">
-                                        <Setter Property="Text" Value="{loc:Tr 'Flash models · daily'}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding WeekProgress}" Maximum="1" Foreground="{DynamicResource WeeklyAccent}" />
-                    <DockPanel Margin="0,8,0,0">
-                        <TextBlock Text="{Binding WeekUsageLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left" />
-                        <TextBlock Text="{Binding WeekResetText}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" DockPanel.Dock="Right" HorizontalAlignment="Right" />
-                    </DockPanel>
-                    <TextBlock Text="{Binding WeekPaceText}" FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,4,0,0"
-                               Visibility="{Binding WeekPaceText, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
                     <TextBlock Margin="0,6,0,0" FontSize="11" Foreground="{DynamicResource TextFaintBrush}" HorizontalAlignment="Right">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
@@ -532,6 +557,65 @@
                             <Run Text="{loc:Tr 'View Claude usage'}" />
                         </Hyperlink>
                     </TextBlock>
+                    </StackPanel>
+                </DockPanel>
+
+                <!-- Divider -->
+                <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,14" />
+
+                <!-- Session section -->
+                <!-- 왜: 한도가 없는 도구(Gemini 개인 계정)도 구역을 비워 둔 채 그린다 — 탭마다 창 높이가 같아야 한다 -->
+                <StackPanel Margin="0,0,0,16">
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="{loc:Tr 'Session'}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ProviderKind}" Value="copilot">
+                                        <Setter Property="Text" Value="{loc:Tr 'Premium requests'}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ProviderKind}" Value="gemini">
+                                        <Setter Property="Text" Value="{loc:Tr 'Pro models · daily'}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding SessionProgress}" Maximum="1" Foreground="{DynamicResource SessionAccent}" />
+                    <DockPanel Margin="0,8,0,0">
+                        <TextBlock Text="{Binding SessionUsageLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left" />
+                        <TextBlock Text="{Binding SessionResetText}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" DockPanel.Dock="Right" HorizontalAlignment="Right" />
+                    </DockPanel>
+                </StackPanel>
+
+                <!-- Weekly section -->
+                <StackPanel Margin="0,0,0,16">
+                    <!-- 왜: 페이스 문구를 제목 줄 우측에 둔다 — 막대 아래 셋째 줄이면 「주간 · Fable」 과 붙어 어느 막대 것인지 헷갈린다 -->
+                    <DockPanel Margin="0,0,0,8">
+                    <TextBlock Text="{Binding WeekPaceText}" FontSize="11" Foreground="{DynamicResource TextFaintBrush}"
+                               DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Visibility="{Binding WeekPaceText, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="{loc:Tr 'Weekly'}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ProviderKind}" Value="copilot">
+                                        <Setter Property="Text" Value="{loc:Tr 'Chat requests'}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ProviderKind}" Value="gemini">
+                                        <Setter Property="Text" Value="{loc:Tr 'Flash models · daily'}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    </DockPanel>
+                    <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding WeekProgress}" Maximum="1" Foreground="{DynamicResource WeeklyAccent}" />
+                    <DockPanel Margin="0,8,0,0">
+                        <TextBlock Text="{Binding WeekUsageLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left" />
+                        <TextBlock Text="{Binding WeekResetText}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" DockPanel.Dock="Right" HorizontalAlignment="Right" />
+                    </DockPanel>
                 </StackPanel>
 
                 <!-- Divider -->
@@ -555,20 +639,38 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,4,0,16" />
+                </StackPanel>
 
-                <!-- Cost section -->
-                <StackPanel>
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Setter Property="Visibility" Value="Visible" />
+                <!-- 계약: 계정이 여럿이고 「전체」를 고르면 막대 자리에 계정 카드가 온다 — 아래 통계 구역은 그대로 남는다 -->
+                <views:ClaudeMultiPanelView>
+                    <views:ClaudeMultiPanelView.Style>
+                        <Style TargetType="views:ClaudeMultiPanelView">
+                            <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding ProviderKind}" Value="copilot">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding SelectedTabIndex}" Value="1" />
+                                        <Condition Binding="{Binding ShowClaudeStacked}" Value="True" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </StackPanel.Style>
+                    </views:ClaudeMultiPanelView.Style>
+                </views:ClaudeMultiPanelView>
+
+                <!-- 왜: 계정을 바꿔도 통계가 사라지지 않아야 화면이 흔들리지 않는다 — 「전체」에서는 기본(없으면 첫) 계정의 통계를 보인다 -->
+                <StackPanel x:Name="ProviderStats" DataContext="{Binding SelectedProvider}">
+                <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,4,0,16" />
+                <TextBlock FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,0,0,10"
+                           Visibility="{Binding DataContext.IsStackedClaudeView, RelativeSource={RelativeSource AncestorType=Window}, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                    <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Run Text="{loc:Tr 'account stats'}" />
+                </TextBlock>
+
+                <!-- Cost section -->
+                <!-- 왜: 비용 구역은 모든 탭에 같은 높이로 그린다(Copilot 도) — 탭을 바꿀 때 창 높이가 바뀌지 않게 값만 빈 표시로 둔다 -->
+                <StackPanel>
                     <DockPanel Margin="0,0,0,10">
                         <!-- Range selector for the chart and the model breakdown -->
                         <ItemsControl DockPanel.Dock="Right" VerticalAlignment="Center"
@@ -631,15 +733,26 @@
                             <TextBlock Text="{Binding MonthTokensText}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
                     </DockPanel>
+                    <DockPanel Margin="0,6,0,0">
+                        <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left">
+                            <Run Text="{loc:Tr 'Daily avg:'}" />
+                        </TextBlock>
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding AvgCostText}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
+                            <TextBlock Text=" · " FontSize="12" Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Text="{Binding AvgTokensText}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </DockPanel>
 
                     <!-- Daily cost chart (last 30 days) -->
-                    <StackPanel Margin="0,14,0,0"
-                                Visibility="{Binding HasDailyBars, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <StackPanel Margin="0,14,0,0">
                         <DockPanel Margin="0,0,0,6">
-                            <TextBlock Text="{Binding ChartTitleText}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left" />
+                            <ToggleButton Style="{StaticResource SectionToggle}" Content="{Binding ChartTitleText}" DockPanel.Dock="Left"
+                                          IsChecked="{Binding DataContext.IsChartExpanded, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
                             <TextBlock Text="{Binding DailyPeakText}" FontSize="11" Foreground="{DynamicResource TextFaintBrush}"
-                                       DockPanel.Dock="Right" HorizontalAlignment="Right" />
+                                       DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center" />
                         </DockPanel>
+                        <StackPanel Visibility="{Binding DataContext.IsChartExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Border Height="56" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1">
                             <ItemsControl ItemsSource="{Binding DailyBars}">
                                 <ItemsControl.ItemsPanel>
@@ -669,18 +782,29 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </Border>
-                        <DockPanel Margin="0,4,0,0">
-                            <TextBlock Text="{Binding DailyStartLabel}" FontSize="10" Foreground="{DynamicResource TextFaintBrush}" DockPanel.Dock="Left" />
-                            <TextBlock Text="{loc:Tr 'Today'}" FontSize="10" Foreground="{DynamicResource TextFaintBrush}"
-                                       DockPanel.Dock="Right" HorizontalAlignment="Right" />
-                        </DockPanel>
+                        <!-- Axis: each cell is one stretch of bars, labelled with the date (or month) it starts on -->
+                        <ItemsControl ItemsSource="{Binding AxisLabels}" Margin="0,4,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Rows="1" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1,0,0,0" Padding="3,0,0,0">
+                                        <TextBlock Text="{Binding}" FontSize="9.5" Foreground="{DynamicResource TextFaintBrush}" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- Models used (last 30 days) -->
-                    <StackPanel Margin="0,12,0,0"
-                                Visibility="{Binding HasModelUsages, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Text="{Binding ModelsHeaderText}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8" />
-                        <DockPanel>
+                    <StackPanel Margin="0,12,0,0">
+                        <ToggleButton Style="{StaticResource SectionToggle}" Content="{Binding ModelsHeaderText}" HorizontalAlignment="Left" Margin="0,0,0,8"
+                                      IsChecked="{Binding DataContext.IsModelsExpanded, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
+                        <DockPanel Visibility="{Binding DataContext.IsModelsExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
                             <!-- Donut: share of cost per model -->
                             <ItemsControl ItemsSource="{Binding ModelUsages}" DockPanel.Dock="Left" Width="76" Height="76"
                                           Margin="0,0,14,0" VerticalAlignment="Center">
@@ -715,30 +839,48 @@
                             </ItemsControl>
                         </DockPanel>
                     </StackPanel>
+
+                    <!-- Token types: what the tokens were spent on -->
+                    <StackPanel Margin="0,10,0,0">
+                        <ToggleButton Style="{StaticResource SectionToggle}" Content="{Binding TokenTypesHeaderText}" HorizontalAlignment="Left" Margin="0,0,0,8"
+                                      IsChecked="{Binding DataContext.IsTokenTypesExpanded, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
+                        <ItemsControl ItemsSource="{Binding TokenTypes}"
+                                      Visibility="{Binding DataContext.IsTokenTypesExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Tooltip}" Background="Transparent">
+                                        <TextBlock Text="{Binding Name}" FontSize="11" Width="64" DockPanel.Dock="Left"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding ShareText}" FontSize="11" Width="32" DockPanel.Dock="Right" TextAlignment="Right"
+                                                   Foreground="{DynamicResource TextFaintBrush}" />
+                                        <TextBlock Text="{Binding TokensText}" FontSize="11" FontWeight="SemiBold" Width="52" DockPanel.Dock="Right"
+                                                   TextAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding Share, Mode=OneWay}" Maximum="1"
+                                                     Height="6" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{Binding Color}" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </StackPanel>
 
             </StackPanel>
+            </StackPanel>
+            </ScrollViewer>
 
-            <!-- Multicc stacked view (shown when multicc active AND Claude tab selected) -->
-            <views:ClaudeMultiPanelView Grid.Row="2">
-                <views:ClaudeMultiPanelView.Style>
-                    <Style TargetType="views:ClaudeMultiPanelView">
-                        <Setter Property="Visibility" Value="Hidden" />
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding SelectedTabIndex}" Value="1" />
-                                    <Condition Binding="{Binding ShowClaudeStacked}" Value="True" />
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Visible" />
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </views:ClaudeMultiPanelView.Style>
-            </views:ClaudeMultiPanelView>
+
+            <!-- 계약: 설정은 같은 창 안에서 도구 탭 + 본문 자리를 덮는다 — 별도 창이 아니라서 어디를 눌러도 화면이 어긋나지 않는다 -->
+            <Grid x:Name="SettingsHost" Grid.Row="0" Grid.RowSpan="3" ClipToBounds="True" Visibility="Collapsed">
+                <Border Background="{DynamicResource BgBrush}">
+                    <Border.RenderTransform>
+                        <TranslateTransform x:Name="SettingsSlide" />
+                    </Border.RenderTransform>
+                    <views:SettingsPanel x:Name="SettingsView" />
+                </Border>
+            </Grid>
 
             <!-- Footer note -->
-            <StackPanel Grid.Row="3" Margin="0,20,0,0">
+            <StackPanel x:Name="FooterPanel" Grid.Row="3" Margin="0,20,0,0">
                 <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,14" />
                 <DockPanel>
                     <Button Width="28" Height="28" DockPanel.Dock="Right"
