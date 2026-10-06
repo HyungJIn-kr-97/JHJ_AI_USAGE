@@ -28,7 +28,9 @@ param(
     [ValidateSet("x64", "arm64", "all")]
     [string]$Platform = "all",
     [ValidateSet("Release", "Debug")]
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    # Build date for the release name (yyyyMMdd). Defaults to today.
+    [string]$BuildDate = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,7 +65,8 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 Assert-SemVer -Value $Version
 
 # Contract: release name = <VersionPrefix>.<build date>. The same date goes into the exe (InformationalVersion) so names and the app agree.
-$BuildDate = Get-Date -Format "yyyyMMdd"
+if ([string]::IsNullOrWhiteSpace($BuildDate)) { $BuildDate = Get-Date -Format "yyyyMMdd" }
+if ($BuildDate -notmatch '^\d{8}$') { throw "BuildDate must be yyyyMMdd. Received: '$BuildDate'." }
 $Release = "$Version.$BuildDate"
 
 # Hash via .NET: Get-FileHash fails to auto-load when Windows PowerShell inherits a PowerShell 7 PSModulePath.

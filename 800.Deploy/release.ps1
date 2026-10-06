@@ -1,19 +1,19 @@
-<#
+﻿<#
 .SYNOPSIS
-    One-shot release: (optional) version bump -> commit -> build -> push -> GitHub Release -> prune older builds.
+    한 번에 배포한다: (선택) 버전 올리기 -> 커밋 -> 빌드 -> push -> GitHub Release -> 옛 날짜판 정리.
 
 .DESCRIPTION
-    The release name is <VersionPrefix>.<today yyyyMMdd>, e.g. v1.0.0.20261007. The date comes from the day
-    this script runs; the three-part version changes only when you answer the bump question.
-    Every outward step (commit, push, release, delete) asks first. Run it from Release.bat.
-    Keep this file ASCII-only: Windows PowerShell 5.1 misparses BOM-less UTF-8.
+    릴리스 이름은 <배포 버전>.<날짜 yyyyMMdd> 다(예: v1.0.0.20261007).
+    질문마다 Enter 만 치면 기본값으로 간다 - 버전은 안 올리고, 날짜는 오늘이다.
+    밖으로 나가는 단계(커밋 · push · 릴리스 · 삭제)는 실행 전에 묻는다. Release.bat 으로 실행한다.
+    함정: 이 파일은 한글이 있어 반드시 UTF-8 BOM 으로 저장한다 - BOM 이 없으면 Windows PowerShell 5.1 이 깨뜨려 읽는다.
 #>
 
 param(
     [string]$Repository = "HyungJIn-kr-97/JHJ_AI_USAGE"
 )
 
-# Trap: with "Stop", Windows PowerShell 5.1 turns git/gh progress on stderr into a terminating error. Check exit codes instead.
+# 함정: "Stop" 이면 Windows PowerShell 5.1 이 git/gh 의 진행 표시(stderr)를 오류로 보고 멈춘다 - 종료 코드로 판정한다
 $ErrorActionPreference = "Continue"
 $env:GIT_TERMINAL_PROMPT = "0"
 
@@ -24,7 +24,7 @@ $out   = Join-Path $PSScriptRoot "publish"
 function Fail {
     param([string]$Message)
     Write-Host ""
-    Write-Host "[FAIL] $Message" -ForegroundColor Red
+    Write-Host "[중단] $Message" -ForegroundColor Red
     exit 1
 }
 
@@ -35,9 +35,15 @@ function Ask {
     return $answer.Trim().ToLowerInvariant()
 }
 
+function Confirm {
+    param([string]$Question)
+    return (Ask "$Question (y = 예 / Enter = 아니오)" "n") -match '^(y|yes|ㅛ|예|네)$'
+}
+
 function Get-Prefix {
-    if ((Get-Content -Path $props -Raw) -match '<VersionPrefix[^>]*>(\d+\.\d+\.\d+)</VersionPrefix>') { return $Matches[1] }
-    Fail "Cannot read VersionPrefix from $props"
+    $text = [System.IO.File]::ReadAllText($props)
+    if ($text -match '<VersionPrefix[^>]*>(\d+\.\d+\.\d+)</VersionPrefix>') { return $Matches[1] }
+    Fail "Directory.Build.props 에서 VersionPrefix 를 읽지 못했습니다."
 }
 
 function Step {
@@ -46,77 +52,103 @@ function Step {
     Write-Host "== $Title" -ForegroundColor Cyan
 }
 
-# --- 0. tools ---------------------------------------------------------------
+# --- 0. 준비 ----------------------------------------------------------------
 gh auth status *> $null
-if ($LASTEXITCODE -ne 0) { Fail "gh is not signed in. Run: gh auth login --web" }
+if ($LASTEXITCODE -ne 0) { Fail "gh 로그인이 안 되어 있습니다. 먼저 실행: gh auth login --web" }
 
 $branch = (git -C $repo rev-parse --abbrev-ref HEAD).Trim()
-if ($branch -ne "main") { Fail "Current branch is '$branch'. Switch to main first." }
+if ($branch -ne "main") { Fail "지금 브랜치가 '$branch' 입니다. main 에서 실행해 주십시오." }
 
-# --- 1. version -------------------------------------------------------------
-Step "Version"
+# --- 1. 버전 ----------------------------------------------------------------
+Step "1/5 버전"
 $current = Get-Prefix
-$date    = Get-Date -Format "yyyyMMdd"
-Write-Host "Current release version : $current"
-Write-Host "Build date (today)      : $date"
-Write-Host "Without a bump the release will be v$current.$date"
+$parts   = $current.Split('.')
+$patch   = "$($parts[0]).$($parts[1]).$([int]$parts[2] + 1)"
+$minor   = "$($parts[0]).$([int]$parts[1] + 1).0"
+$major   = "$([int]$parts[0] + 1).0.0"
+
+$sample  = Get-Date -Format "yyyyMMdd"
+
+Write-Host "지금 버전: $current"
 Write-Host ""
-Write-Host "Bump the release version?"
-Write-Host "  [Enter] no - keep $current, only the date changes (default)"
-Write-Host "  p = patch     m = minor     j = major     or type x.y.z"
-$bump = Ask "Choice" "n"
+Write-Host "버전을 올릴까요? 고르는 대로 이렇게 올라갑니다 (날짜는 다음 단계에서 바꿀 수 있습니다)."
+Write-Host ""
+Write-Host "  선택    뜻                         올라가는 릴리스"
+Write-Host "  -----   ------------------------   ----------------------"
+Write-Host "  Enter   안 올림, 날짜만 바뀜       v$current.$sample"
+Write-Host "  1       고치기만 했음 (패치)       v$patch.$sample"
+Write-Host "  2       기능을 더했음 (마이너)     v$minor.$sample"
+Write-Host "  3       호환이 깨짐 (메이저)       v$major.$sample"
+Write-Host ""
+$bump = Ask "선택 (Enter · 1 · 2 · 3)" "0"
 
 $bumpArgs = $null
-switch -Regex ($bump) {
-    '^(n|no)$'        { break }
-    '^(p|patch)$'     { $bumpArgs = @{ Bump = "patch" }; break }
-    '^(m|minor)$'     { $bumpArgs = @{ Bump = "minor" }; break }
-    '^(j|major)$'     { $bumpArgs = @{ Bump = "major" }; break }
-    '^\d+\.\d+\.\d+$' { $bumpArgs = @{ Version = $bump }; break }
-    default           { Fail "Unknown choice '$bump'." }
+switch ($bump) {
+    "0" { }
+    "1" { $bumpArgs = @{ Bump = "patch" } }
+    "2" { $bumpArgs = @{ Bump = "minor" } }
+    "3" { $bumpArgs = @{ Bump = "major" } }
+    default { Fail "'$bump' 은(는) 고를 수 없습니다. Enter · 1 · 2 · 3 중 하나입니다." }
 }
 
 if ($bumpArgs) {
-    try { & (Join-Path $PSScriptRoot "bump-version.ps1") @bumpArgs }
-    catch { Fail "Version bump failed: $($_.Exception.Message)" }
+    try { & (Join-Path $PSScriptRoot "bump-version.ps1") @bumpArgs | Out-Null }
+    catch { Fail "버전 올리기 실패: $($_.Exception.Message)" }
 }
-
 $version = Get-Prefix
+
+# --- 2. 날짜 ----------------------------------------------------------------
+Step "2/5 날짜"
+$today = Get-Date -Format "yyyyMMdd"
+Write-Host "배포 날짜를 정합니다."
+Write-Host ""
+Write-Host "  입력        올라가는 릴리스"
+Write-Host "  ---------   ----------------------"
+Write-Host "  Enter       v$version.$today  (오늘)"
+Write-Host "  1007        v$version.$(Get-Date -Format 'yyyy')1007"
+Write-Host "  20261007    v$version.20261007"
+Write-Host ""
+$date = Ask "날짜 (Enter = 오늘)" $today
+if ($date -match '^\d{4}$') { $date = (Get-Date -Format "yyyy") + $date }
+if ($date -notmatch '^\d{8}$') { Fail "'$date' 은(는) 날짜가 아닙니다. 1007 또는 20261007 처럼 적습니다." }
+try { [void][datetime]::ParseExact($date, "yyyyMMdd", $null) }
+catch { Fail "'$date' 은(는) 없는 날짜입니다." }
+
 $release = "$version.$date"
 $tag     = "v$release"
 
 Write-Host ""
-Write-Host "Release to publish: $tag" -ForegroundColor Yellow
-if ((Ask "Continue? [y/N]" "n") -notmatch '^(y|yes)$') { Fail "Cancelled. Nothing was pushed or released." }
+Write-Host "배포할 릴리스: $tag" -ForegroundColor Yellow
+if (-not (Confirm "이대로 GitHub 에 배포할까요?")) { Fail "취소했습니다. 아무것도 올라가지 않았습니다." }
 
-# --- 2. commit --------------------------------------------------------------
-Step "Source"
+# --- 3. 커밋 ----------------------------------------------------------------
+Step "3/5 소스 커밋"
 $dirty = @(git -C $repo status --porcelain)
 if ($dirty.Count -gt 0) {
     $dirty | ForEach-Object { Write-Host "  $_" }
     Write-Host ""
-    if ((Ask "Commit these $($dirty.Count) change(s) as '$tag'? [y/N]" "n") -notmatch '^(y|yes)$') {
-        Fail "Uncommitted changes. The release must match the pushed source - commit them first."
+    if (-not (Confirm "위 변경 $($dirty.Count)개를 '$tag' 이름으로 커밋할까요?")) {
+        Fail "커밋하지 않은 변경이 있습니다. 올라가는 프로그램과 소스가 같아야 하므로 먼저 커밋해 주십시오."
     }
     git -C $repo add -A
     git -C $repo commit -q -m $tag
-    if ($LASTEXITCODE -ne 0) { Fail "git commit failed." }
-    Write-Host "Committed: $(git -C $repo log --oneline -1)"
+    if ($LASTEXITCODE -ne 0) { Fail "git commit 실패." }
+    Write-Host "커밋했습니다: $(git -C $repo log --oneline -1)"
 }
 else {
-    Write-Host "Working tree is clean: $(git -C $repo log --oneline -1)"
+    Write-Host "커밋할 변경이 없습니다: $(git -C $repo log --oneline -1)"
 }
 
-# --- 3. build ---------------------------------------------------------------
-Step "Build"
-# A dev-build instance started from this folder locks bin\ and breaks publish. Installed copies are left alone.
+# --- 4. 빌드 ----------------------------------------------------------------
+Step "4/5 빌드"
+# 왜: 이 폴더에서 띄운 개발 빌드가 bin\ 을 잠가 빌드가 깨진다 - 설치본은 건드리지 않는다
 Get-Process AiUsageMonitor -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -like ($repo + "\200.Source\*") } |
     Stop-Process -Force
 
-try { & (Join-Path $PSScriptRoot "publish.ps1") -Platform x64 }
-catch { Fail "publish.ps1 failed: $($_.Exception.Message)" }
-if ($LASTEXITCODE -ne 0) { Fail "publish.ps1 failed." }
+try { & (Join-Path $PSScriptRoot "publish.ps1") -Platform x64 -BuildDate $date }
+catch { Fail "빌드 실패: $($_.Exception.Message)" }
+if ($LASTEXITCODE -ne 0) { Fail "빌드 실패. 위 메시지를 확인해 주십시오." }
 
 $assets = @(
     (Join-Path $out "AiUsageMonitor-win-x64-$tag.zip"),
@@ -125,49 +157,56 @@ $assets = @(
     (Join-Path $out "AiUsageMonitor-Setup.exe")
 )
 foreach ($asset in $assets) {
-    # Trap: publish.ps1 reads the date itself - a run that crosses midnight produces a different name.
-    if (-not (Test-Path $asset)) { Fail "Missing build output: $asset" }
+    if (-not (Test-Path $asset)) { Fail "빌드 결과물이 없습니다: $asset" }
 }
 
-# --- 4. push + release ------------------------------------------------------
-Step "GitHub"
+# --- 5. push + 릴리스 -------------------------------------------------------
+Step "5/5 GitHub 에 올리기"
 gh release view $tag --repo $Repository *> $null
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "$tag already exists on GitHub (same version, same day)." -ForegroundColor Yellow
-    if ((Ask "Delete it and upload this build instead? [y/N]" "n") -notmatch '^(y|yes)$') { Fail "Cancelled. The existing release was kept." }
+    Write-Host "$tag 릴리스가 GitHub 에 이미 있습니다." -ForegroundColor Yellow
+    if (-not (Confirm "지우고 지금 만든 것으로 다시 올릴까요?")) { Fail "취소했습니다. 기존 릴리스는 그대로입니다." }
     gh release delete $tag --repo $Repository --cleanup-tag --yes
-    if ($LASTEXITCODE -ne 0) { Fail "Could not delete the existing release." }
+    if ($LASTEXITCODE -ne 0) { Fail "기존 릴리스를 지우지 못했습니다." }
 }
 
 git -C $repo push origin main
-if ($LASTEXITCODE -ne 0) { Fail "git push failed." }
+if ($LASTEXITCODE -ne 0) { Fail "git push 실패." }
 
 gh release create $tag $assets --repo $Repository --target main --title $tag --generate-notes --latest
-if ($LASTEXITCODE -ne 0) { Fail "gh release create failed." }
+if ($LASTEXITCODE -ne 0) { Fail "릴리스 만들기 실패." }
 
-# --- 5. prune older builds of the same version ------------------------------
-Step "Older builds"
+# --- 옛 날짜판 정리 ---------------------------------------------------------
+Step "옛 릴리스 정리"
 $pruneScript = Join-Path $PSScriptRoot "prune-releases.ps1"
 try {
-    $plan = @(& $pruneScript -Repository $Repository 6>&1 | ForEach-Object { "$_" })
-    $plan | ForEach-Object { Write-Host "  $_" }
-    if ($plan -match '^would delete') {
-        if ((Ask "Delete the older build(s) listed above? [Y/n]" "y") -match '^(y|yes)$') {
-            & $pruneScript -Repository $Repository -Apply
+    $plan  = @(& $pruneScript -Repository $Repository 6>&1 | ForEach-Object { "$_" })
+    $stale = @($plan | Where-Object { $_ -match '^would delete (.+)$' } | ForEach-Object { $Matches[1] })
+    if ($stale.Count -eq 0) {
+        Write-Host "지울 옛 릴리스가 없습니다."
+    }
+    else {
+        Write-Host "같은 버전의 옛 릴리스:"
+        $stale | ForEach-Object { Write-Host "  $_" }
+        $answer = Ask "지울까요? (Enter = 지움 / n = 남김)" "y"
+        if ($answer -match '^(y|yes|ㅛ|예|네)$') {
+            & $pruneScript -Repository $Repository -Apply | Out-Null
+            Write-Host "지웠습니다."
         }
         else {
-            Write-Host "Kept. Run prune-releases.ps1 -Apply later to delete them."
+            Write-Host "남겼습니다. 나중에 지우려면 prune-releases.ps1 -Apply 를 실행합니다."
         }
     }
 }
 catch {
-    Write-Host "Prune step failed (the release itself is published): $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "정리 단계에서 오류가 났습니다(릴리스 자체는 올라갔습니다): $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
-# --- done -------------------------------------------------------------------
+# --- 끝 ---------------------------------------------------------------------
 Write-Host ""
-Write-Host "[OK] Released $tag" -ForegroundColor Green
-Write-Host "  Release page : https://github.com/$Repository/releases/tag/$tag"
-Write-Host "  Installer    : https://github.com/$Repository/releases/latest/download/AiUsageMonitor-Setup.exe"
-Write-Host "  The dev build was closed for the build. Start it again from 200.Source\costats.App\bin\Release\net10.0-windows\win-x64\AiUsageMonitor.exe"
+Write-Host "[완료] $tag 배포했습니다." -ForegroundColor Green
+Write-Host "  릴리스 페이지 : https://github.com/$Repository/releases/tag/$tag"
+Write-Host "  설치 파일 주소: https://github.com/$Repository/releases/latest/download/AiUsageMonitor-Setup.exe"
+Write-Host "  빌드하느라 개발 빌드 앱을 껐습니다. 다시 띄우려면:"
+Write-Host "  $repo\200.Source\costats.App\bin\Release\net10.0-windows\win-x64\AiUsageMonitor.exe"
 exit 0
