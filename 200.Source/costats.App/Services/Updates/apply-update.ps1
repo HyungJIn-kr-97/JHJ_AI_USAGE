@@ -13,6 +13,12 @@ $logDir = Join-Path $env:LOCALAPPDATA "AiUsageMonitor\updates"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logPath = Join-Path $logDir "apply-update.log"
 
+# Trap: this process inherits the app's working directory, which is the install folder. Windows refuses to move
+# a folder that is some process's current directory, so the swap below failed every time. Step out first.
+# Set-Location alone is not enough: it leaves the Win32 current directory of this process on the install folder.
+Set-Location -LiteralPath $env:TEMP
+[Environment]::CurrentDirectory = $env:TEMP
+
 # Track state for guaranteed relaunch
 $updateSucceeded = $false
 $backupDir = "$InstallDir.__backup"
@@ -58,7 +64,7 @@ function Relaunch-App {
 
     foreach ($exe in $candidates) {
         try {
-            Start-Process -FilePath $exe | Out-Null
+            Start-Process -FilePath $exe -WorkingDirectory (Split-Path -Parent $exe) | Out-Null
             Write-Log "Launched app: $exe"
             return
         } catch {

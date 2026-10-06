@@ -145,6 +145,8 @@ public sealed class StartupUpdateCoordinator
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell",
+                // 함정: 작업 폴더를 물려주면 설치 폴더가 스크립트의 현재 폴더가 되어 폴더 교체(Move-Item)가 매번 실패한다
+                WorkingDirectory = Path.GetTempPath(),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden
@@ -212,7 +214,9 @@ public sealed class StartupUpdateCoordinator
             }
 
             using var request = new HttpRequestMessage(HttpMethod.Get, BuildLatestReleaseUri(_options.Repository));
-            if (!string.IsNullOrWhiteSpace(state.ETag) &&
+            // 함정: 받아 두고 적용에 실패한 릴리스가 있으면 304 가 「최신」으로 읽혀 다시 받지 않는다 — 본 버전이 지금보다 높으면 ETag 를 보내지 않는다
+            var seenNewer = TryParseSemVer(state.LastSeenVersion, out var lastSeen) && lastSeen > _currentVersion;
+            if (!seenNewer && !string.IsNullOrWhiteSpace(state.ETag) &&
                 EntityTagHeaderValue.TryParse(state.ETag, out var eTagHeader))
             {
                 request.Headers.IfNoneMatch.Add(eTagHeader);
@@ -895,6 +899,12 @@ $logDir = Join-Path $env:LOCALAPPDATA "AiUsageMonitor\updates"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logPath = Join-Path $logDir "apply-update.log"
 
+# Trap: this process inherits the app's working directory, which is the install folder. Windows refuses to move
+# a folder that is some process's current directory, so the swap below failed every time. Step out first.
+# Set-Location alone is not enough: it leaves the Win32 current directory of this process on the install folder.
+Set-Location -LiteralPath $env:TEMP
+[Environment]::CurrentDirectory = $env:TEMP
+
 # Track state for guaranteed relaunch
 $updateSucceeded = $false
 $backupDir = "$InstallDir.__backup"
@@ -940,7 +950,7 @@ function Relaunch-App {
 
     foreach ($exe in $candidates) {
         try {
-            Start-Process -FilePath $exe | Out-Null
+            Start-Process -FilePath $exe -WorkingDirectory (Split-Path -Parent $exe) | Out-Null
             Write-Log "Launched app: $exe"
             return
         } catch {
