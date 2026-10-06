@@ -281,6 +281,10 @@ namespace costats.App
 
                     if (settings.MulticcEnabled && discovery.IsDetected && discovery.Profiles.Count > 0)
                     {
+                        ClaudeProgramRouter.Configure(
+                            "claude:" + AccountProfileStore.DefaultName,
+                            settings.ProgramAccounts,
+                            discovery.Profiles);
                         if (settings.MulticcSelectedProfile is not null)
                         {
                             // Single-profile mode: register one source for the selected profile

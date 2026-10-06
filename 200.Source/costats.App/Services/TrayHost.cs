@@ -15,8 +15,8 @@ namespace costats.App.Services
 {
     public sealed class TrayHost : IDisposable
     {
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool DestroyIcon(IntPtr hIcon);
+        [DllImport("user32.dll")]
+        private static extern uint GetDpiForSystem();
 
         private readonly TaskbarIcon _taskbarIcon;
         private readonly GlassWidgetWindow _widgetWindow;
@@ -40,6 +40,7 @@ namespace costats.App.Services
 
             _taskbarIcon = new TaskbarIcon();
             _taskbarIcon.Icon = CreateIcon();
+            TrayIconRenderer.Changed += OnTrayIconChanged;
             _taskbarIcon.ToolTipText = Loc.T("AI Usage Monitor");
             _taskbarIcon.ContextMenu = BuildContextMenu();
             Loc.LanguageChanged += () => _taskbarIcon.ContextMenu = BuildContextMenu();
@@ -56,44 +57,23 @@ namespace costats.App.Services
             ToggleWidget();
         }
 
-        private static Icon CreateIcon()
+        private void OnTrayIconChanged()
         {
-            try
+            _taskbarIcon.Dispatcher.Invoke(() =>
             {
-                // Load icon from embedded resource
-                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
-                var resourceName = "costats.App.Resources.tray-icon.ico";
+                var old = _taskbarIcon.Icon;
+                _taskbarIcon.Icon = CreateIcon();
+                old?.Dispose();
+            });
+        }
 
-                using var stream = assembly.GetManifestResourceStream(resourceName);
-                if (stream is not null)
-                {
-                    return new Icon(stream);
-                }
-            }
-            catch
-            {
-                // Fall through to fallback
-            }
-
-            // Fallback: create a simple colored icon programmatically
-            using var bitmap = new Bitmap(32, 32);
-            using var g = Graphics.FromImage(bitmap);
-
-            g.Clear(Color.Transparent);
-
-            using var bgBrush = new SolidBrush(Color.FromArgb(99, 102, 241)); // Indigo
-            g.FillEllipse(bgBrush, 2, 2, 28, 28);
-
-            using var pen = new Pen(Color.White, 3);
-            g.DrawLine(pen, 10, 22, 10, 14);
-            g.DrawLine(pen, 16, 22, 16, 10);
-            g.DrawLine(pen, 22, 22, 22, 16);
-
-            var hIcon = bitmap.GetHicon();
-            using var tempIcon = Icon.FromHandle(hIcon);
-            var clonedIcon = (Icon)tempIcon.Clone();
-            DestroyIcon(hIcon);
-            return clonedIcon;
+        // 계약: 모양은 설정 「아이콘」 탭(TrayIconStyle), 색은 지금 팔레트 — TrayIconRenderer 가 그린다
+        private Icon CreateIcon()
+        {
+            // 왜: 트레이 칸 크기(16px × 화면 배율)로 바로 그려야 줄여 그리며 흐려지지 않는다
+            var size = (int)Math.Round(16 * GetDpiForSystem() / 96.0);
+            using var bitmap = TrayIconRenderer.Render(_settings.TrayIconStyle, ThemeManager.Palette, size);
+            return TrayIconRenderer.ToIcon(bitmap);
         }
 
         private ContextMenu BuildContextMenu()
@@ -179,6 +159,7 @@ namespace costats.App.Services
 
         public void Dispose()
         {
+            TrayIconRenderer.Changed -= OnTrayIconChanged;
             _widgetWindow.SizeChanged -= OnWidgetSizeChanged;
             SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
             _taskbarIcon.Dispose();

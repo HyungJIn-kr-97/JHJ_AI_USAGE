@@ -15,7 +15,11 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
     private readonly IPulseOrchestrator _orchestrator;
     private readonly AppSettings _settings;
     private readonly IDisposable _subscription;
-    private readonly Dictionary<string, string> _displayNames;
+    private Dictionary<string, string> _displayNames;
+
+    // 계약: 실행 중에 더한 계정 소스의 표시 이름을 알린다 — 사전을 통째로 바꿔 끼워 읽는 쪽과 부딪히지 않는다
+    public void RegisterSource(ProviderProfile profile) =>
+        _displayNames = new Dictionary<string, string>(_displayNames, StringComparer.OrdinalIgnoreCase) { [profile.ProviderId] = profile.DisplayName };
 
     private readonly ISettingsStore _settingsStore;
 
@@ -81,11 +85,16 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
     [ObservableProperty]
     private string nextRefreshText = string.Empty;
 
+    // 계약: 쌓기 카드 요약 띠용 짧은 판 — "다음 16:50 · 2:13 후"
+    [ObservableProperty]
+    private string nextRefreshShortText = string.Empty;
+
     private void UpdateNextRefreshText()
     {
         if (_orchestrator.NextRefreshAt is not { } next)
         {
             NextRefreshText = string.Empty;
+            NextRefreshShortText = string.Empty;
             return;
         }
 
@@ -95,7 +104,9 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
             left = TimeSpan.Zero;
         }
 
-        NextRefreshText = Loc.T("Next refresh {0} · in {1}", next.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), $"{(int)left.TotalMinutes}:{left.Seconds:00}");
+        var countdown = $"{(int)left.TotalMinutes}:{left.Seconds:00}";
+        NextRefreshText = Loc.T("Next refresh {0} · in {1}", next.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), countdown);
+        NextRefreshShortText = Loc.T("Next {0} · in {1}", next.ToLocalTime().ToString("HH:mm"), countdown);
     }
 
     // 왜: 칩 라벨과 계정 VM 의 문장은 만들 때의 언어로 굳는다 — 언어가 바뀌면 다시 만들어야 한다
@@ -120,6 +131,10 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
 
     [ObservableProperty]
     private string lastUpdated = "Never";
+
+    // 계약: 카드 밑 연동 진행 칸(LinkProgressView)의 DataContext — 팝업 창이 SettingsViewModel 을 넣는다
+    [ObservableProperty]
+    private object? linkContext;
 
     [ObservableProperty]
     private ProviderPulseViewModel claude = new();
@@ -189,12 +204,9 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
     // 계약: Claude 탭에서 계정 카드를 쌓아 보이는 중인지 — 통계 구역 위에 「어느 계정의 통계인지」를 적을 때 쓴다
     public bool IsStackedClaudeView => ShowClaudeStacked && SelectedTabIndex == 1;
 
-    // 왜: 「전체」에서도 통계는 한 계정 것을 보인다 — 유형이 「기본」인 계정, 없으면 이 PC 에 사용 기록이 있는 계정
-    // 함정: 사용량 조회 전용 계정은 로컬 로그가 없어 비용이 전부 「--」다 — 사용률 순 첫 계정을 그대로 쓰면 빈 통계가 뜬다
-    private ProviderPulseViewModel StatsFallback(IReadOnlyList<ProviderPulseViewModel> profiles) =>
-        profiles.FirstOrDefault(p => string.Equals(p.ProviderId, AccountMeta.DefaultIdOf(_settings, "claude"), StringComparison.OrdinalIgnoreCase))
-        ?? profiles.FirstOrDefault(p => p.HasCostData)
-        ?? profiles[0];
+    // 계약: 「전체」의 통계 구역은 모든 계정을 (날짜, 모델)로 합친 판이다 — 계정이 하나면 그 계정 그대로
+    private static ProviderPulseViewModel AllStats(IReadOnlyList<ProviderPulseViewModel> profiles) =>
+        profiles.Count == 1 ? profiles[0] : ProviderPulseViewModel.Combine(profiles, Loc.T("All"), "claude:*all");
 
     /// <summary>
     /// 계약: 제목 줄의 계정 드롭다운은 Claude 탭에서 계정이 여럿일 때만 열린다.
@@ -235,6 +247,15 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
         }
 
         SelectDefaultAccounts();
+    }
+
+    // 계약: 설정에서 계정 순서를 바꾼 뒤 부른다 — 칩·카드만 다시 세우고 지금 고른 계정은 그대로 둔다
+    public void ApplyAccountOrder()
+    {
+        if (_lastState is not null)
+        {
+            OnNext(_lastState);
+        }
     }
 
     private void ApplyPendingDefaults()
@@ -290,10 +311,8 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
 
     private void SyncCodexAccountChips()
     {
-        var ids = new List<string> { CodexMainId };
-        ids.AddRange(_codexAccounts.Keys
-            .Where(id => !id.Equals(CodexMainId, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
+        var ids = AccountMeta.Ordered(_settings, _codexAccounts.Keys.Append(CodexMainId).Distinct(StringComparer.OrdinalIgnoreCase),
+            id => id, id => AccountMeta.DisplayNameOf(_settings, id));
         var wanted = ids
             .Select(id => (Id: id, Label: AccountMeta.DisplayNameOf(_settings, id),
                 Detail: WithType(id, ShortAccount(AccountIdentityReader.ReadCodex(CodexDirOf(id))))))
@@ -354,7 +373,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
             return;
         }
 
-        Claude = ClaudeProfiles.FirstOrDefault(p => p.ProviderId == SelectedClaudeAccountId) ?? StatsFallback(ClaudeProfiles);
+        Claude = ClaudeProfiles.FirstOrDefault(p => p.ProviderId == SelectedClaudeAccountId) ?? AllStats(ClaudeProfiles);
         OnPropertyChanged(nameof(SelectedProvider));
         OnPropertyChanged(nameof(SelectedProviderId));
     }
@@ -368,7 +387,6 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 ClaudeProfiles.Count == 0 ? ShortAccount(AccountIdentityReader.ReadClaude()) : Loc.T("Every account, stacked"))
         };
         wanted.AddRange(ClaudeProfiles
-            .OrderBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(p => ((string?)p.ProviderId, p.DisplayName,
                 WithType(p.ProviderId, ShortAccount(AccountIdentityReader.ReadClaude(AccountDirOf(p.ProviderId)))))));
 
@@ -568,14 +586,21 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 decimal totalWeekCost = 0;
                 long totalWeekTokens = 0;
                 var today = DateOnly.FromDateTime(DateTime.Now);
-                var weekStart = today.AddDays(-((int)today.DayOfWeek == 0 ? 6 : (int)today.DayOfWeek - 1)); // Monday
+                // 왜: 달력 주(월~일)로 세면 월요일에는 「오늘」과 같은 값이 된다 — 오늘 포함 최근 7일로 센다
+                var weekStart = today.AddDays(-6);
 
                 foreach (var (providerId, reading) in value.Providers)
                 {
                     // 왜: 계정 줄의 제목은 사용자가 정한 명칭이다 — 폴더 이름("jhj-atisys-co-kr")을 보이지 않는다
                     var displayName = providerId.Contains(':') ? AccountMeta.DisplayNameOf(_settings, providerId)
                         : _displayNames.TryGetValue(providerId, out var name) ? name : providerId;
-                    var vm = ProviderPulseViewModel.FromReading(reading, displayName);
+                    var vm = ProviderPulseViewModel.FromReading(reading, displayName, providerId);
+                    if (vm.ProviderKind is "claude" or "codex")
+                    {
+                        var metaId = providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) ? "claude:default" : providerId;
+                        vm.AccountType = AccountMeta.TypeOf(_settings, metaId);
+                        vm.AccountEmail = AccountMeta.MailOf(metaId) ?? string.Empty;
+                    }
 
                     if ((providerId.Equals("copilot", StringComparison.OrdinalIgnoreCase) && !IsCopilotEnabled) ||
                         (providerId.Equals("gemini", StringComparison.OrdinalIgnoreCase) && !IsGeminiEnabled))
@@ -612,7 +637,6 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                             totalTodayCost += c.TodayCostUsd;
                             totalTodayTokens += c.TodayTokens.TotalConsumed;
 
-                            // Compute this week from daily breakdown (Mon-Sun)
                             foreach (var slice in c.DailyBreakdown)
                             {
                                 if (slice.Period >= weekStart && slice.Period <= today)
@@ -625,8 +649,8 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                     }
                 }
 
-                // Sort claude profiles by session utilization descending (worst-first)
-                claudeProfileList.Sort((a, b) => b.SessionProgress.CompareTo(a.SessionProgress));
+                // 계약: 카드 순서는 설정 「계정」에서 정한 순서다(AppSettings.AccountOrder)
+                claudeProfileList = AccountMeta.Ordered(_settings, claudeProfileList, p => p.ProviderId, p => p.DisplayName).ToList();
 
                 // 함정: 부분 갱신은 한 계정만 실어 온다 — 지난 계정 목록에 덮어써야 다른 계정이 사라지지 않는다
                 foreach (var (id, vm) in codexAccounts)
@@ -646,13 +670,17 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 if (isMulticc)
                 {
                     newClaude = claudeProfileList.FirstOrDefault(p => p.ProviderId == SelectedClaudeAccountId)
-                        ?? StatsFallback(claudeProfileList);
+                        ?? AllStats(claudeProfileList);
 
                     var total = claudeProfileList.Count;
                     var critical = claudeProfileList.Count(p => p.SessionProgress >= 0.95);
                     var warning = claudeProfileList.Count(p => p.SessionProgress >= 0.80 && p.SessionProgress < 0.95);
+                    // 왜: 한도를 못 받은 자리는 0% 로 세여 「모두 정상」이 떴다 — 연동 필요를 먼저 알린다
+                    var unlinked = claudeProfileList.Count(p => p.NeedsLink);
 
-                    if (critical > 0)
+                    if (unlinked > 0)
+                        summaryText = $"{total} profiles  ·  {unlinked} need linking";
+                    else if (critical > 0)
                         summaryText = $"{total} profiles  ·  {critical} at limit, {warning} warning";
                     else if (warning > 0)
                         summaryText = $"{total} profiles  ·  {warning} near limit";

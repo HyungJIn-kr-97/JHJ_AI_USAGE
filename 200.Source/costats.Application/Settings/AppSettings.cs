@@ -4,6 +4,9 @@ public sealed class AppSettings
 {
     public int RefreshMinutes { get; set; } = 5;
     public string Hotkey { get; set; } = "Ctrl+Alt+Y";
+
+    // 계약: 「팝업 단축키 2」부터 — 기본은 비어 있어 단축키가 하나다
+    public List<string> ExtraHotkeys { get; set; } = [];
     public bool StartAtLogin { get; set; } = false;
 
     // 왜: 백그라운드가 주기적으로 갱신하므로 팝업을 열 때마다 다시 조회하는 것은 기본으로 끈다
@@ -24,6 +27,9 @@ public sealed class AppSettings
     /// "bull" | "navy" | "emerald" | "violet" | "slate". 색상 팔레트.
     /// </summary>
     public string Palette { get; set; } = "bull";
+
+    // 계약: 트레이 아이콘 모양 — "j"(기본, 화면 이름 JHJ) · "bars" · "ring" · "spark"(팔레트 색으로 그림) · "custom:<파일 이름>"(사용자 아이콘)
+    public string TrayIconStyle { get; set; } = "j";
 
     /// <summary>
     /// "ko" | "en". 화면 문구의 언어.
@@ -56,6 +62,12 @@ public sealed class AppSettings
 
     // 계약: 키는 providerId("claude:default" · "claude:<이름>" · "codex" · "codex:<이름>") — 사용자가 정한 계정 명칭·유형
     public Dictionary<string, AccountInfo> Accounts { get; set; } = [];
+
+    // 계약: Claude 기본 폴더 기록의 주인 — 키는 프로그램(entrypoint: "claude-desktop" · "claude-vscode" · "cli"), 값은 providerId. 없으면 기본 계정(claude:default)이다
+    public Dictionary<string, string> ProgramAccounts { get; set; } = [];
+
+    // 계약: 설정 「계정」에서 정한 계정 순서(providerId) — 팝업 칩·카드도 이 순서다. 목록에 없는 계정은 뒤에 이름순으로 붙는다
+    public List<string> AccountOrder { get; set; } = [];
 }
 
 public sealed class AccountInfo
@@ -64,4 +76,7 @@ public sealed class AccountInfo
 
     // 계약: 자유 입력이다 — "기본"·"Default" 인 계정이 팝업을 열 때 먼저 보인다(도구마다 하나)
     public string? Type { get; set; }
+
+    // 계약: 명칭·유형을 정할 때 로그인돼 있던 메일 — 같은 칸에 다른 계정으로 다시 로그인하면 이 값이 달라 명칭·유형을 쓰지 않는다
+    public string? Email { get; set; }
 }

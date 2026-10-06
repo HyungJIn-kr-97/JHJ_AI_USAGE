@@ -52,11 +52,26 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
     }
 
     //  Public API
+    // 계약: 마지막 FetchAsync 때 토큰 파일(.credentials.json)이 있었나 — 없으면 화면은 한도 대신 「로그인 필요」를 보인다
+    public bool HasToken { get; private set; } = true;
+
+    // 계약: 마지막 조회가 실패한 까닭(「HTTP 403」 등, 토큰 값은 담지 않는다) — 화면 상태 줄에 그대로 보인다
+    public string? LastError { get; private set; }
+
     public async Task<ClaudeOAuthUsageResult?> FetchAsync(CancellationToken cancellationToken)
     {
         // 1. Load credentials & detect changes
         var credentials = await LoadCredentialsAsync(_configDir);
+        var account = ReadAccountEmail(_configDir);
         var fingerprint = ComputeFingerprint(credentials);
+
+        // 왜: 토큰이 없을 때 캐시를 내면 다른 계정이 받아 둔 한도가 지금 로그인 이름 아래에 보인다
+        HasToken = credentials?.AccessToken is not null;
+        if (!HasToken)
+        {
+            _memoryCache = null;
+            return null;
+        }
 
         if (fingerprint != _lastCredentialFingerprint)
         {
@@ -83,13 +98,14 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
         // 3. Check failure gate
         if (DateTimeOffset.UtcNow < _blockedUntil)
         {
-            return GetCachedResult();
+            return GetCachedResult(account);
         }
 
         // 4. Attempt fresh fetch
         var fresh = await TryFetchAsync(credentials, cancellationToken).ConfigureAwait(false);
         if (fresh is not null)
         {
+            fresh = fresh with { AccountEmail = account };
             _consecutiveFailures = 0;
             _blockedUntil = DateTimeOffset.MinValue;
             SetMemoryCache(fresh);
@@ -101,7 +117,7 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
         _consecutiveFailures++;
         _blockedUntil = DateTimeOffset.UtcNow + ComputeBackoff(_consecutiveFailures);
 
-        return GetCachedResult();
+        return GetCachedResult(account);
     }
 
     //  HTTP
@@ -125,17 +141,21 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
             if (response.IsSuccessStatusCode)
             {
                 var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                return ParseResponse(content, credentials.SubscriptionType, credentials.RateLimitTier);
+                var parsed = ParseResponse(content, credentials.SubscriptionType, credentials.RateLimitTier);
+                LastError = parsed is null ? "unreadable response" : null;
+                return parsed;
             }
 
+            LastError = $"HTTP {(int)response.StatusCode}";
             return null;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch
+        catch (Exception ex)
         {
+            LastError = ex.GetType().Name;
             return null;
         }
     }
@@ -281,19 +301,20 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
     /// Returns the best available cached result: memory first, then disk.
     /// The result is validated against age and quota window freshness.
     /// </summary>
-    private ClaudeOAuthUsageResult? GetCachedResult()
+    // 계약: 캐시는 받아 둔 계정과 지금 로그인 계정(이메일)이 같을 때만 쓴다
+    private ClaudeOAuthUsageResult? GetCachedResult(string? account)
     {
         // Try memory cache (30 min TTL)
         if (_memoryCache is not null
             && DateTimeOffset.UtcNow - _memoryCacheWrittenAt <= MemoryCacheTtl
-            && IsCacheValid(_memoryCache))
+            && IsCacheValid(_memoryCache, account))
         {
             return _memoryCache;
         }
 
         // Try disk cache
         var fromDisk = ReadDiskCache();
-        if (fromDisk is not null && IsCacheValid(fromDisk))
+        if (fromDisk is not null && IsCacheValid(fromDisk, account))
         {
             SetMemoryCache(fromDisk);
             return fromDisk;
@@ -302,8 +323,13 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
         return null;
     }
 
-    private static bool IsCacheValid(ClaudeOAuthUsageResult cached)
+    private static bool IsCacheValid(ClaudeOAuthUsageResult cached, string? account)
     {
+        if (account is null || !string.Equals(cached.AccountEmail, account, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         if (now - cached.FetchedAt > MaxCacheAge)
@@ -363,6 +389,25 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
     private static readonly JsonSerializerOptions DiskCacheJsonOptions = new(JsonSerializerDefaults.Web);
 
     //  Credential helpers
+    // 계약: 기본 로그인은 ~/.claude.json, 추가 계정은 <CLAUDE_CONFIG_DIR>/.claude.json 의 oauthAccount.emailAddress
+    private static string? ReadAccountEmail(string? configDir)
+    {
+        var path = configDir is not null
+            ? Path.Combine(configDir, ".claude.json")
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json");
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            return doc.RootElement.TryGetProperty("oauthAccount", out var oa) && oa.TryGetProperty("emailAddress", out var e)
+                ? e.GetString()
+                : null;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     private static string? ComputeFingerprint(ClaudeCredentials? credentials)
     {
         if (credentials?.AccessToken is null)
@@ -634,4 +679,6 @@ public sealed record ClaudeOAuthUsageResult(
     DateTimeOffset FetchedAt)
 {
     public IReadOnlyList<costats.Core.Pulse.ModelQuota> ModelWeeks { get; init; } = [];
+
+    public string? AccountEmail { get; init; }
 }

@@ -5,13 +5,14 @@ namespace costats.Core.Pulse;
 /// </summary>
 public sealed record TokenLedger
 {
-    public required int StandardInput { get; init; }
-    public required int CachedInput { get; init; }
-    public required int GeneratedOutput { get; init; }
-    public int CacheWriteInput { get; init; } // Claude-specific
+    // 왜: 한 계정의 30일 합이 int 를 넘는다(캐시 읽기만 수십억) — int 면 음수로 돌아가 화면에 -20억이 찍혔다
+    public required long StandardInput { get; init; }
+    public required long CachedInput { get; init; }
+    public required long GeneratedOutput { get; init; }
+    public long CacheWriteInput { get; init; } // Claude-specific
 
-    public int TotalConsumed => StandardInput + CachedInput + GeneratedOutput + CacheWriteInput;
-    public int NetInput => StandardInput + CacheWriteInput; // Excludes cache reads
+    public long TotalConsumed => StandardInput + CachedInput + GeneratedOutput + CacheWriteInput;
+    public long NetInput => StandardInput + CacheWriteInput; // Excludes cache reads
 
     public static TokenLedger Empty => new()
     {
@@ -39,6 +40,9 @@ public sealed record ConsumptionSlice
     public required string ModelIdentifier { get; init; }
     public required TokenLedger Tokens { get; init; }
     public required decimal ComputedCostUsd { get; init; }
+
+    // 계약: Claude 기본 폴더(~/.claude)에서 프로그램별로 나눠 읽은 줄이면 그 프로그램(entrypoint), 계정 자기 폴더의 줄이면 null
+    public string? Program { get; init; }
 }
 
 /// <summary>

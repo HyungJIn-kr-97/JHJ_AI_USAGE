@@ -1,4 +1,5 @@
 using costats.Core.Pulse;
+using costats.Infrastructure.Providers;
 
 namespace costats.Infrastructure.Expense;
 
@@ -34,6 +35,16 @@ public sealed class ExpenseAnalyzer
         var windowStart = today.AddDays(-(DefaultWindowDays - 1));
 
         var slices = await LogDigestor.DigestClaudeLogsAsync(logDirectory, windowStart, today, cancellationToken).ConfigureAwait(false);
+        return BuildDigest(slices, today, DefaultWindowDays);
+    }
+
+    // 계약: 폴더마다 주인을 달아 읽는다 — ClaudeLogRoot 참조
+    public async Task<ConsumptionDigest> AnalyzeClaudeAsync(IReadOnlyList<ClaudeLogRoot> roots, CancellationToken cancellationToken = default)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var windowStart = today.AddDays(-(DefaultWindowDays - 1));
+
+        var slices = await LogDigestor.DigestClaudeLogsAsync(roots, windowStart, today, cancellationToken).ConfigureAwait(false);
         return BuildDigest(slices, today, DefaultWindowDays);
     }
 

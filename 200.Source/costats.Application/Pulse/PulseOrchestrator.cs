@@ -8,7 +8,8 @@ namespace costats.Application.Pulse;
 
 public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
 {
-    private readonly IEnumerable<ISignalSource> _sources;
+    // 왜: 계정을 더하면 목록을 통째로 바꿔 끼운다 — 도는 중인 갱신이 반쯤 바뀐 목록을 보지 않는다
+    private volatile IReadOnlyList<ISignalSource> _sources;
     private readonly ISourceSelector _selector;
     private readonly IClock _clock;
     private readonly PulseBroadcaster _broadcaster;
@@ -31,7 +32,7 @@ public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
         IOptions<PulseOptions> options,
         ILogger<PulseOrchestrator> logger)
     {
-        _sources = sources;
+        _sources = sources.ToList();
         _selector = selector;
         _clock = clock;
         _broadcaster = broadcaster;
@@ -41,6 +42,17 @@ public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
     }
 
     public IObservable<PulseState> PulseStream => _broadcaster;
+
+    public void ReplaceSources(IEnumerable<ISignalSource> add, Func<ISignalSource, bool>? remove = null)
+    {
+        lock (_intervalLock)
+        {
+            var kept = _sources.Where(source => remove is null || !remove(source)).ToList();
+            var known = kept.Select(source => source.Profile.ProviderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            kept.AddRange(add.Where(source => known.Add(source.Profile.ProviderId)));
+            _sources = kept;
+        }
+    }
 
     public void UpdateRefreshInterval(TimeSpan interval)
     {

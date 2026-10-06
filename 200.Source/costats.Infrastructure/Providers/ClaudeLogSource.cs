@@ -107,7 +107,11 @@ public sealed class ClaudeLogSource : ISignalSource
         var planText = FormatPlanText(oauthResult?.SubscriptionType);
         var statusSummary = oauthResult is not null
             ? $"Updated {FormatRelativeTime(oauthResult.FetchedAt, now)}"
-            : $"Updated {FormatRelativeTime(logResult.LatestTimestamp ?? now, now)}";
+            : !_oauthFetcher.HasToken
+                ? "No Claude token on this PC — sign in from Settings › Accounts"
+                : _oauthFetcher.LastError is { } error
+                    ? $"Usage lookup failed ({error})"
+                    : $"Updated {FormatRelativeTime(logResult.LatestTimestamp ?? now, now)}";
 
         var confidence = oauthResult is not null ? ReadingConfidence.High : ReadingConfidence.Medium;
         var source = oauthResult is not null ? ReadingSource.Api : ReadingSource.LocalLog;

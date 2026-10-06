@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:costats.App"
+             xmlns:views="clr-namespace:costats.App.Views"
         xmlns:loc="clr-namespace:costats.App.Localization">
 
     <UserControl.Resources>
@@ -36,11 +37,13 @@
 
     <StackPanel>
         <!-- Summary bar: health breakdown -->
-        <Border Padding="12,8" Margin="0,0,0,0" CornerRadius="6" Background="{DynamicResource SubtleOverlayBrush}">
+        <Border Padding="10,5" Margin="0,0,0,0" CornerRadius="6" Background="{DynamicResource SubtleOverlayBrush}">
             <DockPanel>
-                <TextBlock Text="{Binding UpdatedLabel}" FontSize="10.5"
-                           Foreground="{DynamicResource TextFaintBrush}"
-                           DockPanel.Dock="Right" VerticalAlignment="Center" />
+                <!-- 계약: 「전체」에서는 머리글(다음 갱신 줄)이 숨는다 — 마지막 갱신과 다음 갱신을 여기서 한 줄로 보인다 -->
+                <TextBlock DockPanel.Dock="Right" FontSize="10" VerticalAlignment="Center" Margin="8,0,0,0"
+                           Foreground="{DynamicResource TextFaintBrush}">
+                    <Run Text="{Binding UpdatedLabel, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding NextRefreshShortText, Mode=OneWay}" />
+                </TextBlock>
                 <TextBlock Text="{Binding MulticcSummary}" FontSize="11.5" FontWeight="SemiBold"
                            Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                            AutomationProperties.Name="Multicc profile summary" />
@@ -80,16 +83,42 @@
                                                    Foreground="{DynamicResource PlanTextClaudeBrush}" />
                                     </Border>
 
-                                    <!-- 왜: 비용 한 줄을 머리글 오른쪽에 붙인다 — 카드 아래 별도 줄이면 한 화면에 다 들어가지 않는다 -->
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding CompactCostText}" FontSize="10" Margin="8,0,8,0"
+                                    <!-- 계약: 요금제 왼쪽에 계정 상태 — 연동이 필요하면 「연동」 버튼 -->
+                                    <Border DockPanel.Dock="Right" CornerRadius="4" Padding="6,2" Margin="0,0,6,0" VerticalAlignment="Center"
+                                            BorderThickness="1" BorderBrush="{Binding AccountStateBrush}"
+                                            Visibility="{Binding AccountStateText, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
+                                        <TextBlock Text="{Binding AccountStateText}" FontSize="9.5" FontWeight="SemiBold" Foreground="{Binding AccountStateBrush}" />
+                                    </Border>
+                                    <Button DockPanel.Dock="Right" Content="{loc:Tr 'Link'}" Margin="0,0,6,0" VerticalAlignment="Center" Cursor="Hand"
+                                            FocusVisualStyle="{x:Null}" Tag="{Binding ProviderId}" Click="OnLinkAccountClick"
+                                            Template="{StaticResource LinkPillButton}"
+                                            Visibility="{Binding NeedsLink, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+
+                                    <!-- 계약: 이름 바로 오른쪽에 유형 딱지 — 명칭·유형 편집은 설정 › 계정에서만 한다. 메일은 아래 줄 -->
+                                    <DockPanel VerticalAlignment="Center" LastChildFill="False">
+                                        <TextBlock DockPanel.Dock="Left" Text="{Binding DisplayName}" FontSize="14" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding DisplayName}" />
+                                        <Border DockPanel.Dock="Left" CornerRadius="8" Padding="6,0" Margin="6,0,0,0" VerticalAlignment="Center" BorderThickness="1"
+                                                BorderBrush="{DynamicResource DividerBrush}"
+                                                Visibility="{Binding HasAccountType, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <TextBlock Text="{Binding AccountType}" FontSize="9.5" Foreground="{DynamicResource TextMutedBrush}" />
+                                        </Border>
+                                    </DockPanel>
+                                </DockPanel>
+                                <!-- 왜: 비용 한 줄은 메일 줄 오른쪽에 둔다 — 머리글에 두면 배지·버튼과 폭을 다퉈 이름이 「…」로 사라졌다 -->
+                                <DockPanel Margin="0,-4,0,6">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding CompactCostText}" FontSize="10" Margin="8,0,0,0"
                                                Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                                                Visibility="{Binding HasCompactCost, Converter={StaticResource BoolToVisibilityConverter}}" />
-
-                                    <!-- Profile name -->
-                                    <TextBlock Text="{Binding DisplayName}" FontSize="14" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding AccountEmail}" FontSize="10" Foreground="{DynamicResource TextFaintBrush}"
+                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                 </DockPanel>
+                                <!-- 계약: 이 카드에서 누른 「연동」의 진행 칸 — 브라우저 버튼·코드 칸·결과가 카드 바로 밑에 펼쳐진다 -->
+                                <Border Visibility="{Binding IsLinking, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <views:LinkProgressView DataContext="{Binding DataContext.LinkContext, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                </Border>
 
                                 <!-- 왜: 세션·주간을 좌우로 나란히 둔다 — 위아래로 쌓으면 계정 둘에 통계까지 한 화면에 들어가지 않는다 -->
                                 <Grid>
@@ -142,24 +171,9 @@
                         </Border.Background>
                     </Border>
 
-                    <!-- Today row -->
-                    <DockPanel Margin="0,0,0,5">
-                        <TextBlock Text="{loc:Tr 'All accounts today:'}" FontSize="11"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left" />
-                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                            <TextBlock Text="{Binding MulticcTotalTodayCost}" FontSize="11" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource CostTodayAccent}" />
-                            <TextBlock Text="  ·  " FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
-                            <TextBlock Text="{Binding MulticcTotalTodayTokens}" FontSize="11"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <TextBlock Text="{loc:Tr ' tokens'}" FontSize="11"
-                                       Foreground="{DynamicResource TextMutedBrush}" />
-                        </StackPanel>
-                    </DockPanel>
-
-                    <!-- This week row -->
+                    <!-- 왜: 「오늘」 합계는 바로 아래 전체 통계의 「오늘」과 같은 값이라 뺐다 — 최근 7일만 남긴다 -->
                     <DockPanel>
-                        <TextBlock Text="{loc:Tr 'All accounts this week:'}" FontSize="11"
+                        <TextBlock Text="{loc:Tr 'All accounts, last 7 days:'}" FontSize="11"
                                    Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left" />
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
                             <TextBlock Text="{Binding MulticcTotalWeekCost}" FontSize="11" FontWeight="SemiBold"

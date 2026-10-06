@@ -139,7 +139,8 @@
                                 <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                                 <Setter Property="FontWeight" Value="SemiBold" />
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
+                            <!-- 함정: TabItem.IsMouseOver 는 본문 위에서도 켜진다 — 본문을 만지는 동안 선택 탭만 상자로 칠해져 위아래 탭이 달라 보였다 -->
+                            <Trigger SourceName="Head" Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Head" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -161,6 +162,22 @@
                                     BorderThickness="1,0,1,1" CornerRadius="0,0,10,10" Padding="12,12,12,12">
                                 <ContentPresenter ContentSource="SelectedContent" VerticalAlignment="Top" />
                             </Border>
+                        </DockPanel>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- 왜: 바깥 탭 카드 안에 또 카드를 그리면 테두리가 겹친다 — 하위 탭은 밑줄 머리글만 두고 본문은 바탕 그대로 쓴다 -->
+        <Style x:Key="SettingsSubTabControl" TargetType="TabControl">
+            <Setter Property="ItemContainerStyle" Value="{StaticResource SettingsTabItem}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource DividerBrush}">
+                                <UniformGrid IsItemsHost="True" Rows="1" Margin="0,0,0,-1" />
+                            </Border>
+                            <ContentPresenter ContentSource="SelectedContent" VerticalAlignment="Top" Margin="0,10,0,0" />
                         </DockPanel>
                     </ControlTemplate>
                 </Setter.Value>
@@ -225,36 +242,78 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="border" Property="Background" Value="{DynamicResource PressedOverlayBrush}" />
                             </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.35" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-        <!-- 계약: 계정 한 줄 — 위는 사용자가 고치는 명칭·유형, 아래는 실제 로그인 계정과 버튼. 이 PC 로그인 줄에는 삭제가 없다 -->
+        <!-- 계약: 계정 한 줄 — 위는 명칭·유형(「편집」을 눌러야 칸이 열린다), 아래는 실제 로그인 계정과 버튼. 이 PC 로그인 줄에는 삭제가 없다 -->
+        <!-- 계약: 줄 순서 = 팝업 칩·카드 순서. ⠿ 를 끌어 다른 줄에 놓거나 ▲▼ 로 옮긴다(같은 도구 줄끼리) -->
         <DataTemplate x:Key="AccountRowTemplate">
-            <Border Margin="0,0,0,6" Padding="8,6" CornerRadius="6" Background="{DynamicResource SubtleOverlayBrush}">
+            <Border Margin="0,0,0,6" Padding="8,6" CornerRadius="6" Background="{DynamicResource SubtleOverlayBrush}"
+                    AllowDrop="True" DragOver="OnAccountRowDragOver" Drop="OnAccountRowDrop">
                 <StackPanel>
-                    <DockPanel>
+                    <DockPanel Visibility="{Binding IsEditing, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}">
+                        <TextBlock Text="⠿" DockPanel.Dock="Left" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" Cursor="SizeAll"
+                                   Background="Transparent" Foreground="{DynamicResource TextFaintBrush}" ToolTip="{loc:Tr 'Drag to change the order'}"
+                                   PreviewMouseLeftButtonDown="OnAccountDragHandleDown" MouseMove="OnAccountDragHandleMove" />
+                        <Button Content="{loc:Tr 'Edit'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="6,0,0,0"
+                                Style="{StaticResource SettingsButton}" Command="{Binding BeginEditCommand}" />
+                        <Button Content="▼" DockPanel.Dock="Right" Padding="6,3" FontSize="9" Margin="2,0,0,0"
+                                Style="{StaticResource SettingsButton}" CommandParameter="{Binding}" IsEnabled="{Binding CanMoveDown}"
+                                Command="{Binding DataContext.MoveRowDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                ToolTip="{loc:Tr 'Move down'}" />
+                        <Button Content="▲" DockPanel.Dock="Right" Padding="6,3" FontSize="9" Margin="6,0,0,0"
+                                Style="{StaticResource SettingsButton}" CommandParameter="{Binding}" IsEnabled="{Binding CanMoveUp}"
+                                Command="{Binding DataContext.MoveRowUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                ToolTip="{loc:Tr 'Move up'}" />
+                        <Border DockPanel.Dock="Right" Padding="6,1" CornerRadius="8" VerticalAlignment="Center" Margin="6,0,0,0"
+                                BorderThickness="1" BorderBrush="{DynamicResource DividerBrush}"
+                                Visibility="{Binding HasType, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                            <TextBlock Text="{Binding AccountType}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+                        </Border>
+                        <TextBlock Text="{Binding DisplayNameText}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}"
+                                   ToolTip="{loc:Tr 'Account name shown in the popup'}" />
+                    </DockPanel>
+                    <DockPanel Visibility="{Binding IsEditing, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
                         <ComboBox DockPanel.Dock="Right" Width="96" Margin="6,0,0,0" Style="{StaticResource SettingsEditableCombo}"
                                   ItemsSource="{Binding DataContext.TypeSuggestions, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                   Text="{Binding AccountType, UpdateSourceTrigger=PropertyChanged}"
                                   ToolTip="{loc:Tr 'Account type — type freely or pick one. Default is shown first when the popup opens.'}" />
-                        <TextBox Text="{Binding DisplayNameText, UpdateSourceTrigger=LostFocus}" FontSize="12" Padding="6,4"
-                                 VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Account name shown in the popup'}"
+                        <TextBox Text="{Binding DisplayNameText, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Padding="6,4"
+                                 MaxLength="{Binding MaxNameLength}" IsVisibleChanged="OnNameBoxVisibleChanged"
+                                 VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Account name shown in the popup (up to 8 characters)'}"
                                  Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
                                  BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
                     </DockPanel>
-                    <DockPanel Margin="0,5,0,0">
+                    <DockPanel Margin="0,5,0,0" Visibility="{Binding IsEditing, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                        <Button Content="{loc:Tr 'Save'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                                Style="{StaticResource SettingsButton}" Command="{Binding SaveEditCommand}" />
+                        <Button Content="{loc:Tr 'Cancel'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                                Style="{StaticResource SettingsButton}" Command="{Binding CancelEditCommand}" />
+                        <TextBlock Text="{Binding AccountText}" FontSize="11" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFaintBrush}" />
+                    </DockPanel>
+                    <DockPanel Margin="0,5,0,0" Visibility="{Binding IsEditing, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}">
                         <Button Content="{loc:Tr 'Remove'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
                                 Style="{StaticResource SettingsButton}" CommandParameter="{Binding}"
                                 Command="{Binding DataContext.RemoveRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 Visibility="{Binding IsMain, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}" />
-                        <Button Content="{loc:Tr 'Sign in'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                        <Button Content="{loc:Tr 'Link'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
                                 Style="{StaticResource SettingsButton}" CommandParameter="{Binding}"
                                 Command="{Binding DataContext.SignInRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 Visibility="{Binding IsSignedIn, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}"
-                                ToolTip="{loc:Tr 'Opens the official CLI sign-in in your browser. Signing in again switches the account.'}" />
-                        <Button Content="{loc:Tr 'Sign out'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                                ToolTip="{loc:Tr 'Link an account to this slot — sign in in the browser.'}" />
+                        <Button Content="{loc:Tr 'Relink'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                                Style="{StaticResource SettingsButton}" CommandParameter="{Binding}"
+                                Command="{Binding DataContext.SignInRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Visibility="{Binding IsSignedIn, Converter={x:Static local:BoolToVisibilityConverter.Instance}}"
+                                ToolTip="{loc:Tr 'Wrong account? Sign in again and pick another one (the login window lets you pick any account).'}" />
+                        <Button Content="{loc:Tr 'Unlink'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
                                 Style="{StaticResource SettingsButton}" CommandParameter="{Binding}"
                                 Command="{Binding DataContext.SignOutRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 Visibility="{Binding IsSignedIn, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
@@ -279,7 +338,7 @@
 
             <!-- Divider -->
 
-            <!-- 왜: 앱 자체 설정(일반·화면)과 도구별 설정(계정·Copilot·Gemini)을 위아래로 나눈다 — 탭 다섯 개를 한 줄에 두면 어디에 무엇이 있는지 안 보인다 -->
+            <!-- 왜: 앱 자체 설정(일반·화면)과 도구별 설정(계정 · AI 도구)을 위아래로 나눈다 — 계정은 Agent 마다, AI 도구는 연동 대상마다 하위 탭을 둔다 -->
             <Grid Grid.Row="2" Margin="0,0,0,10">
                 <Grid.Resources>
                         <Style x:Key="RowLabel" TargetType="TextBlock">
@@ -324,6 +383,61 @@
                             </ComboBox>
                             <TextBlock Text="{loc:Tr 'Refresh interval'}" Style="{StaticResource RowLabel}" />
                         </DockPanel>
+                        <!-- 계약: 입력란에서 누른 조합을 바로 검사·적용한다. 규칙은 Services/HotkeyRules.cs · 줄은 「단축키 추가」로 늘린다 -->
+                        <ItemsControl ItemsSource="{Binding HotkeySlots}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,10,0,0">
+                                        <DockPanel ToolTip="{loc:Tr 'Click the box, then press the keys together.'}">
+                                            <!-- 계약: 추가 버튼은 1번 줄에만 보인다 — 나머지 줄은 자리만 잡아 입력란 세로줄을 맞춘다 -->
+                                            <Button Content="+" DockPanel.Dock="Right" Width="28" Padding="0,3" FontSize="13" Margin="6,0,0,0"
+                                                    ToolTip="{loc:Tr '+ Add shortcut'}"
+                                                    Command="{Binding DataContext.AddHotkeyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    IsEnabled="{Binding DataContext.CanAddHotkey, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SettingsButton}">
+                                                        <Setter Property="Visibility" Value="Hidden" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Index}" Value="0">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <Button Content="{Binding ButtonText}" DockPanel.Dock="Right" Width="44" Padding="0,4" FontSize="11" Margin="6,0,0,0"
+                                                    Style="{StaticResource SettingsButton}" Command="{Binding ButtonCommand}" />
+                                            <TextBox DockPanel.Dock="Right" Width="124" FontSize="12" Padding="6,4" IsReadOnly="True" IsReadOnlyCaretVisible="False"
+                                                     Text="{Binding Text, Mode=OneWay}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                                     InputMethod.IsInputMethodEnabled="False" Loaded="OnHotkeyBoxLoaded"
+                                                     PreviewKeyDown="OnHotkeyBoxKeyDown" GotKeyboardFocus="OnHotkeyBoxFocus" LostKeyboardFocus="OnHotkeyBoxBlur"
+                                                     IsVisibleChanged="OnHotkeyBoxVisibleChanged"
+                                                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                     BorderBrush="{DynamicResource DividerBrush}" />
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource RowLabel}" />
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding Message}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
+                                                   Visibility="{Binding Message, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Verdict}" Value="Caution">
+                                                            <Setter Property="Foreground" Value="{DynamicResource SessionTextBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Verdict}" Value="Blocked">
+                                                            <Setter Property="Foreground" Value="{DynamicResource WeeklyTextBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{loc:Tr 'Ctrl+Alt+F1–F12 is recommended. Blocked: one-modifier keys (Ctrl+C, Alt+F4), Win combinations, and Esc·Tab·Delete·arrow keys.'}"
+                                   FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" />
                         <DockPanel Margin="0,10,0,0">
                             <Button Content="{loc:Tr 'Check for updates'}" DockPanel.Dock="Right" Padding="10,4" FontSize="11"
                                     Style="{StaticResource SettingsButton}" Command="{Binding CheckForUpdatesCommand}" />
@@ -439,13 +553,143 @@
                         </DockPanel>
                     </StackPanel>
                 </TabItem>
+                <!-- 계약: 트레이 아이콘 — 기본 모양 4종(테마 색) + 사용자 아이콘 + 「+ 그리기」·「+ 불러오기」 칸. 고르면 트레이에 바로 반영된다 -->
+                <!-- 계약: 그리기는 목록 대신 열리는 별도 화면이고, 저장하면 새 아이콘이 하나 더해진다(기존 것은 안 바뀐다) -->
+                <TabItem Header="{loc:Tr 'Icon'}">
+                    <StackPanel>
+                        <StackPanel Visibility="{Binding IsIconEditorOpen, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}">
+                            <TextBlock Text="{loc:Tr 'Tray icon'}" Style="{StaticResource RowLabel}" Margin="0,0,0,6" />
+                            <ItemsControl ItemsSource="{Binding IconOptions}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,6,6">
+                                            <Button Cursor="Hand" FocusVisualStyle="{x:Null}"
+                                                    Command="{Binding DataContext.SelectTrayIconCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding Style}">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="ring" Width="56" Padding="0,6,0,4" CornerRadius="8" BorderThickness="2"
+                                                                BorderBrush="Transparent" Background="{DynamicResource SubtleOverlayBrush}">
+                                                            <StackPanel>
+                                                                <Grid Width="32" Height="32">
+                                                                    <Image Source="{Binding Preview}" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                                    <TextBlock Text="+" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                                               Visibility="{Binding IsAction, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                                                                </Grid>
+                                                                <TextBlock Text="{Binding Label}" FontSize="10" HorizontalAlignment="Center" Margin="0,3,0,0"
+                                                                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextMutedBrush}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter TargetName="ring" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsAction}" Value="True">
+                                                                <Setter TargetName="ring" Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+                                                                <Setter TargetName="ring" Property="Background" Value="Transparent" />
+                                                            </DataTrigger>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="ring" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <Button Content="✕" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,2,0"
+                                                    Width="16" Height="16" Padding="0" FontSize="9" Cursor="Hand" ToolTip="{loc:Tr 'Delete this icon'}"
+                                                    Style="{StaticResource SettingsButton}" CommandParameter="{Binding Style}"
+                                                    Command="{Binding DataContext.DeleteTrayIconCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    Visibility="{Binding IsCustom, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <TextBlock Text="{Binding IconMessage}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0" Foreground="{DynamicResource AccentBrush}"
+                                   Visibility="{Binding IconMessage, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+
+                        <!-- 계약: 16×16 칸 — 누르거나 끌면 고른 붓 색으로 칠한다(화면 코드 OnIconPixel*) -->
+                        <StackPanel Visibility="{Binding IsIconEditorOpen, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                            <TextBlock Text="{loc:Tr 'New icon'}" Style="{StaticResource RowLabel}" Margin="0,0,0,6" />
+                            <DockPanel>
+                                <ItemsControl ItemsSource="{Binding IconPens}" DockPanel.Dock="Right" Margin="8,0,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Cursor="Hand" Margin="0,0,0,4" FocusVisualStyle="{x:Null}" ToolTip="{Binding Label}"
+                                                    Command="{Binding DataContext.SelectIconPenCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="ring" Width="26" Height="26" CornerRadius="6" BorderThickness="2" BorderBrush="Transparent">
+                                                            <Grid Width="16" Height="16">
+                                                                <Border CornerRadius="3" Background="{Binding Swatch}"
+                                                                        BorderThickness="1" BorderBrush="{DynamicResource DividerBrush}" />
+                                                                <TextBlock Text="✕" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                                           Visibility="{Binding IsEraser, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter TargetName="ring" Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}" />
+                                                            </DataTrigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Border Width="194" Height="194" HorizontalAlignment="Left" BorderThickness="1" BorderBrush="{DynamicResource DividerBrush}"
+                                        Background="{DynamicResource SubtleOverlayBrush}">
+                                    <ItemsControl ItemsSource="{Binding IconPixels}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Rows="16" Columns="16" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{Binding Fill}" BorderThickness="0,0,1,1" BorderBrush="#22808080"
+                                                        MouseLeftButtonDown="OnIconPixelDown" MouseEnter="OnIconPixelEnter" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                            </DockPanel>
+                            <TextBlock Text="{loc:Tr 'Saving adds a new icon. Existing icons are not changed.'}" FontSize="10" TextWrapping="Wrap"
+                                       Margin="0,6,0,0" Foreground="{DynamicResource TextFaintBrush}" />
+                            <WrapPanel Margin="0,6,0,0">
+                                <Button Content="JHJ" Padding="8,3" FontSize="11" Margin="0,0,4,4" ToolTip="{loc:Tr 'Start from'}"
+                                        Style="{StaticResource SettingsButton}" Command="{Binding ResetIconCanvasCommand}" CommandParameter="j" />
+                                <Button Content="{loc:Tr 'Blank tile'}" Padding="8,3" FontSize="11" Margin="0,0,4,4"
+                                        Style="{StaticResource SettingsButton}" Command="{Binding ResetIconCanvasCommand}" CommandParameter="tile" />
+                                <Button Content="{loc:Tr 'Clear'}" Padding="8,3" FontSize="11" Margin="0,0,4,4"
+                                        Style="{StaticResource SettingsButton}" Command="{Binding ClearIconCanvasCommand}" />
+                                <Button Content="{loc:Tr 'Cancel'}" Padding="8,3" FontSize="11" Margin="0,0,4,4"
+                                        Style="{StaticResource SettingsButton}" Command="{Binding CancelIconEditorCommand}" />
+                                <Button Content="{loc:Tr 'Save'}" Padding="8,3" FontSize="11" Margin="0,0,4,4"
+                                        Style="{StaticResource SettingsButton}" Command="{Binding SaveIconDrawingCommand}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </TabItem>
                 </TabControl>
                 <TextBlock Grid.Row="2" Text="{loc:Tr 'Accounts &amp; AI tools'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" Margin="2,0,0,6" />
                 <TabControl Grid.Row="3" Style="{StaticResource SettingsTabControl}">
                 <!-- Accounts -->
                 <TabItem Header="{loc:Tr 'Accounts'}">
-                    <!-- 계약: 도구마다 구역 하나 — 기본 계정 줄, 추가 계정 목록, 추가 입력이 그 도구 것만 모여 있다 -->
+                    <!-- 계약: Agent 마다 하위 탭 하나 — 기본 계정 줄, 추가 계정 목록, 추가 입력이 그 Agent 것만 모여 있다. 로그인 진행·재시작 안내는 탭 아래 공용 -->
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource GutterScrollViewer}">
+                    <StackPanel>
+                    <TabControl Style="{StaticResource SettingsSubTabControl}">
+                    <TabItem Header="Claude">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,6" ToolTip="{Binding ClaudeSourceText}">
                             <TextBlock Text="Claude" DockPanel.Dock="Left" Style="{StaticResource RowLabel}" FontWeight="SemiBold" />
@@ -453,18 +697,41 @@
                                        Foreground="{DynamicResource TextFaintBrush}" />
                         </DockPanel>
                         <ItemsControl ItemsSource="{Binding ClaudeAccounts}" ItemTemplate="{StaticResource AccountRowTemplate}" />
+                        <!-- 계약: 계정 추가 = 자리 하나 + 바로 연동(브라우저 로그인) → 실제 메일·토큰·중복 확인(SettingsViewModel.VerifyLink) -->
                         <DockPanel>
-                            <Button Content="{loc:Tr 'Add account'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
+                            <Button Content="{loc:Tr 'Add account (browser sign-in)'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
                                     Style="{StaticResource SettingsButton}" Command="{Binding AddAccountCommand}" />
-                            <TextBox Text="{Binding NewAccountName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Padding="6,4"
-                                     VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Extra Claude account (usage only) — email or a short name'}"
-                                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
-                                     BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{loc:Tr 'The account you pick in the browser is added. Its email and token are checked afterwards.'}"
+                                       FontSize="10" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextFaintBrush}" />
                         </DockPanel>
-
-                        <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,12,0,10" />
-
-                        <!-- Codex -->
+                        <!-- 계약: 기본 폴더(~/.claude) 기록의 주인을 프로그램마다 정한다 — ClaudeProgramRouter. 지난 기록에도 적용된다 -->
+                        <TextBlock Text="{loc:Tr 'Program links'}" Style="{StaticResource RowLabel}" FontWeight="SemiBold" Margin="0,14,0,2" />
+                        <TextBlock Text="{loc:Tr 'Usage from each program on this PC is counted for the account you pick here. Past logs follow the change too.'}"
+                                   FontSize="10" TextWrapping="Wrap" Margin="0,0,0,2" Foreground="{DynamicResource TextFaintBrush}" />
+                        <!-- 계약: ClaudeCliSessions — 새 VS Code·CLI 세션은 그때의 로그인 계정을 따르고, 아래 표는 그 전 기록에만 쓰인다 -->
+                        <TextBlock Text="{loc:Tr 'New VS Code and CLI sessions are counted for the account signed in on this PC at that time. The table below applies to older sessions.'}"
+                                   FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6" Foreground="{DynamicResource TextFaintBrush}" />
+                        <ItemsControl ItemsSource="{Binding ProgramLinks}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,0,0,4">
+                                        <ComboBox DockPanel.Dock="Right" Width="230" Style="{StaticResource SettingsComboBox}"
+                                                  ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedAccount}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <TextBlock Text="{Binding Label}" Style="{StaticResource RowLabel}" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    </TabItem>
+                    <TabItem Header="Codex">
+                    <StackPanel>
                         <DockPanel Margin="0,0,0,6" ToolTip="{Binding CodexSourceText}">
                             <TextBlock Text="Codex" DockPanel.Dock="Left" Style="{StaticResource RowLabel}" FontWeight="SemiBold" />
                             <TextBlock Text="{loc:Tr 'Name · Type'}" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center"
@@ -472,59 +739,17 @@
                         </DockPanel>
                         <ItemsControl ItemsSource="{Binding CodexAccounts}" ItemTemplate="{StaticResource AccountRowTemplate}" />
                         <DockPanel>
-                            <Button Content="{loc:Tr 'Add account'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
+                            <Button Content="{loc:Tr 'Add account (browser sign-in)'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
                                     Style="{StaticResource SettingsButton}" Command="{Binding AddCodexAccountCommand}" />
-                            <TextBox Text="{Binding NewCodexAccountName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Padding="6,4"
-                                     VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Extra Codex account (usage only) — email or a short name'}"
-                                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
-                                     BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{loc:Tr 'The account you pick in the browser is added. Its email and token are checked afterwards.'}"
+                                       FontSize="10" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextFaintBrush}" />
                         </DockPanel>
-<TextBlock Text="{Binding AccountsMessage}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"
-                                   Visibility="{Binding AccountsMessage, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding AccountsMessageIsSuccess}" Value="True">
-                                            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <!-- 계약: 로그인 CLI 가 뒤에서 도는 동안만 보인다 — 코드 칸은 브라우저가 코드를 보여 주는 로그인(Claude)일 때만 -->
-                        <DockPanel Margin="0,6,0,0" Visibility="{Binding LoginInProgress, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
-                            <Button Content="{loc:Tr 'Cancel'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
-                                    Style="{StaticResource SettingsButton}" Command="{Binding CancelLoginCommand}" />
-                            <Button Content="{loc:Tr 'Apply code'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
-                                    Style="{StaticResource SettingsButton}" Command="{Binding SubmitLoginCodeCommand}"
-                                    Visibility="{Binding LoginAcceptsCode, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
-                            <TextBox Text="{Binding LoginCodeInput, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Padding="6,4"
-                                     VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Paste the code the browser shows after signing in'}"
-                                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
-                                     BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}"
-                                     Visibility="{Binding LoginAcceptsCode, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
-                        </DockPanel>
-                        <Button Content="{loc:Tr 'Restart app to apply'}" HorizontalAlignment="Left" Padding="10,5" FontSize="11" Margin="0,6,0,0"
-                                Style="{StaticResource SettingsButton}" Command="{Binding RestartAppCommand}">
-                            <Button.Visibility>
-                                <Binding Path="AccountsRestartPending">
-                                    <Binding.Converter>
-                                        <BooleanToVisibilityConverter />
-                                    </Binding.Converter>
-                                </Binding>
-                            </Button.Visibility>
-                        </Button>
                     </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
-                <!-- Copilot -->
-                <TabItem Header="Copilot">
+                    </TabItem>
+                    <!-- 계약: AI 도구마다 필요한 계정은 여기서 관리한다 — Copilot 은 GitHub 토큰, Gemini 는 gemini CLI 로그인 -->
+                    <TabItem Header="Copilot">
                     <StackPanel>
-                        <CheckBox IsChecked="{Binding CopilotEnabled}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,8"
-                                  ToolTip="{loc:Tr 'Connect a GitHub personal access token to fetch usage data.'}">
-                            <TextBlock Text="{loc:Tr 'Enable GitHub Copilot usage'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
-                        </CheckBox>
+                        <TextBlock Text="{loc:Tr 'GitHub personal access token'}" Style="{StaticResource RowLabel}" FontWeight="SemiBold" Margin="0,0,0,6" />
                         <DockPanel ToolTip="{loc:Tr 'Personal access token'}">
                             <Button Content="{loc:Tr 'Clear'}"
                                     Command="{Binding ClearCopilotTokenCommand}" Padding="10,4" FontSize="11" Margin="4,0,0,0"
@@ -560,14 +785,9 @@
                         <TextBlock Text="{Binding CopilotTokenStatus}" FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,6,0,0"
                                    Visibility="{Binding CopilotTokenStatus, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
                     </StackPanel>
-                </TabItem>
-                <!-- Gemini -->
-                <TabItem Header="Gemini">
+                    </TabItem>
+                    <TabItem Header="Gemini">
                     <StackPanel>
-                        <CheckBox IsChecked="{Binding GeminiEnabled}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
-                                  ToolTip="{loc:Tr 'Reads ~/.gemini: quota from the signed-in Code Assist seat, tokens and cost from session logs.'}">
-                            <TextBlock Text="{loc:Tr 'Show Gemini CLI usage'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
-                        </CheckBox>
                         <DockPanel Margin="0,0,0,10">
                             <TextBlock Text="Gemini" Width="52" DockPanel.Dock="Left" Style="{StaticResource RowLabel}" />
                             <TextBlock Text="{Binding GeminiAccountText}" FontSize="12" TextTrimming="CharacterEllipsis"
@@ -576,24 +796,99 @@
                         <TextBlock Text="{loc:Tr 'Quota needs a Code Assist Standard/Enterprise seat. Personal Google sign-in was closed on 2026-06-18, so only token and cost history shows for it. Cost is an API-price estimate.'}"
                                    FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFaintBrush}" />
                     </StackPanel>
+                    </TabItem>
+                    </TabControl>
+                        <TextBlock Text="{Binding AccountsMessage}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Visibility="{Binding AccountsMessage, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding AccountsMessageIsSuccess}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <!-- 계약: 로그인 CLI 가 뒤에서 도는 동안만 보인다 — 코드 칸은 브라우저가 코드를 보여 주는 로그인(Claude)일 때만 -->
+                        <!-- 계약: 로그인 중 안내 — CLI 의 마지막 안내 줄 · 로그인 페이지 링크 · 코드가 무엇인지 -->
+                        <StackPanel Margin="0,6,0,0" Visibility="{Binding LoginInProgress, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                            <WrapPanel Margin="0,0,0,4" Visibility="{Binding LoginUrl, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
+                                <Button Content="{loc:Tr 'Open in browser'}" Padding="8,3" FontSize="11" Margin="0,0,4,4"
+                                        Style="{StaticResource SettingsButton}" Command="{Binding OpenLoginPageCommand}" CommandParameter="default" />
+                                <Button Content="{loc:Tr 'Login window'}" Padding="8,3" FontSize="11" Margin="0,0,4,4"
+                                        Style="{StaticResource SettingsButton}" Command="{Binding OpenLoginPageCommand}" CommandParameter="dedicated"
+                                        ToolTip="{loc:Tr 'Opens a separate Chrome window with no saved sign-in, so you can pick any account. It closes when linking finishes.'}" />
+                                <Button Content="{loc:Tr 'Copy address'}" Padding="8,3" FontSize="11" Margin="0,0,4,4"
+                                        Style="{StaticResource SettingsButton}" Command="{Binding OpenLoginPageCommand}" CommandParameter="copy" />
+                            </WrapPanel>
+                            <TextBlock Text="{Binding LoginOutput}" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,4" Foreground="{DynamicResource TextFaintBrush}"
+                                       Visibility="{Binding LoginOutput, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+                            <TextBlock Text="{loc:Tr 'Which code? After you click Authorize in the browser, claude.ai shows an Authentication Code — copy it and paste it below. If the browser finishes by itself, no code is needed.'}"
+                                       FontSize="10" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}"
+                                       Visibility="{Binding LoginAcceptsCode, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                        </StackPanel>
+                        <DockPanel Margin="0,6,0,0" Visibility="{Binding LoginInProgress, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                            <Button Content="{loc:Tr 'Cancel'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding CancelLoginCommand}" />
+                            <Button Content="{loc:Tr 'Apply code'}" DockPanel.Dock="Right" Padding="10,5" FontSize="11" Margin="6,0,0,0"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding SubmitLoginCodeCommand}"
+                                    Visibility="{Binding LoginAcceptsCode, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                            <TextBox Text="{Binding LoginCodeInput, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Padding="6,4"
+                                     VerticalContentAlignment="Center" ToolTip="{loc:Tr 'Paste the code the browser shows after signing in'}"
+                                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                     BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}"
+                                     Visibility="{Binding LoginAcceptsCode, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                        </DockPanel>
+                        <Button Content="{loc:Tr 'Restart app to apply'}" HorizontalAlignment="Left" Padding="10,5" FontSize="11" Margin="0,6,0,0"
+                                Style="{StaticResource SettingsButton}" Command="{Binding RestartAppCommand}">
+                            <Button.Visibility>
+                                <Binding Path="AccountsRestartPending">
+                                    <Binding.Converter>
+                                        <BooleanToVisibilityConverter />
+                                    </Binding.Converter>
+                                </Binding>
+                            </Button.Visibility>
+                        </Button>
+                    </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="{loc:Tr 'AI tools'}">
+                <TabControl Style="{StaticResource SettingsSubTabControl}">
+                <TabItem Header="Copilot">
+                    <StackPanel>
+                        <CheckBox IsChecked="{Binding CopilotEnabled}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,8"
+                                  ToolTip="{loc:Tr 'Connect a GitHub personal access token to fetch usage data.'}">
+                            <TextBlock Text="{loc:Tr 'Enable GitHub Copilot usage'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <TextBlock Text="{loc:Tr 'The token is managed in Accounts › Copilot.'}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFaintBrush}" />
+                    </StackPanel>
+                </TabItem>
+                <TabItem Header="Gemini">
+                    <StackPanel>
+                        <CheckBox IsChecked="{Binding GeminiEnabled}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
+                                  ToolTip="{loc:Tr 'Reads ~/.gemini: quota from the signed-in Code Assist seat, tokens and cost from session logs.'}">
+                            <TextBlock Text="{loc:Tr 'Show Gemini CLI usage'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <TextBlock Text="{loc:Tr 'The sign-in is shown in Accounts › Gemini.'}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFaintBrush}" />
+                    </StackPanel>
+                </TabItem>
+                </TabControl>
                 </TabItem>
                 </TabControl>
             </Grid>
 
-            <!-- Footer: version · author · links on one line, attribution below -->
-            <StackPanel Grid.Row="3" Margin="2,4,2,0">
+            <!-- 계약: MIT 고지는 화면이 아니라 배포 꾸러미의 LICENSE 와 exe 의 Copyright 속성이 맡는다 — README 「라이선스」 -->
+            <DockPanel Grid.Row="3" Margin="2,4,2,0">
+                <TextBlock FontSize="11" DockPanel.Dock="Right" Margin="8,0,0,0">
+                    <Hyperlink NavigateUri="https://github.com/HyungJIn-kr-97" RequestNavigate="OnLinkNavigate" ToolTip="github.com/HyungJIn-kr-97"
+                               Foreground="{DynamicResource AccentBrush}">GitHub</Hyperlink>
+                </TextBlock>
                 <TextBlock FontSize="11" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis">
                     <Run Text="{Binding Version, StringFormat='v{0}', Mode=OneWay}" FontWeight="SemiBold" /><Run Text="  ·  " /><Run Text="{loc:Tr 'Made by'}" /><Run Text=" HyungJin Ju (" /><Hyperlink NavigateUri="mailto:gudwls9730@gmail.com" RequestNavigate="OnLinkNavigate"
                                Foreground="{DynamicResource AccentBrush}">gudwls9730@gmail.com</Hyperlink><Run Text=")" />
                 </TextBlock>
-                <DockPanel Margin="0,3,0,0">
-                    <TextBlock FontSize="11" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                        <Hyperlink NavigateUri="https://github.com/HyungJIn-kr-97" RequestNavigate="OnLinkNavigate" ToolTip="github.com/HyungJIn-kr-97"
-                                   Foreground="{DynamicResource AccentBrush}">GitHub</Hyperlink>
-                    </TextBlock>
-                    <TextBlock Text="{loc:Tr 'Based on costats by fmdz (MIT License)'}" FontSize="10" VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextFaintBrush}" />
-                </DockPanel>
-            </StackPanel>
+            </DockPanel>
         </Grid>
 </UserControl>

@@ -93,6 +93,7 @@ public static class AccountProfileStore
 
     public static bool Exists(string name) => LoadProfiles()[name] is not null;
 
+
     private static JsonObject LoadProfiles()
     {
         try

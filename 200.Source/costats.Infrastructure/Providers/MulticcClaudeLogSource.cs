@@ -41,17 +41,25 @@ public sealed class MulticcClaudeLogSource : ISignalSource, IDisposable
         var oauthTask = _oauthFetcher.FetchAsync(cancellationToken);
 
         // Log scan and expense analysis both read the same files - run sequentially
-        var logResult = await _scanner.ScanClaudeAsync(_profile.ConfigDir, cancellationToken).ConfigureAwait(false);
-        var consumption = await SafeAnalyzeExpenseAsync(cancellationToken).ConfigureAwait(false);
+        var roots = LogRoots();
+        var logResult = await _scanner.ScanClaudeAsync(roots, cancellationToken).ConfigureAwait(false);
+        var consumption = await SafeAnalyzeExpenseAsync(roots, cancellationToken).ConfigureAwait(false);
 
         var oauthResult = await oauthTask.ConfigureAwait(false);
 
-        if (oauthResult is null && logResult.SessionTokens == 0 && logResult.WeekTokens == 0)
+        // 왜: 한도 조회가 실패해도(토큰 만료 401) 로그로 센 비용은 버리지 않는다 — 버리면 그 계정 카드·합계가 갱신이 멈춘 것처럼 보였다
+        if (oauthResult is null && logResult.SessionTokens == 0 && logResult.WeekTokens == 0 &&
+            (consumption is null || consumption.RollingWindowTokens.TotalConsumed == 0))
         {
             return new ProviderReading(
                 Usage: null,
                 Identity: null,
-                StatusSummary: $"No data for {_profile.Name}",
+                // 왜: 연동된 프로그램이 없는 추가 자리는 로그가 0 이라 늘 여기로 온다 — 한도 조회가 왜 실패했는지 가리지 않는다
+                StatusSummary: !_oauthFetcher.HasToken
+                    ? "No Claude token on this PC — sign in from Settings › Accounts"
+                    : _oauthFetcher.LastError is { } noDataError
+                        ? $"Usage lookup failed ({noDataError})"
+                        : $"No data for {_profile.Name}",
                 CapturedAt: now,
                 Confidence: ReadingConfidence.Low,
                 Source: ReadingSource.LocalLog);
@@ -121,7 +129,11 @@ public sealed class MulticcClaudeLogSource : ISignalSource, IDisposable
         var planText = FormatPlanText(oauthResult?.SubscriptionType);
         var statusSummary = oauthResult is not null
             ? $"Updated {FormatRelativeTime(oauthResult.FetchedAt, now)}"
-            : $"Updated {FormatRelativeTime(logResult.LatestTimestamp ?? now, now)}";
+            : !_oauthFetcher.HasToken
+                ? "No Claude token on this PC — sign in from Settings › Accounts"
+                : _oauthFetcher.LastError is { } error
+                    ? $"Usage lookup failed ({error})"
+                    : $"Updated {FormatRelativeTime(logResult.LatestTimestamp ?? now, now)}";
 
         var confidence = oauthResult is not null ? ReadingConfidence.High : ReadingConfidence.Medium;
         var source = oauthResult is not null ? ReadingSource.Api : ReadingSource.LocalLog;
@@ -173,11 +185,22 @@ public sealed class MulticcClaudeLogSource : ISignalSource, IDisposable
         return new DateTimeOffset(nextMonday, TimeSpan.Zero);
     }
 
-    private async Task<ConsumptionDigest?> SafeAnalyzeExpenseAsync(CancellationToken cancellationToken)
+    // 계약: 기본 자리는 기본 폴더 중 자기 프로그램 몫만, 추가 자리는 자기 폴더 전체 + 기본 폴더 중 자기에게 연동된 프로그램 몫
+    // 계약: 에이전트 모드 폴더는 모든 자리가 함께 읽고, 세션 경로의 계정UUID 가 이 자리인 줄만 센다
+    private IReadOnlyList<ClaudeLogRoot> LogRoots()
+    {
+        var shared = new ClaudeLogRoot(Path.Combine(ClaudeProgramRouter.DefaultConfigDir, "projects"), Profile.ProviderId);
+        var agent = ClaudeProgramRouter.AgentProjectDirs().Select(dir => new ClaudeLogRoot(dir, Profile.ProviderId));
+        return ClaudeProgramRouter.IsDefaultDir(_profile.ConfigDir)
+            ? [shared, .. agent]
+            : [new ClaudeLogRoot(_logDirectory, null), shared, .. agent];
+    }
+
+    private async Task<ConsumptionDigest?> SafeAnalyzeExpenseAsync(IReadOnlyList<ClaudeLogRoot> roots, CancellationToken cancellationToken)
     {
         try
         {
-            return await _expenseAnalyzer.AnalyzeClaudeAsync(_logDirectory, cancellationToken).ConfigureAwait(false);
+            return await _expenseAnalyzer.AnalyzeClaudeAsync(roots, cancellationToken).ConfigureAwait(false);
         }
         catch
         {

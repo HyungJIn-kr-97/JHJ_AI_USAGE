@@ -17,7 +17,10 @@ namespace costats.App.Services.Updates;
 /// <summary>GitHub 릴리스 하나 — 설정 화면의 버전 비교·선택 설치에 쓴다.</summary>
 public sealed record ReleaseInfo(Version Version, string Tag, DateTimeOffset? PublishedAt, string HtmlUrl, bool Prerelease, bool HasPackage)
 {
-    public string Label => PublishedAt is { } at ? $"v{Version.ToString(3)} · {at.ToLocalTime():yyyy-MM-dd}" : $"v{Version.ToString(3)}";
+    // 계약: 날짜가 붙은 버전은 날짜가 이미 이름에 있다 — 옛 세 자리 릴리스만 게시일을 덧붙인다
+    public string Label => Version.Revision < 0 && PublishedAt is { } at
+        ? $"v{Version.ToString(3)} · {at.ToLocalTime():yyyy-MM-dd}"
+        : "v" + StartupUpdateCoordinator.Display(Version);
 }
 
 public sealed class StartupUpdateCoordinator
@@ -28,8 +31,11 @@ public sealed class StartupUpdateCoordinator
     };
 
     private static readonly Regex SemVerRegex = new(
-        @"^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$",
+        @"^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:\.(?<date>\d{8}))?(?:\+.*)?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    // 계약: 릴리스 버전은 「배포 버전.빌드 날짜」(1.0.0.20261006) — 날짜는 Version.Revision 에 담겨 비교에 쓰인다. 옛 세 자리 릴리스는 Revision -1 이라 같은 번호의 날짜판보다 낮다
+    public static string Display(Version version) => version.Revision >= 0 ? version.ToString(4) : version.ToString(3);
 
     private static readonly Regex ShaLineRegex = new(
         @"^(?<hash>[A-Fa-f0-9]{64})\s+\*?(?<name>.+)$",
@@ -252,13 +258,13 @@ public sealed class StartupUpdateCoordinator
 
             if (releaseVersion <= _currentVersion)
             {
-                state.LastSeenVersion = releaseVersion.ToString(3);
+                state.LastSeenVersion = Display(releaseVersion);
                 await WriteJsonAsync(_statePath, state, cancellationToken).ConfigureAwait(false);
                 return UpdateCheckResult.UpToDate;
             }
 
             await StageAsync(release, zipAsset, releaseVersion, allowDowngrade: false, cancellationToken).ConfigureAwait(false);
-            state.LastSeenVersion = releaseVersion.ToString(3);
+            state.LastSeenVersion = Display(releaseVersion);
             await WriteJsonAsync(_statePath, state, cancellationToken).ConfigureAwait(false);
 
             return UpdateCheckResult.UpdateStaged;
@@ -295,7 +301,7 @@ public sealed class StartupUpdateCoordinator
         var stageDir = Path.Combine(
             _updatesRoot,
             "staging",
-            $"{releaseVersion.Major}.{releaseVersion.Minor}.{releaseVersion.Build}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}");
+            $"{Display(releaseVersion)}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}");
         if (Directory.Exists(stageDir))
         {
             Directory.Delete(stageDir, recursive: true);
@@ -312,7 +318,7 @@ public sealed class StartupUpdateCoordinator
         var executableRelativePath = Path.GetRelativePath(stageDir, stagedExecutablePath);
         var pendingUpdate = new PendingUpdate
         {
-            Version = releaseVersion.ToString(3),
+            Version = Display(releaseVersion),
             CreatedUtc = DateTimeOffset.UtcNow,
             StagingDirectory = stageDir,
             ExecutableRelativePath = executableRelativePath,
@@ -379,7 +385,12 @@ public sealed class StartupUpdateCoordinator
             }
         }
 
-        return list.OrderByDescending(r => r.Version).ToList();
+        // 계약: 같은 배포 버전(세 자리)에서는 날짜가 가장 늦은 릴리스 하나만 보인다 — 옛 날짜판은 800.Deploy\prune-releases.ps1 이 지운다
+        return list
+            .GroupBy(r => (r.Version.Major, r.Version.Minor, r.Version.Build))
+            .Select(g => g.MaxBy(r => r.Version)!)
+            .OrderByDescending(r => r.Version)
+            .ToList();
     }
 
     /// <summary>
@@ -662,7 +673,9 @@ public sealed class StartupUpdateCoordinator
             return false;
         }
 
-        version = new Version(major, minor, patch);
+        version = match.Groups["date"].Success && int.TryParse(match.Groups["date"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var date)
+            ? new Version(major, minor, patch, date)
+            : new Version(major, minor, patch);
         return true;
     }
 

@@ -1,0 +1,38 @@
+<UserControl x:Class="costats.App.Views.LinkProgressView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:costats.App"
+             xmlns:loc="clr-namespace:costats.App.Localization">
+    <!-- 계약: 연동 진행 칸 — 「연동」을 누른 카드·머리글 바로 밑에 펼쳐진다. DataContext 는 SettingsViewModel -->
+    <Border Margin="0,6,0,4" Padding="8,6" CornerRadius="6" Background="{DynamicResource SubtleOverlayBrush}">
+        <StackPanel>
+            <DockPanel>
+                <Button Content="✕" DockPanel.Dock="Right" Width="18" Height="18" Padding="0" FontSize="9" Cursor="Hand"
+                        Click="OnDismissClick" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource TextMutedBrush}"
+                        Visibility="{Binding LoginInProgress, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}" />
+                <TextBlock Text="{Binding AccountsMessage}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource AccentBrush}" />
+            </DockPanel>
+            <StackPanel Visibility="{Binding LoginInProgress, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                <WrapPanel Margin="0,6,0,0" Visibility="{Binding LoginUrl, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
+                    <Button Content="{loc:Tr 'Open in browser'}" Margin="0,0,4,4" Cursor="Hand" FocusVisualStyle="{x:Null}"
+                            Template="{StaticResource LinkPillButton}" Command="{Binding OpenLoginPageCommand}" CommandParameter="default" />
+                    <Button Content="{loc:Tr 'Login window'}" Margin="0,0,4,4" Cursor="Hand" FocusVisualStyle="{x:Null}"
+                            Template="{StaticResource LinkPillButton}" Command="{Binding OpenLoginPageCommand}" CommandParameter="dedicated"
+                            ToolTip="{loc:Tr 'Opens a separate Chrome window with no saved sign-in, so you can pick any account. It closes when linking finishes.'}" />
+                    <Button Content="{loc:Tr 'Copy address'}" Margin="0,0,4,4" Cursor="Hand" FocusVisualStyle="{x:Null}"
+                            Template="{StaticResource LinkPillButton}" Command="{Binding OpenLoginPageCommand}" CommandParameter="copy" />
+                </WrapPanel>
+                <DockPanel Margin="0,2,0,0" Visibility="{Binding LoginAcceptsCode, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                    <Button Content="{loc:Tr 'Cancel'}" DockPanel.Dock="Right" Margin="4,0,0,0" Cursor="Hand" FocusVisualStyle="{x:Null}"
+                            Template="{StaticResource LinkPillButton}" Command="{Binding CancelLoginCommand}" />
+                    <Button Content="{loc:Tr 'Apply code'}" DockPanel.Dock="Right" Margin="4,0,0,0" Cursor="Hand" FocusVisualStyle="{x:Null}"
+                            Template="{StaticResource LinkPillButton}" Command="{Binding SubmitLoginCodeCommand}" />
+                    <TextBox Text="{Binding LoginCodeInput, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="4,2"
+                             ToolTip="{loc:Tr 'Which code? After you click Authorize in the browser, claude.ai shows an Authentication Code — copy it and paste it below. If the browser finishes by itself, no code is needed.'}"
+                             Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                             BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
+                </DockPanel>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

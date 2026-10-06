@@ -21,7 +21,7 @@ namespace costats.Setup
 
         public static string InstalledExe => Path.Combine(InstallDir, ExeName);
 
-        /// <returns>설치돼 있으면 "1.0.3", 없으면 null</returns>
+        /// <returns>설치돼 있으면 "1.0.0.20261006"(옛 설치본은 "1.0.3"), 없으면 null</returns>
         public static string InstalledVersion()
         {
             if (!File.Exists(InstalledExe))
@@ -30,6 +30,13 @@ namespace costats.Setup
             }
 
             var info = FileVersionInfo.GetVersionInfo(InstalledExe);
+            // 왜: 날짜는 FileVersion 에 못 담아 ProductVersion 에만 있다 — "+커밋" 꼬리는 뗀다
+            var product = (info.ProductVersion ?? string.Empty).Split('+')[0];
+            if (Version.TryParse(product, out var dated) && dated.Revision > 0)
+            {
+                return dated.ToString(4);
+            }
+
             return Version.TryParse(info.FileVersion, out var v) ? v.ToString(3) : info.ProductVersion;
         }
 

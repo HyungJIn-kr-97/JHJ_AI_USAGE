@@ -33,6 +33,17 @@ namespace costats.App
             _backdropService = backdropService;
             _settingsViewModel = settingsViewModel;
             SettingsView.DataContext = settingsViewModel;
+            viewModel.LinkContext = settingsViewModel;
+            _viewModel = viewModel;
+            // 왜: 카드는 갱신 때마다 새로 만들어진다 — 연동 상태가 바뀌거나 카드가 바뀔 때마다 진행 칸을 펼칠 카드를 다시 고른다
+            settingsViewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(SettingsViewModel.LinkingId) or nameof(SettingsViewModel.ShowLinkStrip))
+                {
+                    ApplyLinking();
+                }
+            };
+            viewModel.ClaudeProfiles.CollectionChanged += (_, _) => ApplyLinking();
             SourceInitialized += OnSourceInitialized;
             MouseLeftButtonDown += OnMouseLeftButtonDown;
             Deactivated += OnDeactivated;
@@ -56,6 +67,20 @@ namespace costats.App
 
             // Subscribe to ViewModel property changes for dynamic height
             viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+
+        private readonly PulseViewModel _viewModel;
+
+        private void ApplyLinking()
+        {
+            var cards = _viewModel.ClaudeProfiles
+                .Concat([_viewModel.Claude, _viewModel.Codex])
+                .Append(_viewModel.SelectedProvider)
+                .OfType<ProviderPulseViewModel>();
+            foreach (var card in cards)
+            {
+                card.IsLinking = _settingsViewModel.IsLinkingFor(card.ProviderId);
+            }
         }
 
         private void OnSourceInitialized(object? sender, EventArgs e)
@@ -82,12 +107,23 @@ namespace costats.App
 
         private void OnDeactivated(object? sender, EventArgs e)
         {
+            // 왜: 연동 중에는 브라우저로 포커스가 넘어간다 — 그때 닫으면 코드 칸이 사라져 붙여 넣을 곳이 없다
+            if (_settingsViewModel.LoginInProgress)
+            {
+                return;
+            }
+
             // Hide window when it loses focus (like a popup)
             Hide();
         }
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            if (e.PropertyName is nameof(PulseViewModel.SelectedProvider) or nameof(PulseViewModel.Claude) or nameof(PulseViewModel.Codex))
+            {
+                ApplyLinking();
+            }
+
             if (e.PropertyName is nameof(PulseViewModel.IsMulticcActive) or
                 nameof(PulseViewModel.SelectedTabIndex) or
                 nameof(PulseViewModel.ShowClaudeStacked) or
@@ -128,6 +164,17 @@ namespace costats.App
             OnSettingsClick(sender, e);
         }
 
+        private void OnLinkAccountClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: string providerId })
+            {
+                LinkAccount(providerId);
+            }
+        }
+
+        // 계약: 팝업에서 바로 연동한다 — 진행(브라우저 버튼·코드 칸·결과)은 누른 카드·머리글 바로 밑(LinkProgressView)에 보인다
+        public void LinkAccount(string providerId) => _settingsViewModel.LinkAccount(providerId);
+
         private async void OnThemeToggleClick(object sender, RoutedEventArgs e)
         {
             var dark = !costats.App.Services.ThemeManager.IsDark;
@@ -155,7 +202,6 @@ namespace costats.App
 
         /// <summary>트레이 메뉴의 「설정」이 부른다 — 팝업을 띄운 뒤 설정 화면으로 넘긴다.</summary>
         public void OpenSettings() => SetSettingsOpen(true);
-
         // 계약: 설정은 제목 줄 아래 ~ 하단 줄 위를 덮고, 오른쪽에서 밀려 들어왔다가 오른쪽으로 빠진다
         private void SetSettingsOpen(bool open)
         {

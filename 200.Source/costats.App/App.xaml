@@ -3,6 +3,30 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:costats.App">
     <Application.Resources>
+        <!-- 계약: 팝업·전체 카드의 「연동」 버튼 — 강조색 테두리의 작은 알약 -->
+        <ControlTemplate x:Key="LinkPillButton" TargetType="Button">
+            <Border x:Name="pill" CornerRadius="4" Padding="8,2" BorderThickness="1" BorderBrush="{DynamicResource AccentBrush}"
+                    Background="{DynamicResource TabHoverBrush}">
+                <ContentPresenter TextElement.FontSize="10" TextElement.FontWeight="SemiBold"
+                                  TextElement.Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="pill" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+        <!-- 계약: 카드의 「편집」 같은 보조 버튼 — 테두리만 있는 작은 알약 -->
+        <ControlTemplate x:Key="GhostPillButton" TargetType="Button">
+            <Border x:Name="pill" CornerRadius="4" Padding="6,0" BorderThickness="1" BorderBrush="{DynamicResource DividerBrush}" Background="Transparent">
+                <ContentPresenter TextElement.FontSize="9.5" TextElement.Foreground="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="pill" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
         <!-- 왜: 기본 스크롤바는 밝은 회색 홈·화살표라 테마와 어긋난다 — 앱 전체를 얇은 둥근 막대 하나로 바꾼다 -->
         <Style x:Key="ScrollPageButton" TargetType="RepeatButton">
             <Setter Property="Focusable" Value="False" />

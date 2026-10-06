@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using costats.Core.Pulse;
+using costats.Infrastructure.Providers;
 
 namespace costats.Infrastructure.Expense;
 
@@ -38,46 +40,53 @@ public static class LogDigestor
         return Task.Run(() => DigestClaudeLogsCore(logDirectory, since, until, cancellationToken), cancellationToken);
     }
 
+    /// <summary>
+    /// 계약: 폴더마다 주인(Owner)을 달아 읽는다 — Owner 가 있는 폴더는 그 계정에 연동된 프로그램의 줄만 센다.
+    /// </summary>
+    public static Task<IReadOnlyList<ConsumptionSlice>> DigestClaudeLogsAsync(
+        IReadOnlyList<ClaudeLogRoot> roots,
+        DateOnly since,
+        DateOnly until,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.Run(() => DigestClaudeLogsCore(roots, since, until, cancellationToken), cancellationToken);
+    }
+
     private static IReadOnlyList<ConsumptionSlice> DigestClaudeLogsCore(
         DateOnly since,
         DateOnly until,
-        CancellationToken cancellationToken)
-    {
-        var logDir = GetClaudeLogDirectory();
-        if (!Directory.Exists(logDir))
-            return [];
-
-        var aggregates = new Dictionary<DateOnly, Dictionary<string, SliceAccumulator>>();
-        var dedupeSet = new HashSet<MessageRequestKey>();
-        var cutoff = since.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc) - TimeSpan.FromDays(1);
-
-        // Scan all project directories recursively (includes subagents subdirectories)
-        foreach (var projectDir in Directory.EnumerateDirectories(logDir))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ScanClaudeDirectoryRecursive(projectDir, since, until, cutoff, aggregates, dedupeSet, cancellationToken);
-        }
-
-        return BuildAggregatedSlices(aggregates);
-    }
+        CancellationToken cancellationToken) =>
+        DigestClaudeLogsCore([new ClaudeLogRoot(GetClaudeLogDirectory(), null)], since, until, cancellationToken);
 
     private static IReadOnlyList<ConsumptionSlice> DigestClaudeLogsCore(
         string logDirectory,
         DateOnly since,
         DateOnly until,
+        CancellationToken cancellationToken) =>
+        DigestClaudeLogsCore([new ClaudeLogRoot(logDirectory, null)], since, until, cancellationToken);
+
+    private static IReadOnlyList<ConsumptionSlice> DigestClaudeLogsCore(
+        IReadOnlyList<ClaudeLogRoot> roots,
+        DateOnly since,
+        DateOnly until,
         CancellationToken cancellationToken)
     {
-        if (!Directory.Exists(logDirectory))
-            return [];
-
         var aggregates = new Dictionary<DateOnly, Dictionary<string, SliceAccumulator>>();
         var dedupeSet = new HashSet<MessageRequestKey>();
         var cutoff = since.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc) - TimeSpan.FromDays(1);
 
-        foreach (var projectDir in Directory.EnumerateDirectories(logDirectory))
+        foreach (var root in roots)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            ScanClaudeDirectoryRecursive(projectDir, since, until, cutoff, aggregates, dedupeSet, cancellationToken);
+            if (!Directory.Exists(root.ProjectsDir))
+                continue;
+
+            // Scan all project directories recursively (includes subagents subdirectories)
+            foreach (var projectDir in Directory.EnumerateDirectories(root.ProjectsDir))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                ScanClaudeDirectoryRecursive(projectDir, root.Owner, since, until, cutoff, aggregates, dedupeSet, cancellationToken);
+            }
         }
 
         return BuildAggregatedSlices(aggregates);
@@ -85,6 +94,7 @@ public static class LogDigestor
 
     private static void ScanClaudeDirectoryRecursive(
         string directory,
+        string? owner,
         DateOnly since,
         DateOnly until,
         DateTime cutoff,
@@ -99,14 +109,14 @@ public static class LogDigestor
             if (File.GetLastWriteTimeUtc(file) < cutoff)
                 continue;
 
-            DigestClaudeFile(file, since, until, aggregates, dedupeSet, cancellationToken);
+            DigestClaudeFile(file, owner, since, until, aggregates, dedupeSet, cancellationToken);
         }
 
         // Recurse into subdirectories (e.g., subagents/)
         foreach (var subDir in Directory.EnumerateDirectories(directory))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ScanClaudeDirectoryRecursive(subDir, since, until, cutoff, aggregates, dedupeSet, cancellationToken);
+            ScanClaudeDirectoryRecursive(subDir, owner, since, until, cutoff, aggregates, dedupeSet, cancellationToken);
         }
     }
 
@@ -147,12 +157,21 @@ public static class LogDigestor
 
     private static void DigestClaudeFile(
         string filePath,
+        string? owner,
         DateOnly since,
         DateOnly until,
         Dictionary<DateOnly, Dictionary<string, SliceAccumulator>> aggregates,
         HashSet<MessageRequestKey> dedupeSet,
         CancellationToken cancellationToken)
     {
+        var info = new FileInfo(filePath);
+        if (owner is not null &&
+            ProgramsByFile.TryGetValue(filePath, out var known) &&
+            known.WriteTimeUtc == info.LastWriteTimeUtc && known.Length == info.Length &&
+            !known.Programs.Any(program => IsOwner(program, owner)))
+            return;
+
+        var programsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
             foreach (var line in ReadLines(filePath, cancellationToken))
@@ -171,6 +190,19 @@ public static class LogDigestor
 
                     if (!TryGetString(root, "type", out var type) || type != "assistant")
                         continue;
+
+                    string? program = null;
+                    if (owner is not null)
+                    {
+                        program = ClaudeProgramRouter.SourceOf(
+                            TryGetString(root, "entrypoint", out var ep) ? ep : null,
+                            TryGetString(root, "sessionId", out var sid) ? sid : null,
+                            TryGetString(root, "timestamp", out var at) && DateTimeOffset.TryParse(at, System.Globalization.CultureInfo.InvariantCulture,
+                                System.Globalization.DateTimeStyles.AssumeUniversal, out var stamped) ? stamped : null);
+                        programsSeen.Add(program);
+                        if (!IsOwner(program, owner))
+                            continue;
+                    }
 
                     if (!TryGetString(root, "timestamp", out var timestamp))
                         continue;
@@ -204,20 +236,25 @@ public static class LogDigestor
                     var rate = TariffRegistry.FindClaudeRate(model);
                     var cost = rate.ComputeCost(ledger);
 
-                    AddAggregate(aggregates, entryDate.Value, model, ledger, cost);
+                    AddAggregate(aggregates, entryDate.Value, model, ledger, cost, program);
                 }
                 catch (JsonException)
                 {
                     // Skip malformed lines
                 }
             }
+
+            if (owner is not null)
+                ProgramsByFile[filePath] = new FilePrograms(info.LastWriteTimeUtc, info.Length, programsSeen.ToArray());
         }
         catch (IOException)
         {
             // File access error, skip
         }
-
     }
+
+    private static bool IsOwner(string program, string owner) =>
+        string.Equals(ClaudeProgramRouter.OwnerOf(program), owner, StringComparison.OrdinalIgnoreCase);
 
     private static void DigestCodexFile(
         string filePath,
@@ -385,9 +422,10 @@ public static class LogDigestor
                     return new ConsumptionSlice
                     {
                         Period = day.Key,
-                        ModelIdentifier = model.Key,
+                        ModelIdentifier = accumulator.Model,
                         Tokens = accumulator.ToTokenLedger(),
-                        ComputedCostUsd = accumulator.Cost
+                        ComputedCostUsd = accumulator.Cost,
+                        Program = accumulator.Program
                     };
                 }))
             .OrderByDescending(s => s.Period)
@@ -402,7 +440,8 @@ public static class LogDigestor
         DateOnly period,
         string modelIdentifier,
         TokenLedger ledger,
-        decimal cost)
+        decimal cost,
+        string? program = null)
     {
         if (!aggregates.TryGetValue(period, out var byModel))
         {
@@ -410,9 +449,10 @@ public static class LogDigestor
             aggregates[period] = byModel;
         }
 
-        if (!byModel.TryGetValue(modelIdentifier, out var accumulator))
+        var key = program is null ? modelIdentifier : modelIdentifier + "\u001F" + program;
+        if (!byModel.TryGetValue(key, out var accumulator))
         {
-            accumulator = new SliceAccumulator();
+            accumulator = new SliceAccumulator { Model = modelIdentifier, Program = program };
         }
 
         accumulator.StandardInput += ledger.StandardInput;
@@ -420,27 +460,18 @@ public static class LogDigestor
         accumulator.CacheWriteInput += ledger.CacheWriteInput;
         accumulator.GeneratedOutput += ledger.GeneratedOutput;
         accumulator.Cost += cost;
-        byModel[modelIdentifier] = accumulator;
+        byModel[key] = accumulator;
     }
 
     private static TokenLedger ToTokenLedger(SliceAccumulator accumulator)
     {
         return new TokenLedger
         {
-            StandardInput = ClampToInt(accumulator.StandardInput),
-            CachedInput = ClampToInt(accumulator.CachedInput),
-            CacheWriteInput = ClampToInt(accumulator.CacheWriteInput),
-            GeneratedOutput = ClampToInt(accumulator.GeneratedOutput)
+            StandardInput = accumulator.StandardInput,
+            CachedInput = accumulator.CachedInput,
+            CacheWriteInput = accumulator.CacheWriteInput,
+            GeneratedOutput = accumulator.GeneratedOutput
         };
-    }
-
-    private static int ClampToInt(long value)
-    {
-        if (value > int.MaxValue)
-            return int.MaxValue;
-        if (value < int.MinValue)
-            return int.MinValue;
-        return (int)value;
     }
 
     private static IEnumerable<string> ReadLines(string filePath, CancellationToken cancellationToken)
@@ -509,9 +540,15 @@ public static class LogDigestor
         }
     }
 
+    // 함정: 로그 시각은 UTC("…Z")다 — 앞 10자를 날짜로 쓰면 한국 시간 00~09시 사용이 전날로 들어간다. 시각이 있으면 현지 날짜로 바꾼다
     private static DateOnly? ParseDateFromTimestamp(string timestamp)
     {
-        // Fast path: ISO 8601 format "YYYY-MM-DDTHH:MM:SS..."
+        if (timestamp.Length > 10 &&
+            DateTimeOffset.TryParse(timestamp, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal, out var stamped))
+            return DateOnly.FromDateTime(stamped.LocalDateTime);
+
+        // 날짜만 적힌 값
         if (timestamp.Length >= 10 &&
             timestamp[4] == '-' &&
             timestamp[7] == '-')
@@ -608,8 +645,15 @@ public static class LogDigestor
 
     private readonly record struct MessageRequestKey(string MessageId, string RequestId);
 
+    // 왜: 기본 폴더는 계정마다 한 번씩 읽힌다 — 연동된 프로그램이 없는 파일은 바뀌지 않은 한 다시 파싱하지 않는다
+    private static readonly ConcurrentDictionary<string, FilePrograms> ProgramsByFile = new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed record FilePrograms(DateTime WriteTimeUtc, long Length, string[] Programs);
+
     private record struct SliceAccumulator
     {
+        public string Model { get; set; }
+        public string? Program { get; set; }
         public long StandardInput { get; set; }
         public long CachedInput { get; set; }
         public long CacheWriteInput { get; set; }

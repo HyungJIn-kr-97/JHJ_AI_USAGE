@@ -110,7 +110,7 @@ namespace costats.Setup
                 }
 
                 // 계약: 고르지 않으면 정식(비 pre) 최신 버전 — --version 이 있으면 그 버전
-                var wanted = releases.FirstOrDefault(r => _wantedVersion != null && r.Version.ToString(3) == _wantedVersion.TrimStart('v', 'V'))
+                var wanted = releases.FirstOrDefault(r => _wantedVersion != null && (r.VersionText == _wantedVersion.TrimStart('v', 'V') || r.Version.ToString(3) == _wantedVersion.TrimStart('v', 'V')))
                              ?? releases.FirstOrDefault(r => !r.Prerelease) ?? releases[0];
                 _versions.SelectedItem = wanted;
                 _install.Enabled = true;

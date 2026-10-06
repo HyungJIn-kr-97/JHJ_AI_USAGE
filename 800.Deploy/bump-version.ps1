@@ -1,67 +1,42 @@
 <#
 .SYNOPSIS
-    Bumps the version number across all costats projects.
-
-.DESCRIPTION
-    Updates version in:
-      - 200.Source/Directory.Build.props  (the .NET single source of truth)
-      - tools/insights-cli/package.json  (npm package, optional)
-      - tools/insights-cli/package-lock.json (npm lockfile, optional)
+    Sets the release version (major.minor.patch) in 200.Source/Directory.Build.props.
+    The 4th part (build date) is added by the build itself - see README "version scheme".
 
 .PARAMETER Version
-    Explicit version in major.minor.patch format (e.g. 1.2.3).
-    Cannot be combined with -Bump.
+    Explicit version in major.minor.patch format (e.g. 1.2.3). Cannot be combined with -Bump.
 
 .PARAMETER Bump
-    Semantic bump type: major, minor, or patch.
-    Reads the current version from Directory.Build.props and increments accordingly.
-    Cannot be combined with -Version.
-
-.PARAMETER IncludeCli
-    Also bump the insights-cli npm package to the same version. Default: false.
+    major, minor or patch - increments the current VersionPrefix. Cannot be combined with -Version.
 
 .PARAMETER DryRun
     Show what would change without modifying any files.
 
 .EXAMPLE
     .\bump-version.ps1 -Version "1.2.0"
-    Sets all versions to 1.2.0.
-
-.EXAMPLE
-    .\bump-version.ps1 -Bump patch
-    Increments the patch version (e.g. 1.1.0 -> 1.1.1).
-
-.EXAMPLE
-    .\bump-version.ps1 -Bump minor -IncludeCli
-    Increments the minor version and also updates insights-cli.
-
 .EXAMPLE
     .\bump-version.ps1 -Bump patch -DryRun
-    Shows what would change without writing files.
 #>
 
 param(
     [string]$Version = "",
     [ValidateSet("major", "minor", "patch")]
     [string]$Bump = "",
-    [switch]$IncludeCli,
     [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
 
-# ── Paths ────────────────────────────────────────────────────────────
 $repoRoot       = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $buildPropsPath = Join-Path $repoRoot "200.Source\Directory.Build.props"
-$pkgJsonPath    = Join-Path $repoRoot "900.Archive\upstream\tools\insights-cli\package.json"
-$pkgLockPath    = Join-Path $repoRoot "900.Archive\upstream\tools\insights-cli\package-lock.json"
+# Trap: Windows PowerShell 5.1 Get-Content/Set-Content default to ANSI and corrupt the UTF-8 comments in the props file
+$utf8 = New-Object System.Text.UTF8Encoding $false
 
-# ── Helpers ──────────────────────────────────────────────────────────
 function Get-CurrentVersion {
     if (-not (Test-Path $buildPropsPath)) {
         throw "Directory.Build.props not found at $buildPropsPath"
     }
-    $content = Get-Content -Path $buildPropsPath -Raw
+    $content = [System.IO.File]::ReadAllText($buildPropsPath, $utf8)
     if ($content -match '<VersionPrefix[^>]*>(\d+\.\d+\.\d+)</VersionPrefix>') {
         return $Matches[1]
     }
@@ -86,7 +61,6 @@ function Step-Version {
     return "$($parts[0]).$($parts[1]).$($parts[2])"
 }
 
-# ── Validate parameters ─────────────────────────────────────────────
 if ($Version -and $Bump) {
     throw "Specify either -Version or -Bump, not both."
 }
@@ -94,7 +68,6 @@ if (-not $Version -and -not $Bump) {
     throw "Specify either -Version '1.2.3' or -Bump (major|minor|patch)."
 }
 
-# ── Resolve new version ─────────────────────────────────────────────
 $oldVersion = Get-CurrentVersion
 Assert-SemVer -Value $oldVersion
 
@@ -111,61 +84,17 @@ if ($newVersion -eq $oldVersion) {
 }
 
 $label = if ($DryRun) { "[DRY RUN] " } else { "" }
-
 Write-Host ""
 Write-Host "${label}Bumping version: $oldVersion -> $newVersion" -ForegroundColor Cyan
-Write-Host ""
 
-# ── 1. Update Directory.Build.props ──────────────────────────────────
-Write-Host "${label}  Updating 200.Source/Directory.Build.props" -ForegroundColor White
 if (-not $DryRun) {
-    $content = Get-Content -Path $buildPropsPath -Raw
+    $content = [System.IO.File]::ReadAllText($buildPropsPath, $utf8)
     $content = $content -replace "(<VersionPrefix[^>]*>)$([regex]::Escape($oldVersion))(</VersionPrefix>)", "`${1}$newVersion`${2}"
-    Set-Content -Path $buildPropsPath -Value $content -NoNewline
+    [System.IO.File]::WriteAllText($buildPropsPath, $content, $utf8)
 }
 
-# ── 2. Update insights-cli package.json / package-lock.json ─────────
-if ($IncludeCli) {
-    # Read current CLI version before modifying
-    $cliOldVersion = $null
-    if (Test-Path $pkgJsonPath) {
-        $pkgContent = Get-Content -Path $pkgJsonPath -Raw
-        if ($pkgContent -match '"version"\s*:\s*"([^"]+)"') {
-            $cliOldVersion = $Matches[1]
-        }
-    }
-
-    if (Test-Path $pkgJsonPath) {
-        Write-Host "${label}  Updating tools/insights-cli/package.json ($cliOldVersion -> $newVersion)" -ForegroundColor White
-        if (-not $DryRun) {
-            $json = Get-Content -Path $pkgJsonPath -Raw
-            $json = $json -replace '("version"\s*:\s*")([^"]+)(")', "`${1}$newVersion`${3}"
-            Set-Content -Path $pkgJsonPath -Value $json -NoNewline
-        }
-    }
-    if ($cliOldVersion -and (Test-Path $pkgLockPath)) {
-        Write-Host "${label}  Updating tools/insights-cli/package-lock.json" -ForegroundColor White
-        if (-not $DryRun) {
-            $lock = Get-Content -Path $pkgLockPath -Raw
-            # Only replace the package's own version entries, not dependency versions
-            $cliOldEscaped = [regex]::Escape($cliOldVersion)
-            $lock = [regex]::Replace($lock, "(`"version`"\s*:\s*`")$cliOldEscaped(`")", "`${1}$newVersion`${2}")
-            Set-Content -Path $pkgLockPath -Value $lock -NoNewline
-        }
-    }
-}
-
-# ── Summary ──────────────────────────────────────────────────────────
-Write-Host ""
-Write-Host "${label}Done! Version is now $newVersion" -ForegroundColor Green
-Write-Host ""
-Write-Host "Files updated:" -ForegroundColor Gray
-Write-Host "  - 200.Source/Directory.Build.props" -ForegroundColor Gray
-if ($IncludeCli) {
-    Write-Host "  - tools/insights-cli/package.json" -ForegroundColor Gray
-    Write-Host "  - tools/insights-cli/package-lock.json" -ForegroundColor Gray
-}
+Write-Host "${label}Done! 200.Source/Directory.Build.props is now $newVersion" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "  git add -A && git commit -m 'v$newVersion'" -ForegroundColor Gray
+Write-Host "  git add -A ; git commit -m 'v$newVersion'" -ForegroundColor Gray
 Write-Host "  .\800.Deploy\publish.ps1" -ForegroundColor Gray

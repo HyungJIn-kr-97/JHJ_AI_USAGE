@@ -62,6 +62,10 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 
 Assert-SemVer -Value $Version
 
+# Contract: release name = <VersionPrefix>.<build date>. The same date goes into the exe (InformationalVersion) so names and the app agree.
+$BuildDate = Get-Date -Format "yyyyMMdd"
+$Release = "$Version.$BuildDate"
+
 # Hash via .NET: Get-FileHash fails to auto-load when Windows PowerShell inherits a PowerShell 7 PSModulePath.
 function Write-Checksum {
     param([string]$Path)
@@ -78,7 +82,7 @@ $outputBase = Join-Path $PSScriptRoot "publish"
 
 $platforms = if ($Platform -eq "all") { @("win-x64", "win-arm64") } else { @("win-$Platform") }
 
-Write-Host "Building AI Usage Monitor v$Version" -ForegroundColor Cyan
+Write-Host "Building AI Usage Monitor v$Release" -ForegroundColor Cyan
 Write-Host "Configuration: $Configuration" -ForegroundColor Gray
 Write-Host "Platforms: $($platforms -join ', ')" -ForegroundColor Gray
 Write-Host ""
@@ -99,15 +103,19 @@ foreach ($rid in $platforms) {
         -p:EnableCompressionInSingleFile=true `
         -p:DebugType=embedded `
         -p:VersionPrefix=$Version `
-        -p:Version=$Version
+        -p:Version=$Version `
+        -p:BuildDate=$BuildDate
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to publish for $rid" -ForegroundColor Red
         exit 1
     }
 
+    # MIT requires the license text to travel with every copy - the UI no longer shows it
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot "..\LICENSE") -Destination (Join-Path $outputPath "LICENSE.txt") -Force
+
     # Create ZIP archive
-    $zipPath = Join-Path $outputBase "AiUsageMonitor-$rid-v$Version.zip"
+    $zipPath = Join-Path $outputBase "AiUsageMonitor-$rid-v$Release.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath }
     Compress-Archive -Path "$outputPath\*" -DestinationPath $zipPath
     $checksumPath = Write-Checksum -Path $zipPath
@@ -115,7 +123,7 @@ foreach ($rid in $platforms) {
     Write-Host "Checksum: $checksumPath" -ForegroundColor Green
 
     # Offline installer: the single-file exe installs itself on first run (SelfInstaller), so it ships as-is.
-    $exeAsset = Join-Path $outputBase "AiUsageMonitor-$rid-v$Version.exe"
+    $exeAsset = Join-Path $outputBase "AiUsageMonitor-$rid-v$Release.exe"
     Copy-Item -Path (Join-Path $outputPath "AiUsageMonitor.exe") -Destination $exeAsset -Force
     $null = Write-Checksum -Path $exeAsset
     Write-Host "Created: $exeAsset" -ForegroundColor Green
@@ -126,7 +134,7 @@ foreach ($rid in $platforms) {
 Write-Host "Building web installer..." -ForegroundColor Yellow
 $setupProject = Join-Path $PSScriptRoot "..\200.Source\costats.Setup\costats.Setup.csproj"
 $setupOut = Join-Path $outputBase "setup"
-dotnet build $setupProject --configuration Release --output $setupOut -p:VersionPrefix=$Version -p:Version=$Version
+dotnet build $setupProject --configuration Release --output $setupOut -p:VersionPrefix=$Version -p:Version=$Version -p:BuildDate=$BuildDate
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to build web installer" -ForegroundColor Red
     exit 1
@@ -136,7 +144,7 @@ Copy-Item -Path (Join-Path $setupOut "AiUsageMonitor-Setup.exe") -Destination $s
 $null = Write-Checksum -Path $setupAsset
 Write-Host "Created: $setupAsset" -ForegroundColor Green
 Write-Host ""
-Write-Host "Build complete!" -ForegroundColor Cyan
+Write-Host "Build complete! Release tag: v$Release" -ForegroundColor Cyan
 Write-Host "Output directory: $outputBase" -ForegroundColor Gray
 
 # Show file sizes

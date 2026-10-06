@@ -434,15 +434,19 @@
 
                 <!-- Provider header -->
                 <DockPanel Margin="0,0,0,14">
-                    <StackPanel DockPanel.Dock="Left">
-                        <TextBlock Text="{Binding DisplayName}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                        <TextBlock Text="{Binding StatusSummary}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,3,0,0" />
-                        <!-- 계약: 예약 갱신은 시계 눈금에 맞는다 — 다음 시각과 남은 시간을 1초마다 다시 쓴다(모든 탭 공통 값) -->
-                        <TextBlock Text="{Binding DataContext.NextRefreshText, RelativeSource={RelativeSource AncestorType=Window}}"
-                                   FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,3,0,0" MinHeight="14" />
-                    </StackPanel>
                     <!-- 왜: 머리글 우측에 요금제 배지와 「사용량 보기」 링크를 세로로 묶는다 — 주간 구역 아래에 두면 모델 한도 막대 사이에 끼어 눈에 안 띈다 -->
                     <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch">
+                    <!-- 계약: 요금제 배지 왼쪽에 계정 상태 — 연동이 필요하면 「연동」 버튼(누르면 브라우저 로그인, 진행은 팝업 아래 띠) -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <Button Content="{loc:Tr 'Link'}" Margin="0,0,6,0" VerticalAlignment="Center" Cursor="Hand" FocusVisualStyle="{x:Null}"
+                            Tag="{Binding ProviderId}" Click="OnLinkAccountClick" Template="{StaticResource LinkPillButton}"
+                            Visibility="{Binding NeedsLink, Converter={x:Static local:BoolToVisibilityConverter.Instance}}"
+                            ToolTip="{loc:Tr 'Link an account to this slot — sign in in the browser.'}" />
+                    <Border CornerRadius="4" Padding="6,2" Margin="0,0,6,0" VerticalAlignment="Center" BorderThickness="1"
+                            BorderBrush="{Binding AccountStateBrush}"
+                            Visibility="{Binding AccountStateText, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
+                        <TextBlock Text="{Binding AccountStateText}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding AccountStateBrush}" />
+                    </Border>
                     <!-- Plan chip badge (only visible when PlanText is not empty) -->
                     <Border x:Name="PlanChip" HorizontalAlignment="Right" VerticalAlignment="Top"
                             CornerRadius="4" BorderThickness="1" Padding="6,2"
@@ -509,6 +513,7 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </Border>
+                    </StackPanel>
                     <TextBlock Margin="0,6,0,0" FontSize="11" Foreground="{DynamicResource TextFaintBrush}" HorizontalAlignment="Right">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
@@ -558,7 +563,21 @@
                         </Hyperlink>
                     </TextBlock>
                     </StackPanel>
+                    <!-- 왜: 배지 줄이 먼저 폭을 잡고 이름·상태 문구는 남는 폭에서 말줄임한다 — 상태 문구가 길면 배지가 잘렸다 -->
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="{Binding DisplayName}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding StatusSummary}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding StatusSummary}" />
+                        <!-- 계약: 예약 갱신은 시계 눈금에 맞는다 — 다음 시각과 남은 시간을 1초마다 다시 쓴다(모든 탭 공통 값) -->
+                        <TextBlock Text="{Binding DataContext.NextRefreshText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                   FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,3,0,0" MinHeight="14" />
+                    </StackPanel>
                 </DockPanel>
+
+                <!-- 계약: 머리글에서 누른 「연동」의 진행 칸 — 머리글 바로 밑에 펼쳐진다 -->
+                <Border Margin="0,-8,0,10" Visibility="{Binding IsLinking, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                    <views:LinkProgressView DataContext="{Binding DataContext.LinkContext, RelativeSource={RelativeSource AncestorType=Window}}" />
+                </Border>
 
                 <!-- Divider -->
                 <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,14" />
@@ -659,14 +678,9 @@
                     </views:ClaudeMultiPanelView.Style>
                 </views:ClaudeMultiPanelView>
 
-                <!-- 왜: 계정을 바꿔도 통계가 사라지지 않아야 화면이 흔들리지 않는다 — 「전체」에서는 기본(없으면 첫) 계정의 통계를 보인다 -->
+                <!-- 왜: 계정을 바꿔도 통계가 사라지지 않아야 화면이 흔들리지 않는다 — 「전체」에서는 모든 계정을 합친 통계를 보인다(PulseViewModel.AllStats) -->
                 <StackPanel x:Name="ProviderStats" DataContext="{Binding SelectedProvider}">
                 <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,4,0,16" />
-                <TextBlock FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,0,0,10"
-                           Visibility="{Binding DataContext.IsStackedClaudeView, RelativeSource={RelativeSource AncestorType=Window}, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
-                    <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
-                    <Run Text="{loc:Tr 'account stats'}" />
-                </TextBlock>
 
                 <!-- Cost section -->
                 <!-- 왜: 비용 구역은 모든 탭에 같은 높이로 그린다(Copilot 도) — 탭을 바꿀 때 창 높이가 바뀌지 않게 값만 빈 표시로 둔다 -->
@@ -710,8 +724,19 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock Text="{loc:Tr 'Cost'}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <!-- 왜: 「전체」에서는 「전체 계정의 통계」 한 줄을 따로 두지 않고 제목에 붙인다 — 그 한 줄 때문에 스크롤이 생겼다 -->
+                        <TextBlock FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{loc:Tr 'Cost'}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DataContext.IsStackedClaudeView, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                            <Setter Property="Text" Value="{loc:Tr 'All accounts · cost'}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </DockPanel>
                     <DockPanel Margin="0,0,0,6">
                         <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left">

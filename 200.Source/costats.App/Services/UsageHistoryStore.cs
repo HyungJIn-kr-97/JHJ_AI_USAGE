@@ -29,9 +29,37 @@ public static class UsageHistoryStore
     private static readonly Dictionary<string, Dictionary<(DateOnly, string), UsageHistoryEntry>> Cache =
         new(StringComparer.OrdinalIgnoreCase);
 
-    public static IReadOnlyList<UsageHistoryEntry> Merge(string providerId, IEnumerable<UsageHistoryEntry> current)
+    public static IReadOnlyList<UsageHistoryEntry> Merge(string providerId, IEnumerable<UsageHistoryEntry> current) =>
+        MergeKey(FileKey(providerId), current);
+
+    // 계약: Claude 기본 폴더의 기록은 계정이 아니라 프로그램(entrypoint)마다 쌓는다 — 연동을 바꾸면 옛 이력이 통째로 새 주인을 따라간다
+    public static IReadOnlyList<UsageHistoryEntry> MergeProgram(string program, IEnumerable<UsageHistoryEntry> current) =>
+        MergeKey(ProgramKey(program), current);
+
+    // 계약: 지금까지 쌓인 프로그램 이름 전부 — 이번 갱신에 로그가 없던 프로그램도 들어 있다
+    public static IReadOnlyList<string> Programs()
     {
-        var key = FileKey(providerId);
+        try
+        {
+            var dir = Path.Combine(RootDir, ProgramDir);
+            return Directory.Exists(dir)
+                ? Directory.GetFiles(dir, "*.json").Select(path => Path.GetFileNameWithoutExtension(path)).ToList()
+                : [];
+        }
+        catch (IOException)
+        {
+            return [];
+        }
+    }
+
+    private const string ProgramDir = "claude-program";
+
+    // 함정: '@' 를 남긴다 — "claude-desktop@<계정UUID>" 가 파일 이름에서 바뀌면 Programs() 로 되읽을 때 주인을 못 찾는다
+    private static string ProgramKey(string program) =>
+        Path.Combine(ProgramDir, string.Concat(program.Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' or '@' ? ch : '_')));
+
+    private static IReadOnlyList<UsageHistoryEntry> MergeKey(string key, IEnumerable<UsageHistoryEntry> current)
+    {
         if (!Cache.TryGetValue(key, out var known))
         {
             known = Load(key);
@@ -39,7 +67,21 @@ public static class UsageHistoryStore
         }
 
         var changed = false;
-        foreach (var entry in current)
+        var list = current as IReadOnlyCollection<UsageHistoryEntry> ?? current.ToList();
+        // 왜: 날짜 기준이 UTC → 현지로 바뀌었다 — 옛 UTC 날짜 값이 「큰 값 남기기」로 남지 않게, 키마다 한 번 로그가 있는 날부터를 새 값으로 갈아 낀다
+        if (list.Count > 0 && Rebased.Add(key))
+        {
+            var from = list.Min(e => e.Day).AddDays(-1);
+            foreach (var stale in known.Keys.Where(k => k.Item1 >= from).ToList())
+            {
+                known.Remove(stale);
+            }
+
+            changed = true;
+            SaveRebased();
+        }
+
+        foreach (var entry in list)
         {
             var id = (entry.Day, entry.Model);
             // 왜: 유형 칸이 없던 옛 기록은 같은 값의 새 기록으로 갈아야 유형 통계가 채워진다 — 값이 줄어든 기록으로는 갈지 않는다
@@ -67,14 +109,49 @@ public static class UsageHistoryStore
         return known.Values.ToList();
     }
 
+    // 계약: 현지 날짜 기준으로 갈아 낀 이력 키 목록 — history\local-days.txt
+    private static readonly string RebasedPath = Path.Combine(RootDir, "local-days.txt");
+
+    private static readonly HashSet<string> Rebased = LoadRebased();
+
+    private static HashSet<string> LoadRebased()
+    {
+        try
+        {
+            return File.Exists(RebasedPath)
+                ? new HashSet<string>(File.ReadAllLines(RebasedPath), StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (IOException)
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private static void SaveRebased()
+    {
+        try
+        {
+            Directory.CreateDirectory(RootDir);
+            File.WriteAllLines(RebasedPath, Rebased.OrderBy(k => k, StringComparer.Ordinal));
+        }
+        catch (IOException)
+        {
+            // 저장 실패면 다음 실행에 한 번 더 갈아 낀다 — 같은 로그로 다시 채우므로 값은 같다
+        }
+    }
+
     // 왜: 계정 목록이 생기면 기본 계정의 ID 가 "claude" 에서 "claude:default" 로 바뀐다 — 같은 파일을 쓰게 맞춘다
     private static string FileKey(string providerId)
     {
         var id = providerId.Equals("claude:" + AccountProfileStore.DefaultName, StringComparison.OrdinalIgnoreCase)
             ? "claude"
             : providerId;
-        return string.Concat(id.Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '_'));
+        return Sanitize(id);
     }
+
+    private static string Sanitize(string id) =>
+        string.Concat(id.Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '_'));
 
     private static Dictionary<(DateOnly, string), UsageHistoryEntry> Load(string key)
     {
@@ -103,7 +180,7 @@ public static class UsageHistoryStore
     {
         try
         {
-            Directory.CreateDirectory(RootDir);
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(RootDir, key))!);
             var ordered = entries.OrderBy(e => e.Day).ThenBy(e => e.Model, StringComparer.Ordinal).ToList();
             File.WriteAllText(Path.Combine(RootDir, key + ".json"), JsonSerializer.Serialize(ordered));
         }

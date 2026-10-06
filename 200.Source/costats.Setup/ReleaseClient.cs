@@ -22,8 +22,11 @@ namespace costats.Setup
         public string ZipUrl { get; set; }
         public string ChecksumUrl { get; set; }
 
+        // 계약: 릴리스 버전은 「배포 버전.빌드 날짜」(1.0.0.20261006) — 옛 세 자리 릴리스는 Revision 이 -1 이다
+        public string VersionText => Version.Revision >= 0 ? Version.ToString(4) : Version.ToString(3);
+
         public override string ToString() =>
-            "v" + Version.ToString(3) + (PublishedAt is DateTime at ? " · " + at.ToLocalTime().ToString("yyyy-MM-dd") : string.Empty) +
+            "v" + VersionText + (Version.Revision < 0 && PublishedAt is DateTime at ? " · " + at.ToLocalTime().ToString("yyyy-MM-dd") : string.Empty) +
             (Prerelease ? " (pre)" : string.Empty);
     }
 
@@ -78,7 +81,7 @@ namespace costats.Setup
                         : (DateTime?)null
                 };
 
-                var zipName = $"AiUsageMonitor-{Rid}-v{version.ToString(3)}.zip";
+                var zipName = $"AiUsageMonitor-{Rid}-v{release.VersionText}.zip";
                 // 함정: JavaScriptSerializer 는 JSON 배열을 object[] 가 아니라 ArrayList 로 준다
                 if (item.TryGetValue("assets", out var assets) && assets is System.Collections.IEnumerable array)
                 {
@@ -104,7 +107,12 @@ namespace costats.Setup
                 }
             }
 
-            return list.OrderByDescending(r => r.Version).ToList();
+            // 계약: 같은 배포 버전(세 자리)에서는 날짜가 가장 늦은 릴리스 하나만 보인다
+            return list
+                .GroupBy(r => new Version(r.Version.Major, r.Version.Minor, r.Version.Build))
+                .Select(g => g.OrderByDescending(r => r.Version).First())
+                .OrderByDescending(r => r.Version)
+                .ToList();
         }
 
         /// <returns>받은 zip 의 경로 — 체크섬이 있으면 맞는지 확인한 뒤다</returns>

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using costats.Infrastructure.Providers;
 
 namespace costats.Infrastructure.Usage;
 
@@ -22,13 +23,16 @@ internal sealed class UsageLogScanner
     public Task<UsageLogResult> ScanClaudeAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.Run(() => ScanClaudeCore(cancellationToken), cancellationToken);
+        return Task.Run(() => ScanClaudeCore(
+            cutoff => EnumerateClaudeFiles(cutoff).Select(file => (file, (string?)null)), cancellationToken), cancellationToken);
     }
 
-    public Task<UsageLogResult> ScanClaudeAsync(string configDir, CancellationToken cancellationToken)
+    public Task<UsageLogResult> ScanClaudeAsync(IReadOnlyList<ClaudeLogRoot> roots, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.Run(() => ScanClaudeCore(configDir, cancellationToken), cancellationToken);
+        return Task.Run(() => ScanClaudeCore(
+            cutoff => roots.SelectMany(root => EnumerateClaudeFiles(root.ProjectsDir, cutoff).Select(file => (file, root.Owner))),
+            cancellationToken), cancellationToken);
     }
 
     private UsageLogResult ScanCodexCore(CancellationToken cancellationToken, string? codexHome)
@@ -171,7 +175,9 @@ internal sealed class UsageLogScanner
             latestSessionId);
     }
 
-    private UsageLogResult ScanClaudeCore(CancellationToken cancellationToken)
+    private UsageLogResult ScanClaudeCore(
+        Func<DateTimeOffset, IEnumerable<(string File, string? Owner)>> enumerate,
+        CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
         var sessionCutoff = now - _sessionWindow;
@@ -183,7 +189,7 @@ internal sealed class UsageLogScanner
         DateTimeOffset? sessionStart = null;
         var seenKeys = new HashSet<MessageRequestKey>(MessageRequestKeyComparer.Instance);
 
-        foreach (var file in EnumerateClaudeFiles(weekCutoff))
+        foreach (var (file, owner) in enumerate(weekCutoff))
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var stream = new FileStream(file, new FileStreamOptions
@@ -238,122 +244,7 @@ internal sealed class UsageLogScanner
                         continue;
                     }
 
-                    var messageId = messageElement.TryGetProperty("id", out var messageIdElement)
-                        ? messageIdElement.GetString()
-                        : null;
-                    var requestId = root.TryGetProperty("requestId", out var requestIdElement)
-                        ? requestIdElement.GetString()
-                        : null;
-                    if (!string.IsNullOrWhiteSpace(messageId) && !string.IsNullOrWhiteSpace(requestId))
-                    {
-                        if (!TryAddDedupeKey(seenKeys, new MessageRequestKey(messageId, requestId)))
-                        {
-                            continue;
-                        }
-                    }
-
-                    var tokens = ExtractClaudeTokens(usageElement);
-                    if (tokens == 0)
-                    {
-                        continue;
-                    }
-
-                    if (timestamp >= weekCutoff)
-                    {
-                        weekTokens += tokens;
-                    }
-
-                    if (timestamp >= sessionCutoff)
-                    {
-                        sessionTokens += tokens;
-                        if (sessionStart is null || timestamp < sessionStart)
-                        {
-                            sessionStart = timestamp;
-                        }
-                    }
-
-                    if (latest is null || timestamp > latest)
-                    {
-                        latest = timestamp;
-                    }
-                }
-                catch (JsonException)
-                {
-                    continue;
-                }
-                finally
-                {
-                    doc?.Dispose();
-                }
-            }
-        }
-
-        return new UsageLogResult(sessionTokens, weekTokens, latest, sessionStart, null);
-    }
-
-    private UsageLogResult ScanClaudeCore(string configDir, CancellationToken cancellationToken)
-    {
-        var now = DateTimeOffset.UtcNow;
-        var sessionCutoff = now - _sessionWindow;
-        var weekCutoff = now - _weeklyWindow;
-
-        long sessionTokens = 0;
-        long weekTokens = 0;
-        DateTimeOffset? latest = null;
-        DateTimeOffset? sessionStart = null;
-        var seenKeys = new HashSet<MessageRequestKey>(MessageRequestKeyComparer.Instance);
-
-        foreach (var file in EnumerateClaudeFiles(configDir, weekCutoff))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            using var stream = new FileStream(file, new FileStreamOptions
-            {
-                Mode = FileMode.Open,
-                Access = FileAccess.Read,
-                Share = FileShare.ReadWrite,
-                Options = FileOptions.SequentialScan,
-                BufferSize = FileReadBufferSize
-            });
-            using var reader = new StreamReader(stream);
-            string? line;
-            var lineBuffer = new StringBuilder();
-
-            while ((line = ReadLineLimited(reader, lineBuffer)) is not null)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (line.Length == 0 || !line.Contains("\"type\""))
-                {
-                    continue;
-                }
-
-                JsonDocument? doc = null;
-                try
-                {
-                    doc = JsonDocument.Parse(line);
-                    var root = doc.RootElement;
-                    if (!root.TryGetProperty("type", out var typeElement))
-                    {
-                        continue;
-                    }
-
-                    var type = typeElement.GetString();
-                    if (!string.Equals(type, "assistant", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    if (!TryGetTimestamp(root, out var timestamp))
-                    {
-                        continue;
-                    }
-
-                    if (!root.TryGetProperty("message", out var messageElement))
-                    {
-                        continue;
-                    }
-
-                    if (!messageElement.TryGetProperty("usage", out var usageElement) ||
-                        usageElement.ValueKind != JsonValueKind.Object)
+                    if (owner is not null && !IsOwnedBy(root, owner, timestamp))
                     {
                         continue;
                     }
@@ -495,9 +386,9 @@ internal sealed class UsageLogScanner
         }
     }
 
-    private static IEnumerable<string> EnumerateClaudeFiles(string configDir, DateTimeOffset oldestRelevant)
+    // 함정: ClaudeLogRoot.ProjectsDir 는 이미 projects 폴더다 — 여기서 "projects" 를 또 붙이면 세션·주간 토큰이 늘 0 이 된다
+    private static IEnumerable<string> EnumerateClaudeFiles(string projectsDir, DateTimeOffset oldestRelevant)
     {
-        var projectsDir = Path.Combine(configDir, "projects");
         if (!Directory.Exists(projectsDir))
         {
             yield break;
@@ -509,6 +400,17 @@ internal sealed class UsageLogScanner
                 continue;
             yield return file;
         }
+    }
+
+    private static bool IsOwnedBy(JsonElement root, string owner, DateTimeOffset at)
+    {
+        var entrypoint = root.TryGetProperty("entrypoint", out var element) && element.ValueKind == JsonValueKind.String
+            ? element.GetString()
+            : null;
+        var sessionId = root.TryGetProperty("sessionId", out var sessionElement) && sessionElement.ValueKind == JsonValueKind.String
+            ? sessionElement.GetString()
+            : null;
+        return string.Equals(ClaudeProgramRouter.OwnerOf(ClaudeProgramRouter.SourceOf(entrypoint, sessionId, at)), owner, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ReadLineLimited(StreamReader reader, StringBuilder buffer)

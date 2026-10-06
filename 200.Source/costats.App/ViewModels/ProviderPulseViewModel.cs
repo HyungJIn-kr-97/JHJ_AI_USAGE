@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using costats.App.Localization;
 using costats.Core.Pulse;
+using costats.Infrastructure.Providers;
 
 namespace costats.App.ViewModels;
 
@@ -205,11 +206,46 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private bool hasWeekQuota = true;
 
-    public static ProviderPulseViewModel FromReading(ProviderReading reading, string displayNameFallback)
+    [ObservableProperty]
+    private bool needsLink;
+
+    // 계약: 이 카드의 자리로 연동이 진행 중이거나 결과를 보이는 중 — 카드 바로 밑에 연동 진행 칸이 펼쳐진다(팝업 창이 넣는다)
+    [ObservableProperty]
+    private bool isLinking;
+
+    // 계약: 설정 「계정」에서 정한 유형(회사·개인 등)과 연동된 메일 — 카드 이름 옆·아래에 보인다
+    [ObservableProperty]
+    private string accountType = string.Empty;
+
+    [ObservableProperty]
+    private string accountEmail = string.Empty;
+
+    public bool HasAccountType => AccountType.Length > 0;
+
+    partial void OnAccountTypeChanged(string value) => OnPropertyChanged(nameof(HasAccountType));
+
+    [ObservableProperty]
+    private string accountStateText = string.Empty;
+
+    [ObservableProperty]
+    private System.Windows.Media.Brush accountStateBrush = System.Windows.Media.Brushes.Transparent;
+
+    private static readonly System.Windows.Media.Brush LinkedBrush = FrozenBrush("#10B981");
+    private static readonly System.Windows.Media.Brush NeedsLinkBrush = FrozenBrush("#EF4444");
+
+    private static System.Windows.Media.Brush FrozenBrush(string hex)
+    {
+        var brush = (System.Windows.Media.SolidColorBrush)new System.Windows.Media.BrushConverter().ConvertFromString(hex)!;
+        brush.Freeze();
+        return brush;
+    }
+
+    // 함정: 데이터가 없는 판(연동 전 자리)은 Usage 가 null 이다 — providerId 를 안 넘기면 화면 이름이 id 가 되어 Claude 자리로 안 잡힌다
+    public static ProviderPulseViewModel FromReading(ProviderReading reading, string displayNameFallback, string? providerId = null)
     {
         var vm = new ProviderPulseViewModel
         {
-            ProviderId = reading.Usage?.ProviderId ?? displayNameFallback,
+            ProviderId = reading.Usage?.ProviderId ?? providerId ?? displayNameFallback,
             DisplayName = displayNameFallback,
             StatusSummary = FormatStatusSummary(reading),
             PlanText = reading.Identity?.Plan ?? "Max"
@@ -220,11 +256,39 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         PopulateExtraUsage(vm, reading);
         PopulateCostData(vm, reading);
 
-        // 왜: Gemini 는 Code Assist 좌석이 없으면 한도가 안 온다 — 그때 「0% 사용」 막대는 한도가 남은 것처럼 읽힌다
-        if (string.Equals(vm.ProviderId, "gemini", StringComparison.OrdinalIgnoreCase))
+        // 왜: 한도를 못 받은 판(Gemini 좌석 없음 · Claude 토큰 없음)에서 「0% 사용」 막대는 한도가 남은 것처럼 읽힌다
+        vm.HasSessionQuota = reading.Usage?.SessionLimit is not null;
+        vm.HasWeekQuota = reading.Usage?.WeekLimit is not null;
+        if (!vm.HasSessionQuota)
         {
-            vm.HasSessionQuota = reading.Usage?.SessionLimit is not null;
-            vm.HasWeekQuota = reading.Usage?.WeekLimit is not null;
+            vm.SessionProgress = 0;
+            vm.SessionUsageLabel = "--";
+            vm.SessionPaceText = string.Empty;
+        }
+
+        if (!vm.HasWeekQuota)
+        {
+            vm.WeekProgress = 0;
+            vm.WeekUsageLabel = "--";
+            vm.WeekPaceText = string.Empty;
+        }
+
+        if (!vm.HasSessionQuota)
+        {
+            vm.SessionPercentText = "--";
+        }
+
+        if (!vm.HasWeekQuota)
+        {
+            vm.WeekPercentText = "--";
+        }
+
+        // 계약: 한도를 하나도 못 받은 Claude·Codex 자리는 「연동 필요」 — 머리글·전체 카드에 「연동」 버튼이 뜨고 전체 요약에서 따로 센다
+        if (vm.ProviderKind is "claude" or "codex")
+        {
+            vm.NeedsLink = !vm.HasSessionQuota && !vm.HasWeekQuota;
+            vm.AccountStateText = Loc.T(vm.NeedsLink ? "Needs linking" : "Linked");
+            vm.AccountStateBrush = vm.NeedsLink ? NeedsLinkBrush : LinkedBrush;
         }
 
         // Set overall status based on the higher of session or week utilization
@@ -383,15 +447,23 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
 
         vm.HasCostData = true;
 
-        // Today's consumption
-        var todayTokens = consumption.TodayTokens.TotalConsumed;
-        var todayCost = consumption.TodayCostUsd;
+        vm._totals = (consumption.TodayCostUsd, consumption.TodayTokens.TotalConsumed,
+            consumption.RollingWindowCostUsd, consumption.RollingWindowTokens.TotalConsumed);
+        ApplyCostTexts(vm);
+        PopulateDailyBars(vm, consumption);
+    }
+
+    // 계약: 오늘·최근 30일 합계 — 「전체」 통계(Combine)가 계정마다 더한다
+    private (decimal TodayCost, long TodayTokens, decimal WindowCost, long WindowTokens) _totals;
+
+    // 계약: 이 계정이 보는 (날짜, 모델) 이력 전부 — 기간 칩과 무관하게 걸러지기 전 목록이다
+    private List<costats.App.Services.UsageHistoryEntry> _history = [];
+
+    private static void ApplyCostTexts(ProviderPulseViewModel vm)
+    {
+        var (todayCost, todayTokens, windowCost, windowTokens) = vm._totals;
         vm.TodayCostText = UsageFormatter.FormatCurrency(todayCost);
         vm.TodayTokensText = UsageFormatter.FormatTokenCount(todayTokens);
-
-        // Rolling window consumption
-        var windowTokens = consumption.RollingWindowTokens.TotalConsumed;
-        var windowCost = consumption.RollingWindowCostUsd;
         vm.MonthCostText = UsageFormatter.FormatCurrency(windowCost);
         vm.MonthTokensText = UsageFormatter.FormatTokenCount(windowTokens);
         vm.AvgCostText = UsageFormatter.FormatCurrency(windowCost / 30m);
@@ -402,32 +474,51 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         var monthFormatted = UsageFormatter.FormatCurrency(windowCost);
         vm.CompactCostText = $"{todayFormatted} today  ·  {monthFormatted} / 30d";
         vm.HasCompactCost = true;
-
-        PopulateDailyBars(vm, consumption);
     }
 
+    /// <summary>
+    /// 계약: 여러 계정의 통계를 합친 판 — 「전체」 보기의 통계 구역용. 한도 막대는 계정마다 달라 합치지 않는다.
+    /// </summary>
+    public static ProviderPulseViewModel Combine(IReadOnlyList<ProviderPulseViewModel> parts, string displayName, string providerId)
+    {
+        var vm = new ProviderPulseViewModel { ProviderId = providerId, DisplayName = displayName };
+        vm._totals = (parts.Sum(p => p._totals.TodayCost), parts.Sum(p => p._totals.TodayTokens),
+            parts.Sum(p => p._totals.WindowCost), parts.Sum(p => p._totals.WindowTokens));
+        vm.HasCostData = parts.Any(p => p.HasCostData);
+        if (vm.HasCostData)
+        {
+            ApplyCostTexts(vm);
+            vm.CompactCostText = Loc.Tr(vm.CompactCostText);
+        }
+
+        RenderHistory(vm, SumByDayModel(parts.SelectMany(p => p._history)));
+        return vm;
+    }
+
+    private static List<costats.App.Services.UsageHistoryEntry> SumByDayModel(IEnumerable<costats.App.Services.UsageHistoryEntry> entries) =>
+        entries
+            .GroupBy(e => (e.Day, e.Model))
+            .Select(g => g.Count() == 1 ? g.First() : new costats.App.Services.UsageHistoryEntry(
+                g.Key.Day, g.Key.Model, g.Sum(e => e.Cost), g.Sum(e => e.Tokens),
+                g.Sum(e => e.Input), g.Sum(e => e.Output), g.Sum(e => e.CacheRead), g.Sum(e => e.CacheWrite)))
+            .ToList();
+
     private static void PopulateDailyBars(ProviderPulseViewModel vm, ConsumptionDigest? consumption)
+    {
+        vm._history = MergedHistory(vm.ProviderId, consumption?.DailyBreakdown ?? []);
+        RenderHistory(vm, vm._history);
+    }
+
+    private static void RenderHistory(ProviderPulseViewModel vm, IReadOnlyList<costats.App.Services.UsageHistoryEntry> history)
     {
         vm.ChartTitleText = Loc.T(RangeDays <= 30 ? "Daily cost" : RangeDays <= 180 ? "Weekly cost" : "Monthly cost");
         vm.ModelsHeaderText = RangeDays == 365 ? Loc.T("Models · 1 year") : Loc.T("Models · {0} days", RangeDays);
         vm.TokenTypesHeaderText = RangeDays == 365 ? Loc.T("Token types · 1 year") : Loc.T("Token types · {0} days", RangeDays);
 
         // 왜: DailyBreakdown 은 일×모델 단위다 — 모델 이름을 접어 합친 뒤, 로그에서 이미 지워진 날은 쌓아 둔 이력으로 메운다
-        var current = (consumption?.DailyBreakdown ?? [])
-            .GroupBy(slice => (slice.Period, Model: ShortModelName(slice.ModelIdentifier)))
-            .Select(group => new costats.App.Services.UsageHistoryEntry(
-                group.Key.Period,
-                group.Key.Model,
-                group.Sum(s => s.ComputedCostUsd),
-                group.Sum(s => (long)s.Tokens.TotalConsumed),
-                group.Sum(s => (long)s.Tokens.StandardInput),
-                group.Sum(s => (long)s.Tokens.GeneratedOutput),
-                group.Sum(s => (long)s.Tokens.CachedInput),
-                group.Sum(s => (long)s.Tokens.CacheWriteInput)));
-
         var today = DateOnly.FromDateTime(DateTime.Now);
         var start = today.AddDays(-(RangeDays - 1));
-        var entries = costats.App.Services.UsageHistoryStore.Merge(vm.ProviderId, current)
+        var entries = history
             .Where(entry => entry.Day >= start && entry.Day <= today)
             .ToList();
 
@@ -477,6 +568,50 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         vm.AxisLabels = BuildAxisLabels(buckets);
         vm.HasDailyBars = true;
     }
+
+    // 계약: 계정 자기 폴더의 이력 + 지금 이 계정에 연동된 프로그램의 이력을 (날짜, 모델)로 합친다 — ClaudeProgramRouter
+    private static List<costats.App.Services.UsageHistoryEntry> MergedHistory(string providerId, IReadOnlyList<ConsumptionSlice> slices)
+    {
+        var own = costats.App.Services.UsageHistoryStore.Merge(providerId, ToHistory(slices.Where(s => s.Program is null)));
+        if (!ClaudeProgramRouter.IsActive)
+        {
+            return own.ToList();
+        }
+
+        foreach (var group in slices.Where(s => s.Program is not null).GroupBy(s => s.Program!, StringComparer.OrdinalIgnoreCase))
+        {
+            costats.App.Services.UsageHistoryStore.MergeProgram(group.Key, ToHistory(group));
+        }
+
+        var programs = costats.App.Services.UsageHistoryStore.Programs()
+            .ToDictionary(p => p, p => costats.App.Services.UsageHistoryStore.MergeProgram(p, []), StringComparer.OrdinalIgnoreCase);
+        var linked = programs
+            .Where(p => string.Equals(ClaudeProgramRouter.OwnerOf(p.Key), providerId, StringComparison.OrdinalIgnoreCase))
+            .SelectMany(p => p.Value);
+
+        // 왜: 프로그램별로 쌓기 전의 기본 계정 이력(history\claude.json)은 프로그램이 섞여 있어 나눌 수 없다 — 프로그램 이력이 시작되기 전 날짜에만 쓴다
+        if (providerId.Equals(ClaudeProgramRouter.DefaultProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            var firstProgramDay = programs.Values.SelectMany(list => list).Select(e => e.Day).DefaultIfEmpty(DateOnly.MaxValue).Min();
+            own = own.Where(e => e.Day < firstProgramDay).ToList();
+        }
+
+        return SumByDayModel(own.Concat(linked));
+    }
+
+    private static IEnumerable<costats.App.Services.UsageHistoryEntry> ToHistory(IEnumerable<ConsumptionSlice> slices) =>
+        slices
+            .GroupBy(slice => (slice.Period, Model: ShortModelName(slice.ModelIdentifier)))
+            .Select(group => new costats.App.Services.UsageHistoryEntry(
+                group.Key.Period,
+                group.Key.Model,
+                group.Sum(s => s.ComputedCostUsd),
+                group.Sum(s => (long)s.Tokens.TotalConsumed),
+                group.Sum(s => (long)s.Tokens.StandardInput),
+                group.Sum(s => (long)s.Tokens.GeneratedOutput),
+                group.Sum(s => (long)s.Tokens.CachedInput),
+                group.Sum(s => (long)s.Tokens.CacheWriteInput)))
+            .ToList();
 
     // 계약: 막대 수가 적으면 막대마다, 많으면 같은 폭의 구간 몇 개로 나눠 구간 첫 막대의 시작일을 적는다
     private static List<string> BuildAxisLabels(List<(DateOnly From, DateOnly To, string Label)> buckets)

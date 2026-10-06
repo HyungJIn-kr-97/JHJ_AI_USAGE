@@ -20,37 +20,63 @@ public static class AccountMeta
         (t.Equals("Default", StringComparison.OrdinalIgnoreCase) || t == "기본" || t == Loc.T("Default"));
 
     public static string? NameOf(AppSettings settings, string id) =>
-        Find(settings, id)?.Name?.Trim() is { Length: > 0 } name ? name : null;
+        Current(settings, id)?.Name?.Trim() is { Length: > 0 } name ? name : null;
 
-    public static string TypeOf(AppSettings settings, string id) => Find(settings, id)?.Type?.Trim() ?? string.Empty;
+    public static string TypeOf(AppSettings settings, string id) => Current(settings, id)?.Type?.Trim() ?? string.Empty;
 
     public static string DisplayNameOf(AppSettings settings, string id) => NameOf(settings, id) ?? AutoNameOf(id);
+
+    private static bool IsMainFolder(string folder) =>
+        folder.Length == 0 || folder.Equals(AccountProfileStore.DefaultName, StringComparison.OrdinalIgnoreCase);
+
+    private static string FolderOf(string id) => id.Contains(':') ? id[(id.IndexOf(':') + 1)..] : string.Empty;
+
+    /// <summary>이 id 에 지금 로그인된 메일. 로그인 전이면 null.</summary>
+    public static string? MailOf(string id)
+    {
+        var folder = FolderOf(id);
+        var isMain = IsMainFolder(folder);
+        var account = KindOf(id) == "codex"
+            ? AccountIdentityReader.ReadCodex(isMain ? null : CodexAccountStore.DirOf(folder))
+            : AccountIdentityReader.ReadClaude(isMain ? null : Path.Combine(AccountProfileStore.RootDir, folder));
+        var mail = account.Split(" · ")[0];
+        return mail.IndexOf('@') > 0 ? mail : null;
+    }
 
     // 계약: 명칭을 안 정했으면 로그인 메일의 @ 앞("atisys.ai") — 로그인 전이면 추가할 때 적은 이름, 이 PC 로그인은 "이 PC"
     public static string AutoNameOf(string id)
     {
-        var folder = id.Contains(':') ? id[(id.IndexOf(':') + 1)..] : string.Empty;
-        var isMain = folder.Length == 0 || folder.Equals(AccountProfileStore.DefaultName, StringComparison.OrdinalIgnoreCase);
-        var isCodex = KindOf(id) == "codex";
-        var account = isCodex
-            ? AccountIdentityReader.ReadCodex(isMain ? null : CodexAccountStore.DirOf(folder))
-            : AccountIdentityReader.ReadClaude(isMain ? null : Path.Combine(AccountProfileStore.RootDir, folder));
-        var mail = account.Split(" · ")[0];
-        if (mail.IndexOf('@') is > 0 and var at)
+        if (MailOf(id) is { } mail)
         {
-            return mail[..at];
+            return mail[..mail.IndexOf('@')];
         }
 
-        if (isMain)
+        var folder = FolderOf(id);
+        if (IsMainFolder(folder))
         {
             return Loc.T("This PC");
         }
 
-        return isCodex ? CodexAccountStore.LabelOf(folder) : AccountProfileStore.LabelOf(folder);
+        return KindOf(id) == "codex" ? CodexAccountStore.LabelOf(folder) : AccountProfileStore.LabelOf(folder);
     }
 
     public static string? DefaultIdOf(AppSettings settings, string kind) =>
-        settings.Accounts.FirstOrDefault(pair => KindOf(pair.Key) == kind && IsDefaultType(pair.Value.Type)).Key;
+        settings.Accounts.Keys.FirstOrDefault(id => KindOf(id) == kind && IsDefaultType(Current(settings, id)?.Type));
+
+    // 왜: 「이 PC 로그인」 칸에 다른 계정으로 다시 로그인하면 옛 계정의 명칭·유형이 새 계정에 붙어 보였다
+    // 함정: Email 이 없던 옛 항목은 명칭이 메일 모양일 때만 그 메일을 주인으로 본다
+    private static AccountInfo? Current(AppSettings settings, string id)
+    {
+        var entry = Find(settings, id);
+        if (entry is null)
+        {
+            return null;
+        }
+
+        var owner = entry.Email ?? (entry.Name?.Trim() is { } n && n.Contains('@') ? n : null);
+        var mail = MailOf(id);
+        return owner is null || mail is null || owner.Equals(mail, StringComparison.OrdinalIgnoreCase) ? entry : null;
+    }
 
     /// <returns>유형이 「기본」이 되면서 기본을 빼앗긴 같은 도구의 다른 계정 id</returns>
     public static IReadOnlyList<string> Set(AppSettings settings, string id, string? name, string? type)
@@ -60,7 +86,7 @@ public static class AccountMeta
         {
             foreach (var (otherId, info) in settings.Accounts)
             {
-                if (!otherId.Equals(id, StringComparison.OrdinalIgnoreCase) && KindOf(otherId) == KindOf(id) && IsDefaultType(info.Type))
+                if (!otherId.Equals(id, StringComparison.OrdinalIgnoreCase) && KindOf(otherId) == KindOf(id) && IsDefaultType(Current(settings, otherId)?.Type))
                 {
                     info.Type = null;
                     cleared.Add(otherId);
@@ -70,13 +96,42 @@ public static class AccountMeta
 
         var entry = Find(settings, id) ?? (settings.Accounts[id] = new AccountInfo());
         // 왜: 칸에 보이던 자동 명칭을 그대로 두면 저장하지 않는다 — 저장하면 로그인 메일이 바뀌어도 옛 이름이 남는다
-        entry.Name = string.IsNullOrWhiteSpace(name) || name.Trim() == AutoNameOf(id) ? null : name.Trim();
+        var trimmed = name?.Trim() ?? string.Empty;
+        entry.Name = trimmed.Length == 0 || trimmed == AutoNameOf(id) ? null
+            : trimmed.Length > MaxNameLength ? trimmed[..MaxNameLength] : trimmed;
         entry.Type = string.IsNullOrWhiteSpace(type) ? null : type.Trim();
+        entry.Email = MailOf(id);
         return cleared;
+    }
+
+    // 계약: 계정 명칭 최대 글자 수 — 팝업 계정 카드 머리에 요금제·비용과 함께 들어가는 길이
+    public const int MaxNameLength = 8;
+
+    /// <summary>정한 순서대로 정렬한다 — 순서에 없는 id 는 뒤에 표시 이름순.</summary>
+    public static IEnumerable<T> Ordered<T>(AppSettings settings, IEnumerable<T> items, Func<T, string> idOf, Func<T, string> nameOf) =>
+        items.OrderBy(item => OrderOf(settings, idOf(item)))
+            .ThenBy(nameOf, StringComparer.OrdinalIgnoreCase);
+
+    private static int OrderOf(AppSettings settings, string id)
+    {
+        var index = settings.AccountOrder.FindIndex(o => o.Equals(Canonical(id), StringComparison.OrdinalIgnoreCase));
+        return index < 0 ? int.MaxValue : index;
+    }
+
+    // 왜: 팝업은 기본 자리를 "claude" 로도 부른다 — 순서 목록에는 설정 화면의 id("claude:default")로 둔다
+    private static string Canonical(string id) =>
+        id.Equals("claude", StringComparison.OrdinalIgnoreCase) ? "claude:" + AccountProfileStore.DefaultName : id;
+
+    /// <summary>한 도구(kind)의 순서를 통째로 바꾼다 — 다른 도구의 순서는 그대로 둔다.</summary>
+    public static void SetOrder(AppSettings settings, string kind, IEnumerable<string> ids)
+    {
+        var others = settings.AccountOrder.Where(id => KindOf(id) != kind);
+        settings.AccountOrder = others.Concat(ids.Select(Canonical)).ToList();
     }
 
     public static void Remove(AppSettings settings, string id)
     {
+        settings.AccountOrder.RemoveAll(o => o.Equals(id, StringComparison.OrdinalIgnoreCase));
         foreach (var key in settings.Accounts.Keys.Where(k => k.Equals(id, StringComparison.OrdinalIgnoreCase)).ToList())
         {
             settings.Accounts.Remove(key);

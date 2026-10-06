@@ -31,7 +31,7 @@ public sealed record ModelRateCard
         return inputCost + outputCost + cacheReadCost + cacheWriteCost;
     }
 
-    private decimal ComputeTieredCost(int tokens, decimal baseRate, decimal? aboveRate)
+    private decimal ComputeTieredCost(long tokens, decimal baseRate, decimal? aboveRate)
     {
         if (tokens <= 0) return 0;
 

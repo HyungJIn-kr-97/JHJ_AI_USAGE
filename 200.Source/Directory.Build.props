@@ -1,11 +1,13 @@
 <Project>
   <PropertyGroup>
-    <!-- App version single source of truth (major.minor.patch) -->
-    <VersionPrefix Condition="'$(VersionPrefix)' == ''">1.0.3</VersionPrefix>
+    <!-- 버전 규칙 — README 「버전 체계」. 배포 버전 = VersionPrefix(major.minor.patch), 개발 빌드 = 배포 버전.<빌드 날짜> -->
+    <VersionPrefix Condition="'$(VersionPrefix)' == ''">1.0.0</VersionPrefix>
     <Version Condition="'$(Version)' == ''">$(VersionPrefix)</Version>
+    <!-- 함정: Assembly/FileVersion 의 각 자리는 65534 가 상한이라 20261004 를 못 담는다 — 날짜는 InformationalVersion 에만 둔다 -->
+    <BuildDate Condition="'$(BuildDate)' == ''">$([System.DateTime]::Now.ToString('yyyyMMdd'))</BuildDate>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">$([System.Version]::Parse('$(VersionPrefix).0'))</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">$([System.Version]::Parse('$(VersionPrefix).0'))</FileVersion>
-    <InformationalVersion Condition="'$(InformationalVersion)' == ''">$(Version)</InformationalVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">$(VersionPrefix).$(BuildDate)</InformationalVersion>
 
     <!-- Embed debug symbols in assemblies for single-file publish -->
     <DebugType>embedded</DebugType>
