@@ -383,34 +383,23 @@
                             </ComboBox>
                             <TextBlock Text="{loc:Tr 'Refresh interval'}" Style="{StaticResource RowLabel}" />
                         </DockPanel>
-                        <!-- 계약: 입력란에서 누른 조합을 바로 검사·적용한다. 규칙은 Services/HotkeyRules.cs · 줄은 「단축키 추가」로 늘린다 -->
+                        <!-- 계약: 줄마다 상태가 둘이다 — 입력 중(저장 · 삭제)에만 키를 받고, 완료(변경 · 삭제)에서는 입력란이 잠긴다. 규칙은 Services/HotkeyRules.cs -->
                         <ItemsControl ItemsSource="{Binding HotkeySlots}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Margin="0,10,0,0">
-                                        <DockPanel ToolTip="{loc:Tr 'Click the box, then press the keys together.'}">
-                                            <!-- 계약: 추가 버튼은 1번 줄에만 보인다 — 나머지 줄은 자리만 잡아 입력란 세로줄을 맞춘다 -->
-                                            <Button Content="+" DockPanel.Dock="Right" Width="28" Padding="0,3" FontSize="13" Margin="6,0,0,0"
-                                                    ToolTip="{loc:Tr '+ Add shortcut'}"
-                                                    Command="{Binding DataContext.AddHotkeyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                    IsEnabled="{Binding DataContext.CanAddHotkey, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
-                                                <Button.Style>
-                                                    <Style TargetType="Button" BasedOn="{StaticResource SettingsButton}">
-                                                        <Setter Property="Visibility" Value="Hidden" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Index}" Value="0">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                            </Button>
-                                            <Button Content="{Binding ButtonText}" DockPanel.Dock="Right" Width="44" Padding="0,4" FontSize="11" Margin="6,0,0,0"
-                                                    Style="{StaticResource SettingsButton}" Command="{Binding ButtonCommand}" />
-                                            <TextBox DockPanel.Dock="Right" Width="124" FontSize="12" Padding="6,4" IsReadOnly="True" IsReadOnlyCaretVisible="False"
+                                        <DockPanel>
+                                            <!-- 계약: 둘째 버튼 — 2번 줄부터 「삭제」, 1번 줄은 입력 중 「기본」 · 완료 「+」(줄 추가) -->
+                                            <Button Content="{Binding SecondaryText}" DockPanel.Dock="Right" Width="40" Padding="0,4" FontSize="11" Margin="6,0,0,0"
+                                                    Style="{StaticResource SettingsButton}" Command="{Binding SecondaryCommand}" />
+                                            <Button Content="{Binding PrimaryText}" DockPanel.Dock="Right" Width="40" Padding="0,4" FontSize="11" Margin="6,0,0,0"
+                                                    Style="{StaticResource SettingsButton}" Command="{Binding PrimaryCommand}" />
+                                            <TextBox DockPanel.Dock="Right" Width="116" FontSize="12" Padding="6,4" IsReadOnly="True" IsReadOnlyCaretVisible="False"
                                                      Text="{Binding Text, Mode=OneWay}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                                                      InputMethod.IsInputMethodEnabled="False" Loaded="OnHotkeyBoxLoaded"
-                                                     PreviewKeyDown="OnHotkeyBoxKeyDown" GotKeyboardFocus="OnHotkeyBoxFocus" LostKeyboardFocus="OnHotkeyBoxBlur"
+                                                     IsEnabled="{Binding IsEditing}" IsEnabledChanged="OnHotkeyBoxEnabledChanged"
+                                                     ToolTip="{loc:Tr 'Click the box, then press the keys together.'}"
+                                                     PreviewKeyDown="OnHotkeyBoxKeyDown" PreviewKeyUp="OnHotkeyBoxKeyUp" GotKeyboardFocus="OnHotkeyBoxFocus" LostKeyboardFocus="OnHotkeyBoxBlur"
                                                      IsVisibleChanged="OnHotkeyBoxVisibleChanged"
                                                      Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
                                                      BorderBrush="{DynamicResource DividerBrush}" />

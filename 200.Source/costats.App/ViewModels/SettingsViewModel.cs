@@ -1295,11 +1295,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<HotkeySlotRow> hotkeySlots = [];
 
-    public bool CanAddHotkey => HotkeySlots.Count < HotkeyService.MaxCount && HotkeySlots.All(r => r.Text.Length > 0);
+    public bool CanAddHotkey => HotkeySlots.Count < HotkeyService.MaxCount && HotkeySlots.All(r => r.SettledText.Length > 0);
 
     partial void OnHotkeySlotsChanged(IReadOnlyList<HotkeySlotRow> value) => OnPropertyChanged(nameof(CanAddHotkey));
 
-    // 왜: 이 VM 이 HotkeyService 보다 먼저 만들어진다 — 처음엔 설정값으로, 입력란을 떠날 때 실제 등록값으로 다시 세운다
+    private HotkeySlotRow NewHotkeyRow(int index, string text, bool editing = false) =>
+        new(index, text, OnHotkeyPrimary, OnHotkeySecondary, editing) { SettledText = text };
+
+    // 왜: 이 VM 이 HotkeyService 보다 먼저 만들어진다 — 처음엔 설정값으로, 설정을 열 때 실제 등록값으로 다시 세운다
     private void RebuildHotkeySlots(IEnumerable<string>? texts = null)
     {
         var list = (texts ?? HotkeyService.Current?.Texts ?? new[] { _settings.Hotkey }.Concat(_settings.ExtraHotkeys)).ToList();
@@ -1308,7 +1311,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             list.Add(HotkeyRules.Default);
         }
 
-        HotkeySlots = list.Select((t, i) => new HotkeySlotRow(i, t, OnHotkeySlotButton)).ToList();
+        HotkeySlots = list.Select((t, i) => NewHotkeyRow(i, t)).ToList();
     }
 
     [RelayCommand]
@@ -1316,60 +1319,114 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         if (CanAddHotkey)
         {
-            HotkeySlots = [.. HotkeySlots, new HotkeySlotRow(HotkeySlots.Count, string.Empty, OnHotkeySlotButton)];
+            HotkeySlots = [.. HotkeySlots, NewHotkeyRow(HotkeySlots.Count, string.Empty, editing: true)];
         }
     }
 
-    /// <summary>입력란에서 누른 키. 수정키만 눌린 동안은 미리보기만 하고 적용하지 않는다.</summary>
+    /// <summary>입력 중인 줄에서 누른 키. 검사해 미리 보이기만 한다 — 등록·저장은 「저장」 버튼이 한다.</summary>
     public void CaptureHotkey(HotkeySlotRow row, Key key, ModifierKeys modifiers)
     {
+        if (!row.IsEditing)
+        {
+            return;
+        }
+
         if (HotkeyRules.IsModifierKey(key))
         {
             row.Text = HotkeyRules.Format(Key.None, modifiers) + "+…";
             return;
         }
 
-        ApplyHotkey(row, key, modifiers);
+        var (verdict, message) = HotkeyRules.Check(key, modifiers);
+        var text = HotkeyRules.Format(key, modifiers);
+        if (verdict != HotkeyVerdict.Blocked && HotkeySlots.Any(r => r != row && r.SettledText == text))
+        {
+            (verdict, message) = (HotkeyVerdict.Blocked, "Already set as another popup shortcut.");
+        }
+
+        row.Verdict = verdict;
+        if (verdict == HotkeyVerdict.Blocked)
+        {
+            row.Pending = null;
+            row.Message = $"{text} — {Loc.T(message)}";
+            row.Text = row.SettledText;
+            return;
+        }
+
+        row.Pending = (key, modifiers);
+        row.Text = text;
+        row.Message = $"{text} — {Loc.T("Press Save to apply.")}";
     }
 
     public void BeginHotkeyCapture() => HotkeyService.Current?.Suspend();
 
-    // 계약: 키를 못 받은 새 줄은 이때 사라진다
-    public void EndHotkeyCapture()
+    // 계약: 수정키만 눌렀다 뗀 미리보기를 지운다 — 고른 조합이 있으면 그 조합, 없으면 저장된 값으로
+    public void CancelHotkeyPreview(HotkeySlotRow row) =>
+        row.Text = row.Pending is { } pending ? HotkeyRules.Format(pending.Key, pending.Modifiers) : row.SettledText;
+
+    // 계약: 입력란이 초점을 놓으면 단축키만 다시 건다 — 줄과 고른 조합은 그대로 둔다(「저장」을 누르려면 초점이 먼저 떠난다)
+    public void EndHotkeyCapture() => HotkeyService.Current?.Resume();
+
+    // 계약: 설정 화면이 숨으면 저장하지 않은 입력을 버리고 등록된 값으로 줄을 다시 세운다
+    public void CloseHotkeyEditing()
     {
-        if (HotkeyService.Current is not { } service)
+        HotkeyService.Current?.Resume();
+        if (HotkeySlots.Any(r => r.IsEditing))
         {
-            return;
-        }
-
-        service.Resume();
-        var texts = service.Texts;
-        foreach (var row in HotkeySlots)
-        {
-            if (row.Index < texts.Count)
-            {
-                row.Text = texts[row.Index];
-            }
-        }
-
-        if (HotkeySlots.Count > texts.Count)
-        {
-            HotkeySlots = HotkeySlots.Take(texts.Count).ToList();
+            RebuildHotkeySlots();
         }
     }
 
-    private void OnHotkeySlotButton(HotkeySlotRow row)
+    // 계약: 완료 상태면 「변경」(입력 열기), 입력 중이면 「저장」(고른 조합을 등록·저장하고 잠근다)
+    private void OnHotkeyPrimary(HotkeySlotRow row)
+    {
+        if (!row.IsEditing)
+        {
+            row.Pending = null;
+            row.Verdict = HotkeyVerdict.Allowed;
+            row.Message = Loc.T("Press the keys, then Save.");
+            row.IsEditing = true;
+            return;
+        }
+
+        if (row.Pending is { } pending)
+        {
+            ApplyHotkey(row, pending.Key, pending.Modifiers);
+            return;
+        }
+
+        if (row.SettledText.Length == 0)
+        {
+            row.Verdict = HotkeyVerdict.Blocked;
+            row.Message = Loc.T("Press the keys, then Save.");
+            return;
+        }
+
+        // 왜: 아무 키도 고르지 않고 「저장」을 누르면 바꾼 것이 없다 — 원래 값으로 잠근다
+        row.Text = row.SettledText;
+        row.Message = string.Empty;
+        row.IsEditing = false;
+    }
+
+    // 계약: 1번 줄은 지울 수 없다 — 입력 중이면 「기본」(기본 키로 저장), 완료면 「+」(줄 추가). 나머지 줄은 「삭제」
+    private void OnHotkeySecondary(HotkeySlotRow row)
     {
         if (row.Index == 0)
         {
+            if (!row.IsEditing)
+            {
+                AddHotkey();
+                return;
+            }
+
             HotkeyRules.TryParse(HotkeyRules.Default, out var key, out var modifiers);
             ApplyHotkey(row, key, modifiers);
             return;
         }
 
         HotkeyService.Current?.RemoveAt(row.Index);
-        var texts = HotkeySlots.Where(r => r != row && r.Text.Length > 0 && !r.Text.EndsWith('…')).Select(r => r.Text).ToList();
-        RebuildHotkeySlots(HotkeyService.Current?.Texts ?? texts);
+        RebuildHotkeySlots(HotkeyService.Current?.Texts
+            ?? HotkeySlots.Where(r => r != row && r.SettledText.Length > 0).Select(r => r.SettledText).ToList());
         SaveHotkeys();
     }
 
@@ -1379,7 +1436,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         var text = HotkeyRules.Format(key, modifiers);
         var service = HotkeyService.Current;
         var texts = service?.Texts ?? [];
-        var registered = row.Index < texts.Count ? texts[row.Index] : string.Empty;
 
         if (verdict != HotkeyVerdict.Blocked && texts.Select((t, i) => (t, i)).Any(x => x.i != row.Index && x.t == text))
         {
@@ -1391,22 +1447,25 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         row.Verdict = verdict;
+        row.Pending = null;
         if (verdict == HotkeyVerdict.Blocked)
         {
             row.Message = $"{text} — {Loc.T(message)}";
-            row.Text = registered;
+            row.Text = row.SettledText;
             return;
         }
 
+        row.SettledText = text;
         row.Text = text;
         row.Message = $"✓ {text} — {Loc.T(message)}";
+        row.IsEditing = false;
         OnPropertyChanged(nameof(CanAddHotkey));
         SaveHotkeys();
     }
 
     private void SaveHotkeys()
     {
-        var texts = HotkeyService.Current?.Texts ?? HotkeySlots.Select(r => r.Text).Where(t => t.Length > 0).ToList();
+        var texts = HotkeyService.Current?.Texts ?? HotkeySlots.Select(r => r.SettledText).Where(t => t.Length > 0).ToList();
         _settings.Hotkey = texts.FirstOrDefault() ?? HotkeyRules.Default;
         _settings.ExtraHotkeys = texts.Skip(1).ToList();
         _ = SaveSettingsAsync();

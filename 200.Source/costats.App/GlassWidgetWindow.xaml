@@ -750,7 +750,7 @@
                     </DockPanel>
                     <DockPanel>
                         <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left">
-                            <Run Text="{loc:Tr 'Last 30 days:'}" />
+                            <Run Text="{Binding WindowLabelText, Mode=OneWay}" />
                         </TextBlock>
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
                             <TextBlock Text="{Binding MonthCostText}" FontSize="12" Foreground="{DynamicResource CostMonthAccent}" FontWeight="SemiBold" />

@@ -82,7 +82,11 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private string monthCostText = "--";
 
-    // 계약: 최근 30일 합계를 30 으로 나눈 하루치 — 기간 칩과 무관하게 「최근 30일」 줄과 같은 창이다
+    // 계약: 「최근 N일」 줄의 머리글 — 기간 칩을 따른다
+    [ObservableProperty]
+    private string windowLabelText = Loc.T("Last {0} days:", 30);
+
+    // 계약: 고른 기간의 합계를 그 일수로 나눈 하루치 — 「최근 N일」 줄과 같은 창이다
     [ObservableProperty]
     private string avgCostText = "--";
 
@@ -521,6 +525,18 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         var entries = history
             .Where(entry => entry.Day >= start && entry.Day <= today)
             .ToList();
+
+        // 계약: 요약 두 줄(최근 N일 · 일 평균)은 차트·모델·토큰 유형과 같은 기간·같은 이력으로 센다
+        vm.WindowLabelText = RangeDays == 365 ? Loc.T("Last 1 year:") : Loc.T("Last {0} days:", RangeDays);
+        if (vm.HasCostData)
+        {
+            var rangeCost = entries.Sum(e => e.Cost);
+            var rangeTokens = entries.Sum(e => e.Tokens);
+            vm.MonthCostText = UsageFormatter.FormatCurrency(rangeCost);
+            vm.MonthTokensText = UsageFormatter.FormatTokenCount(rangeTokens);
+            vm.AvgCostText = UsageFormatter.FormatCurrency(rangeCost / RangeDays);
+            vm.AvgTokensText = UsageFormatter.FormatTokenCount(rangeTokens / RangeDays);
+        }
 
         var buckets = BuildBuckets(start, today);
         var totals = buckets

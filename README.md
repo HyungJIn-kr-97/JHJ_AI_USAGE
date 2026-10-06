@@ -32,7 +32,7 @@ MIT 입니다([LICENSE](LICENSE)). 원저작자 고지(`Copyright (c) 2026 fmdz`
 |---|---|
 | 개발 빌드 | `dotnet build 200.Source\costats.sln -c Release` → `200.Source\costats.App\bin\Release\…\AiUsageMonitor.exe`. 개발 실행이라 설치·업데이트는 동작하지 않습니다 |
 | 설치 파일 · 업데이트 꾸러미 | `800.Deploy\Build-Exe.bat` 더블클릭(배포 버전을 올리려면 `Build-Exe.bat 1.0.1` — 날짜 자리는 빌드가 붙인다) → `800.Deploy\publish\` 에 `AiUsageMonitor-win-x64-v<버전>.zip`(업데이트용) · `AiUsageMonitor-win-x64-v<버전>.exe`(오프라인 설치) · `AiUsageMonitor-Setup.exe`(웹 설치 관리자)와 각각의 `.sha256` |
-| 릴리스 | 태그 `v<버전>` 으로 GitHub Release 를 만들고 위 파일을 올립니다. 예: `gh release create v1.0.0.20261006 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.0.20261006.zip 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.0.20261006.zip.sha256 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.0.20261006.exe 800.Deploy\publish\AiUsageMonitor-Setup.exe`. 태그는 `v<배포 버전>.<빌드 날짜>` 이고 `publish.ps1` 이 마지막에 출력합니다(아래 「버전 체계」). 올린 뒤 `800.Deploy\prune-releases.ps1`(기본은 목록만, `-Apply` 로 삭제)로 같은 배포 버전의 옛 날짜 릴리스를 지웁니다. 함정: 앱의 업데이트와 웹 설치 관리자는 **zip 이름**으로 버전을 찾으므로 zip 은 빠뜨리면 안 됩니다 |
+| 릴리스 | 태그 `v<버전>` 으로 GitHub Release 를 만들고 위 파일을 올립니다. 예: `gh release create v1.0.0.20261006 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.0.20261006.zip 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.0.20261006.zip.sha256 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.0.20261006.exe 800.Deploy\publish\AiUsageMonitor-Setup.exe`. 태그는 `v<배포 버전>.<빌드 날짜>` 이고 `publish.ps1` 이 마지막에 출력합니다(아래 「버전 체계」). **한 번에 하려면 `800.Deploy\Release.bat`** — 버전을 올릴지 묻고(Enter 면 날짜만 바뀜) 커밋·빌드·push·릴리스·옛 날짜판 정리까지 단계마다 확인받으며 진행합니다. 손으로 할 때는 올린 뒤 `800.Deploy\prune-releases.ps1`(기본은 목록만, `-Apply` 로 삭제)로 같은 배포 버전의 옛 날짜 릴리스를 지웁니다. 함정: 앱의 업데이트와 웹 설치 관리자는 **zip 이름**으로 버전을 찾으므로 zip 은 빠뜨리면 안 됩니다 |
 
 - `800.Deploy\publish\` 는 git 에 올라가지 않습니다.
 

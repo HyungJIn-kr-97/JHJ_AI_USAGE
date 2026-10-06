@@ -72,10 +72,30 @@ namespace costats.App.Views
             }
         }
 
-        // 왜: 「단축키 추가」로 생긴 빈 줄은 바로 키를 받게 초점을 준다
+        // 계약: 수정키만 눌렀다 떼면 「Alt+…」 미리보기를 지운다 — 고른 조합(없으면 저장된 값)으로 돌아간다
+        private void OnHotkeyBoxKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            e.Handled = true;
+            if (System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.None &&
+                sender is FrameworkElement { DataContext: HotkeySlotRow row } && row.Text.EndsWith('…'))
+            {
+                (DataContext as SettingsViewModel)?.CancelHotkeyPreview(row);
+            }
+        }
+
+        // 왜: 「+」로 생긴 줄은 입력 중 상태로 태어난다 — 바로 키를 받게 초점을 준다
         private void OnHotkeyBoxLoaded(object sender, RoutedEventArgs e)
         {
-            if (sender is TextBox { DataContext: HotkeySlotRow { Text.Length: 0 } } box)
+            if (sender is TextBox { DataContext: HotkeySlotRow { IsEditing: true } } box)
+            {
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () => box.Focus());
+            }
+        }
+
+        // 왜: 「변경」을 누르면 입력란이 풀린다 — 다시 클릭하지 않아도 키를 받게 초점을 준다
+        private void OnHotkeyBoxEnabledChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (sender is TextBox { IsEnabled: true, IsLoaded: true } box)
             {
                 Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () => box.Focus());
             }
@@ -88,11 +108,13 @@ namespace costats.App.Views
             (DataContext as SettingsViewModel)?.EndHotkeyCapture();
 
         // 왜: 초점을 쥔 채 팝업이 숨으면 LostKeyboardFocus 가 안 와 단축키가 내려간 채 남는다
+        // 함정: 줄을 더하면 목록이 다시 그려지며 옛 입력란도 「안 보임」이 된다 — 설정 화면 자체가 숨을 때만 입력을 닫는다
+        // 함정: 이 신호 안에서 목록을 바꾸면 다시 그리는 도중에 또 바뀌어 줄이 통째로 비었다 — 한 박자 뒤에 닫는다
         private void OnHotkeyBoxVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
-            if (sender is UIElement { IsVisible: false })
+            if (sender is UIElement { IsVisible: false } && !IsVisible)
             {
-                (DataContext as SettingsViewModel)?.EndHotkeyCapture();
+                Dispatcher.BeginInvoke(() => (DataContext as SettingsViewModel)?.CloseHotkeyEditing());
             }
         }
 
