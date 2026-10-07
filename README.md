@@ -14,14 +14,20 @@ MIT 입니다([LICENSE](LICENSE)). 원저작자 고지(`Copyright (c) 2026 fmdz`
 
 | 파일 | 종류 | 하는 일 |
 |---|---|---|
-| `AiUsageMonitor-Setup.exe` (약 60KB) | **웹 설치 관리자** | 실행하면 GitHub 릴리스 목록을 읽어 버전을 고르게 하고(기본은 최신), 그 버전을 받아 설치한 뒤 실행합니다. 낮은 버전을 고르면 되돌리기가 됩니다. `--version 1.0.0` · `--silent` 인자를 받습니다. Windows 기본 .NET Framework 4.8 로 돕니다 |
-| `AiUsageMonitor-win-x64-v<버전>.exe` (약 65MB) | **오프라인 설치 파일** | 인터넷 없이 그 버전 하나로 설치합니다. 설치 여부를 묻는 창에서 「예」를 고르면 설치본으로 다시 뜹니다 |
+| `AI-Usage-Monitor_JHJ_Setup.exe` (약 75KB) | **웹 설치 관리자** | 실행하면 GitHub 릴리스 목록을 읽어 버전을 고르게 하고(기본은 최신), 그 버전을 받아 설치한 뒤 실행합니다. 낮은 버전을 고르면 되돌리기가 됩니다. `--version 1.0.0` · `--silent` 인자를 받습니다. Windows 기본 .NET Framework 4.8 로 돕니다 |
+| `AI-Usage-Monitor_JHJ_<버전>_win-x64.exe` (약 65MB) | **오프라인 설치 파일** | 인터넷 없이 그 버전 하나로 설치합니다. 설치 여부를 묻는 창에서 「예」를 고르면 설치본으로 다시 뜹니다 |
 
 어느 쪽이든 `%LOCALAPPDATA%\AiUsageMonitor\app` 에 놓이고 시작 메뉴 바로가기(`AI 통합 사용량 모니터`)가 생깁니다.
 
 처음 실행할 때 「Windows의 PC 보호」(SmartScreen) 창이 뜨면 **「추가 정보」 → 「실행」** 을 누르십시오. 코드 서명이 없는 exe 에 Windows 가 늘 보이는 창이고, 같은 파일은 두 번째부터 묻지 않습니다.
 
-설치 파일 고정 주소 — https://github.com/HyungJIn-kr-97/JHJ_AI_USAGE/releases/latest/download/AiUsageMonitor-Setup.exe
+**winget 으로 설치**(SmartScreen 창 없음 · `winget upgrade` 로 업데이트) — 터미널에 아래 한 줄. 패키지 등록(microsoft/winget-pkgs 심사)이 끝난 뒤부터 됩니다. 설치 관리자가 「프로그램 추가/제거」에 등록하므로 거기서도 제거할 수 있습니다.
+
+```text
+winget install HyungJin.AiUsageMonitor
+```
+
+설치 파일 고정 주소 — https://github.com/HyungJIn-kr-97/JHJ_AI_USAGE/releases/latest/download/AI-Usage-Monitor_JHJ_Setup.exe
 (언제나 최신 웹 설치 관리자를 받습니다. 설정 「앱 설정」 머리줄의 「앱 공유하기」 🔗 가 같은 주소를 클립보드에 넣고, ⬇ 가 바로 내려받습니다)
 
 - 단축키 `Ctrl+Alt+2` 로 팝업을 열고 닫습니다. 설정 › 일반 「팝업 단축키 1」에서 바꾸고 「+ 단축키 추가」로 4개까지 늘릴 수 있습니다(권장 `Ctrl+Alt+F1~F12`, `Ctrl+C`·`Alt+F4` 같은 수정키 하나짜리·Win 조합·편집 키는 막습니다). 설정 창은 팝업 우측 아래 톱니입니다.
@@ -36,8 +42,8 @@ MIT 입니다([LICENSE](LICENSE)). 원저작자 고지(`Copyright (c) 2026 fmdz`
 | 하려는 것 | 방법 |
 |---|---|
 | 개발 빌드 | `dotnet build 200.Source\costats.sln -c Release` → `200.Source\costats.App\bin\Release\…\AiUsageMonitor.exe`. 개발 실행이라 설치·업데이트는 동작하지 않습니다 |
-| 설치 파일 · 업데이트 꾸러미 | `800.Deploy\Build-Exe.bat` 더블클릭(배포 버전을 올리려면 `Build-Exe.bat 1.0.1` — 날짜 자리는 빌드가 붙인다) → `800.Deploy\publish\` 에 `AiUsageMonitor-win-x64-v<버전>.zip`(업데이트용) · `AiUsageMonitor-win-x64-v<버전>.exe`(오프라인 설치) · `AiUsageMonitor-Setup.exe`(웹 설치 관리자)와 각각의 `.sha256` |
-| 릴리스 | 태그 `v<버전>` 으로 GitHub Release 를 만들고 위 파일을 올립니다. 예: `gh release create v1.0.0.20261006 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.0.20261006.zip 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.0.20261006.zip.sha256 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.0.20261006.exe 800.Deploy\publish\AiUsageMonitor-Setup.exe`. 태그는 `v<배포 버전>.<빌드 날짜>` 이고 `publish.ps1` 이 마지막에 출력합니다(아래 「버전 체계」). **한 번에 하려면 `800.Deploy\Release.bat`** — 버전을 올릴지 묻고(Enter 면 날짜만 바뀜) 커밋·빌드·push·릴리스·옛 날짜판 정리까지 단계마다 확인받으며 진행합니다. 손으로 할 때는 올린 뒤 `800.Deploy\prune-releases.ps1`(기본은 목록만, `-Apply` 로 삭제)로 같은 배포 버전의 옛 날짜 릴리스를 지웁니다. 함정: 앱의 업데이트와 웹 설치 관리자는 **zip 이름**으로 버전을 찾으므로 zip 은 빠뜨리면 안 됩니다 |
+| 설치 파일 · 업데이트 꾸러미 | `800.Deploy\Build-Exe.bat` 더블클릭(배포 버전을 올리려면 `Build-Exe.bat 1.0.1` — 날짜 자리는 빌드가 붙인다) → `800.Deploy\publish\` 에 `AiUsageMonitor-win-x64-v<버전>.zip`(업데이트용 — 설치본이 이 이름으로 다음 버전을 찾으므로 **바꾸지 않는다**) · `AI-Usage-Monitor_JHJ_<버전>_win-x64.exe`(오프라인 설치) · `AI-Usage-Monitor_JHJ_Setup.exe`(웹 설치 관리자)와 `.sha256` |
+| 릴리스 | 태그 `v<버전>` 으로 GitHub Release 를 만들고 위 파일을 올립니다. 예: `gh release create v1.0.3.20261007 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.3.20261007.zip 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.3.20261007.zip.sha256 800.Deploy\publish\AI-Usage-Monitor_JHJ_1.0.3.20261007_win-x64.exe 800.Deploy\publish\AI-Usage-Monitor_JHJ_Setup.exe`. 태그는 `v<배포 버전>.<빌드 날짜>` 이고 `publish.ps1` 이 마지막에 출력합니다(아래 「버전 체계」). **한 번에 하려면 `800.Deploy\Release.bat`** — 버전을 올릴지 묻고(Enter 면 날짜만 바뀜) 커밋·빌드·push·릴리스·옛 날짜판 정리까지 단계마다 확인받으며 진행합니다. 손으로 할 때는 올린 뒤 `800.Deploy\prune-releases.ps1`(기본은 목록만, `-Apply` 로 삭제)로 같은 배포 버전의 옛 날짜 릴리스를 지웁니다. 함정: 앱의 업데이트와 웹 설치 관리자는 **zip 이름**으로 버전을 찾으므로 zip 은 빠뜨리면 안 됩니다 |
 
 - `800.Deploy\publish\` 는 git 에 올라가지 않습니다.
 

@@ -23,6 +23,91 @@ namespace costats.Setup
 
         // 계약: 사용자가 고른 설치 폴더는 install-dir.txt 에 남긴다 — 앱의 「이 버전 설치」(--silent)와 「제거」가 같은 자리를 쓴다
         private static readonly string InstallDirFile = Path.Combine(DataDir, "install-dir.txt");
+
+        // 계약: 「프로그램 추가/제거」 등록 — winget 이 설치 확인·업그레이드·제거에 쓴다. 제거 명령은 DataDir 에 복사해 둔 이 설치 관리자다
+        private const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AiUsageMonitor";
+        public static string SetupCopyPath => Path.Combine(DataDir, "AiUsageMonitor-Setup.exe");
+        private static string SelfPath => Path.GetFullPath(typeof(Installer).Assembly.Location);
+
+        private static void KeepSetupCopy()
+        {
+            try
+            {
+                if (!string.Equals(SelfPath, Path.GetFullPath(SetupCopyPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    Directory.CreateDirectory(DataDir);
+                    File.Copy(SelfPath, SetupCopyPath, true);
+                }
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+
+        private static void RegisterUninstall()
+        {
+            using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(UninstallKey))
+            {
+                if (key == null)
+                {
+                    return;
+                }
+
+                key.SetValue("DisplayName", "AI 통합 사용량 모니터");
+                key.SetValue("DisplayVersion", InstalledVersion() ?? string.Empty);
+                key.SetValue("Publisher", "HyungJin Ju");
+                key.SetValue("InstallLocation", InstallDir);
+                key.SetValue("DisplayIcon", InstalledExe);
+                key.SetValue("UninstallString", "\"" + SetupCopyPath + "\" --uninstall");
+                key.SetValue("QuietUninstallString", "\"" + SetupCopyPath + "\" --uninstall --silent");
+                key.SetValue("URLInfoAbout", "https://github.com/HyungJIn-kr-97/JHJ_AI_USAGE");
+                key.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
+                key.SetValue("NoModify", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                key.SetValue("NoRepair", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                key.SetValue("EstimatedSize", (int)(DirectorySize(InstallDir) / 1024), Microsoft.Win32.RegistryValueKind.DWord);
+            }
+        }
+
+        private static long DirectorySize(string dir) =>
+            Directory.Exists(dir) ? new DirectoryInfo(dir).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length) : 0;
+
+        // 왜: 실행 중인 자기 exe 는 못 지운다 — 종료 뒤 cmd 가 지우고, 폴더가 비면 폴더도 없앤다
+        private static void ScheduleSelfDelete(string file, string dirToRemove)
+        {
+            var script = "/c ping -n 3 127.0.0.1 >nul & del /q \"" + file + "\"" + (dirToRemove != null ? " & rmdir \"" + dirToRemove + "\"" : string.Empty);
+            Process.Start(new ProcessStartInfo("cmd.exe", script) { CreateNoWindow = true, UseShellExecute = false, WindowStyle = ProcessWindowStyle.Hidden });
+        }
+
+        private static void DeleteDataDir()
+        {
+            var self = SelfPath;
+            var root = Path.GetFullPath(DataDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            var selfInside = self.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+            foreach (var entry in Directory.EnumerateFileSystemEntries(DataDir).ToList())
+            {
+                if (selfInside && string.Equals(Path.GetFullPath(entry), self, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (Directory.Exists(entry))
+                {
+                    Directory.Delete(entry, true);
+                }
+                else
+                {
+                    File.Delete(entry);
+                }
+            }
+
+            if (selfInside)
+            {
+                ScheduleSelfDelete(self, DataDir);
+            }
+            else
+            {
+                Directory.Delete(DataDir, true);
+            }
+        }
         private static string _installDir;
 
         public static string InstallDir
@@ -159,6 +244,8 @@ namespace costats.Setup
 
             CreateShortcut();
             SaveInstallDir();
+            KeepSetupCopy();
+            RegisterUninstall();
         }
 
         public static void Launch() =>
@@ -233,9 +320,22 @@ namespace costats.Setup
                 File.Delete(InstallDirFile);
             }
 
+            Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false);
+
             if (!keepData && Directory.Exists(DataDir))
             {
-                Directory.Delete(DataDir, true);
+                DeleteDataDir();
+            }
+            else if (File.Exists(SetupCopyPath))
+            {
+                if (string.Equals(SelfPath, Path.GetFullPath(SetupCopyPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    ScheduleSelfDelete(SetupCopyPath, null);
+                }
+                else
+                {
+                    File.Delete(SetupCopyPath);
+                }
             }
         }
         public static string FindArg(string[] args, string name) =>

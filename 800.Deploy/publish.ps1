@@ -126,7 +126,8 @@ foreach ($rid in $platforms) {
     Write-Host "Checksum: $checksumPath" -ForegroundColor Green
 
     # Offline installer: the single-file exe installs itself on first run (SelfInstaller), so it ships as-is.
-    $exeAsset = Join-Path $outputBase "AiUsageMonitor-$rid-v$Release.exe"
+    # Contract: human-facing names carry the maker tag; the update zip above keeps its old name because installed apps look for it.
+    $exeAsset = Join-Path $outputBase "AI-Usage-Monitor_JHJ_${Release}_$rid.exe"
     Copy-Item -Path (Join-Path $outputPath "AiUsageMonitor.exe") -Destination $exeAsset -Force
     $null = Write-Checksum -Path $exeAsset
     Write-Host "Created: $exeAsset" -ForegroundColor Green
@@ -142,7 +143,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to build web installer" -ForegroundColor Red
     exit 1
 }
-$setupAsset = Join-Path $outputBase "AiUsageMonitor-Setup.exe"
+$setupAsset = Join-Path $outputBase "AI-Usage-Monitor_JHJ_Setup.exe"
 Copy-Item -Path (Join-Path $setupOut "AiUsageMonitor-Setup.exe") -Destination $setupAsset -Force
 $null = Write-Checksum -Path $setupAsset
 Write-Host "Created: $setupAsset" -ForegroundColor Green

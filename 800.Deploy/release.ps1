@@ -157,8 +157,8 @@ if ($LASTEXITCODE -ne 0) { Fail "빌드 실패. 위 메시지를 확인해 주�
 $assets = @(
     (Join-Path $out "AiUsageMonitor-win-x64-$tag.zip"),
     (Join-Path $out "AiUsageMonitor-win-x64-$tag.zip.sha256"),
-    (Join-Path $out "AiUsageMonitor-win-x64-$tag.exe"),
-    (Join-Path $out "AiUsageMonitor-Setup.exe")
+    (Join-Path $out "AI-Usage-Monitor_JHJ_$($tag.TrimStart('v'))_win-x64.exe"),
+    (Join-Path $out "AI-Usage-Monitor_JHJ_Setup.exe")
 )
 foreach ($asset in $assets) {
     if (-not (Test-Path $asset)) { Fail "빌드 결과물이 없습니다: $asset" }
@@ -217,9 +217,25 @@ if ($oldFiles.Count -gt 0) {
 
 # --- 끝 ---------------------------------------------------------------------
 Write-Host ""
+# --- 6. winget 매니페스트 ---------------------------------------------------
+# 계약: 올라간 자산의 해시로 매니페스트를 만든다 — 제출(wingetcreate submit · PR)은 사람이 한다
+Step "6/6 winget 매니페스트"
+try {
+    $manifestDir = & (Join-Path $PSScriptRoot "winget-manifest.ps1") -Version $release -Repository $Repository | Select-Object -Last 1
+}
+catch {
+    $manifestDir = $null
+    Write-Host "winget 매니페스트를 만들지 못했습니다: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
+Write-Host ""
 Write-Host "[완료] $tag 배포했습니다." -ForegroundColor Green
+if ($manifestDir) {
+    Write-Host "  winget 매니페스트: $manifestDir"
+    Write-Host "  winget 제출     : wingetcreate submit `"$manifestDir`"   (처음 한 번 winget install wingetcreate)"
+}
 Write-Host "  릴리스 페이지 : https://github.com/$Repository/releases/tag/$tag"
-Write-Host "  설치 파일 주소: https://github.com/$Repository/releases/latest/download/AiUsageMonitor-Setup.exe"
+Write-Host "  설치 파일 주소: https://github.com/$Repository/releases/latest/download/AI-Usage-Monitor_JHJ_Setup.exe"
 Write-Host "  빌드하느라 개발 빌드 앱을 껐습니다. 다시 띄우려면:"
 Write-Host "  $repo\200.Source\costats.App\bin\Release\net10.0-windows\win-x64\AiUsageMonitor.exe"
 exit 0

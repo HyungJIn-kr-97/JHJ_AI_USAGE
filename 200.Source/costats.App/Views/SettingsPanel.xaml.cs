@@ -47,6 +47,9 @@ namespace costats.App.Views
         private void OnShareLinkClick(object sender, RoutedEventArgs e) =>
             Flash(ShareLinkButton, CopyText(Services.Updates.UpdateOptions.SetupFileUrl, Localization.Loc.T("Copied the setup file link")));
 
+        private void OnShareWingetClick(object sender, RoutedEventArgs e) =>
+            Flash(ShareWingetButton, CopyText(Services.Updates.UpdateOptions.WingetCommand, Localization.Loc.T("Copied the winget command")));
+
         private void OnShareDownloadClick(object sender, RoutedEventArgs e) =>
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Services.Updates.UpdateOptions.SetupFileUrl) { UseShellExecute = true });
 

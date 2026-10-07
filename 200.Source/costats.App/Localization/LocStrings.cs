@@ -196,6 +196,8 @@ internal static class LocStrings
         ["Install this version"] = "이 버전 설치",
         ["Copy setup file link — anyone you send it to gets the latest setup file"] = "설치 파일 주소 복사 — 다른 사람에게 보내면 최신 설치 파일을 받습니다",
         ["Copied the setup file link"] = "설치 파일 주소를 복사했습니다",
+        ["Copy winget command — paste it into a terminal; installs without the SmartScreen prompt"] = "winget 설치 명령 복사 — 터미널에 붙여 넣으면 SmartScreen 창 없이 설치됩니다",
+        ["Copied the winget command"] = "winget 설치 명령을 복사했습니다",
         ["Author email"] = "제작자 메일",
         ["Share the app"] = "앱 공유하기",
         ["Author email — click to copy the address"] = "제작자 메일 — 클릭하면 주소를 복사합니다",

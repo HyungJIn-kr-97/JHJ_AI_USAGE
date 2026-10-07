@@ -322,6 +322,19 @@ namespace costats.Setup
                 return;
             }
 
+            // 함정: --silent(앱 · winget)는 버튼을 거치지 않는다 — 개발 빌드 폴더가 대상이면 여기서도 막아야 bin\ 이 비워지지 않는다
+            if (_devBuild)
+            {
+                _status.Text = "개발 빌드 폴더에는 설치하지 않습니다. 설치 위치를 바꿔 주십시오.";
+                if (_silent)
+                {
+                    Environment.ExitCode = 2;
+                    Close();
+                }
+
+                return;
+            }
+
             _install.Enabled = false;
             _remove.Enabled = false;
             _pathChange.Enabled = false;
