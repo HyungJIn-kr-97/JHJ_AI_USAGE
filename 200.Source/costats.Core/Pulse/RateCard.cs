@@ -52,15 +52,31 @@ public sealed record ModelRateCard
 /// </summary>
 public static class TariffRegistry
 {
+    // 계약: Claude 단가의 출처와 확인일 — 화면 툴팁이 그대로 보인다. 표가 바뀌면 둘을 함께 고친다
+    public const string ClaudeRateSource = "platform.claude.com/docs/en/about-claude/pricing";
+    public const string ClaudeRateSourceDate = "2026-10-06";
+
+    // 함정: 키는 날짜 꼬리를 뗀 정식 이름이다 — 없는 모델은 ClaudeFallbackRate(Sonnet 4.6 단가)로 떨어지고 IsKnownClaudeModel 이 false 다
     private static readonly Dictionary<string, ModelRateCard> ClaudeRates = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["claude-haiku-4-5"] = new ModelRateCard
-        {
-            InputRate = 0.000001m,
-            OutputRate = 0.000005m,
-            CacheReadRate = 0.0000001m,
-            CacheWriteRate = 0.00000125m
-        },
+        ["claude-fable-5-1"] = Claude(10m, 50m, 0.25m, 12.5m),
+        ["claude-mythos-5-1"] = Claude(10m, 50m, 0.25m, 12.5m),
+        ["claude-fable-5"] = Claude(10m, 50m, 1m, 12.5m),
+        ["claude-mythos-5"] = Claude(10m, 50m, 1m, 12.5m),
+        ["claude-opus-5-5"] = Claude(4m, 20m, 0.2m, 5m),
+        ["claude-opus-5"] = Claude(5m, 25m, 0.5m, 6.25m),
+        ["claude-opus-4-8"] = Claude(5m, 25m, 0.5m, 6.25m),
+        ["claude-opus-4-7"] = Claude(5m, 25m, 0.5m, 6.25m),
+        ["claude-opus-4-6"] = Claude(5m, 25m, 0.5m, 6.25m),
+        ["claude-opus-4-5"] = Claude(5m, 25m, 0.5m, 6.25m),
+        ["claude-opus-4-1"] = Claude(15m, 75m, 1.5m, 18.75m),
+        ["claude-opus-4"] = Claude(15m, 75m, 1.5m, 18.75m),
+        ["claude-sonnet-5-5"] = Claude(2m, 10m, 0.2m, 2.5m),
+        ["claude-sonnet-5"] = Claude(2m, 10m, 0.2m, 2.5m),
+        ["claude-sonnet-4-6"] = Claude(3m, 15m, 0.3m, 3.75m),
+        ["claude-sonnet-4"] = Claude(3m, 15m, 0.3m, 3.75m),
+        ["claude-haiku-4-5"] = Claude(1m, 5m, 0.1m, 1.25m),
+        ["claude-haiku-3-5"] = Claude(0.8m, 4m, 0.08m, 1m),
         ["claude-sonnet-4-5"] = new ModelRateCard
         {
             InputRate = 0.000003m,
@@ -72,29 +88,20 @@ public static class TariffRegistry
             OutputRateAboveTier = 0.0000225m,
             CacheReadRateAboveTier = 0.0000006m,
             CacheWriteRateAboveTier = 0.0000075m
-        },
-        ["claude-opus-4-5"] = new ModelRateCard
-        {
-            InputRate = 0.000005m,
-            OutputRate = 0.000025m,
-            CacheReadRate = 0.0000005m,
-            CacheWriteRate = 0.00000625m
-        },
-        ["claude-opus-4"] = new ModelRateCard
-        {
-            InputRate = 0.000015m,
-            OutputRate = 0.000075m,
-            CacheReadRate = 0.0000015m,
-            CacheWriteRate = 0.00001875m
-        },
-        ["claude-sonnet-4"] = new ModelRateCard
-        {
-            InputRate = 0.000003m,
-            OutputRate = 0.000015m,
-            CacheReadRate = 0.0000003m,
-            CacheWriteRate = 0.00000375m
         }
     };
+
+    // 계약: 인자는 USD / 1M 토큰(공개 요금표 표기) — 입력 · 출력 · 캐시 읽기 · 5분 캐시 쓰기
+    private static ModelRateCard Claude(decimal input, decimal output, decimal cacheRead, decimal cacheWrite) => new()
+    {
+        InputRate = input / 1_000_000m,
+        OutputRate = output / 1_000_000m,
+        CacheReadRate = cacheRead / 1_000_000m,
+        CacheWriteRate = cacheWrite / 1_000_000m
+    };
+
+    public static bool IsKnownClaudeModel(string rawModelName) =>
+        ClaudeRates.ContainsKey(NormalizeClaudeModel(rawModelName));
 
     private static readonly Dictionary<string, ModelRateCard> CodexRates = new(StringComparer.OrdinalIgnoreCase)
     {

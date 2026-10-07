@@ -285,13 +285,14 @@ public sealed class StartupUpdateCoordinator
     }
 
     // 계약: 받은 zip 을 검증해 staging 에 풀고 pending.json 을 남긴다 — 실제 교체는 TryApplyPendingUpdateAsync 가 한다
-    private async Task StageAsync(ReleaseDocument release, ReleaseAsset zipAsset, Version releaseVersion, bool allowDowngrade, CancellationToken cancellationToken)
+    private async Task StageAsync(ReleaseDocument release, ReleaseAsset zipAsset, Version releaseVersion, bool allowDowngrade, CancellationToken cancellationToken, IProgress<UpdateProgress>? progress = null)
     {
         var downloadsDir = Path.Combine(_updatesRoot, "downloads");
         Directory.CreateDirectory(downloadsDir);
         var zipPath = Path.Combine(downloadsDir, zipAsset.Name);
-        await DownloadToFileAsync(zipAsset.DownloadUrl, zipPath, cancellationToken).ConfigureAwait(false);
+        await DownloadToFileAsync(zipAsset.DownloadUrl, zipPath, cancellationToken, progress).ConfigureAwait(false);
 
+        progress?.Report(new UpdateProgress(UpdateStage.Verifying, 0, 0));
         var expectedHash = await TryResolveChecksumAsync(release, zipAsset, cancellationToken).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(expectedHash))
         {
@@ -312,6 +313,7 @@ public sealed class StartupUpdateCoordinator
         }
 
         Directory.CreateDirectory(stageDir);
+        progress?.Report(new UpdateProgress(UpdateStage.Extracting, 0, 0));
         ZipFile.ExtractToDirectory(zipPath, stageDir, overwriteFiles: true);
 
         if (!TryFindStagedExecutable(stageDir, out var stagedExecutablePath))
@@ -401,7 +403,7 @@ public sealed class StartupUpdateCoordinator
     /// 고른 버전을 받아 설치 준비까지 한다 — 낮은 버전(되돌리기)도 된다. 적용은 TryApplyPendingUpdateAsync(manualTrigger: true).
     /// 계약: GetReleasesAsync 로 목록을 먼저 읽어 둔 버전만 받는다.
     /// </summary>
-    public async Task<UpdateCheckResult> StageReleaseAsync(Version version, CancellationToken cancellationToken)
+    public async Task<UpdateCheckResult> StageReleaseAsync(Version version, CancellationToken cancellationToken, IProgress<UpdateProgress>? progress = null)
     {
         if (!CanInstall)
         {
@@ -427,7 +429,7 @@ public sealed class StartupUpdateCoordinator
         try
         {
             Directory.CreateDirectory(_updatesRoot);
-            await StageAsync(release, zipAsset, assetVersion, allowDowngrade: assetVersion < _currentVersion, cancellationToken).ConfigureAwait(false);
+            await StageAsync(release, zipAsset, assetVersion, allowDowngrade: assetVersion < _currentVersion, cancellationToken, progress).ConfigureAwait(false);
             return UpdateCheckResult.UpdateStaged;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -741,7 +743,7 @@ public sealed class StartupUpdateCoordinator
         return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task DownloadToFileAsync(string url, string destinationPath, CancellationToken cancellationToken)
+    private async Task DownloadToFileAsync(string url, string destinationPath, CancellationToken cancellationToken, IProgress<UpdateProgress>? progress = null)
     {
         var tempPath = $"{destinationPath}.part";
         SafeDeleteFile(tempPath);
@@ -754,10 +756,27 @@ public sealed class StartupUpdateCoordinator
         using var downloadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         downloadCts.CancelAfter(TimeSpan.FromMinutes(3));
 
+        // 왜: 65MB 꾸러미는 수십 초 걸린다 — 256KB 마다 받은 양을 알려 화면이 멈춘 것처럼 보이지 않게 한다
+        var total = response.Content.Headers.ContentLength ?? -1;
+        progress?.Report(new UpdateProgress(UpdateStage.Downloading, 0, total));
         await using (var source = await response.Content.ReadAsStreamAsync(downloadCts.Token).ConfigureAwait(false))
         await using (var destination = File.Create(tempPath))
         {
-            await source.CopyToAsync(destination, downloadCts.Token).ConfigureAwait(false);
+            var buffer = new byte[81920];
+            long done = 0, lastReported = 0;
+            int read;
+            while ((read = await source.ReadAsync(buffer, downloadCts.Token).ConfigureAwait(false)) > 0)
+            {
+                await destination.WriteAsync(buffer.AsMemory(0, read), downloadCts.Token).ConfigureAwait(false);
+                done += read;
+                if (done - lastReported >= 262_144)
+                {
+                    lastReported = done;
+                    progress?.Report(new UpdateProgress(UpdateStage.Downloading, done, total));
+                }
+            }
+
+            progress?.Report(new UpdateProgress(UpdateStage.Downloading, done, total < 0 ? done : total));
         }
 
         SafeDeleteFile(destinationPath);

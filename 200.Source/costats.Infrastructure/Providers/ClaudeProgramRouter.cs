@@ -96,28 +96,27 @@ public static class ClaudeProgramRouter
         string.Equals(Normalize(configDir), Normalize(DefaultConfigDir), StringComparison.OrdinalIgnoreCase);
 
     // 계약: 그 자리의 로그인 계정 UUID — 기본 자리는 ~/.claude.json, 추가 자리는 &lt;자리&gt;\.claude.json
-    public static string? AccountUuidOf(string configDir)
-    {
-        var path = IsDefaultDir(configDir)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json")
-            : Path.Combine(configDir, ".claude.json");
-        try
-        {
-            // 함정: ~/.claude.json 은 대소문자만 다른 키가 섞여 있어 사전 변환이 실패한다 — JsonDocument 로 필요한 칸만 읽는다
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            return doc.RootElement.TryGetProperty("oauthAccount", out var account) &&
-                   account.TryGetProperty("accountUuid", out var uuid) && uuid.ValueKind == JsonValueKind.String
-                ? uuid.GetString()
-                : null;
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
+    public static string? AccountUuidOf(string configDir) =>
+        IsDefaultDir(configDir)
+            ? ClaudeHomeIdentity.Read()?.Uuid
+            : ClaudeHomeIdentity.ReadFile(Path.Combine(configDir, ".claude.json"))?.Uuid;
 
     private static string Normalize(string path) =>
         Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    // 계약: 진단 보고서용 — 표를 한 줄씩 적는다. UUID 가림은 호출자(DiagnosticsReport.Mask)가 한다
+    public static string Describe()
+    {
+        var snapshot = Volatile.Read(ref _current);
+        var lines = new List<string>
+        {
+            $"- 활성 {snapshot.Active} · 기본 계정 {snapshot.DefaultId}",
+            $"- 연동표(프로그램 → 계정): {(snapshot.Routes.Count == 0 ? "비어 있음(전부 기본 계정)" : string.Join(" · ", snapshot.Routes.Select(p => $"{p.Key} → {p.Value}")))}",
+            $"- 자리별 로그인(계정 UUID → 자리): {(snapshot.Accounts.Count == 0 ? "없음" : string.Join(" · ", snapshot.Accounts.Select(p => $"{p.Key} → {p.Value}")))}",
+            $"- 에이전트 모드 폴더 {AgentProjectDirs().Count}개"
+        };
+        return string.Join(Environment.NewLine, lines);
+    }
 
     private sealed record Snapshot(bool Active, string DefaultId, IReadOnlyDictionary<string, string> Routes,
         IReadOnlyDictionary<string, string> Accounts);

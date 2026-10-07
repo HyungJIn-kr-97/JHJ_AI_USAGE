@@ -12,9 +12,10 @@ public sealed partial class ExtraAccountRow : ObservableObject
     private readonly Action<ExtraAccountRow>? _onEdited;
     private string _savedName = string.Empty;
     private string _savedType = string.Empty;
+    private string _savedFee = string.Empty;
 
     public ExtraAccountRow(string id, string name, string accountText, string? configDir, bool isSignedIn,
-        string displayName, string accountType, Action<ExtraAccountRow>? onEdited)
+        string displayName, string accountType, Action<ExtraAccountRow>? onEdited, decimal? monthlyFee = null)
     {
         Id = id;
         Name = name;
@@ -23,8 +24,17 @@ public sealed partial class ExtraAccountRow : ObservableObject
         IsSignedIn = isSignedIn;
         displayNameText = displayName;
         this.accountType = accountType;
+        monthlyFeeText = monthlyFee is { } fee ? fee.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : string.Empty;
         _onEdited = onEdited;
     }
+
+    // 계약: 월 구독료 입력칸(USD) — 비우면 플랜 등급에서 자동. 숫자가 아니면 저장 때 null 로 간다
+    [ObservableProperty]
+    private string monthlyFeeText;
+
+    public decimal? MonthlyFee =>
+        decimal.TryParse(MonthlyFeeText.Trim().TrimStart('$'), System.Globalization.NumberStyles.Number,
+            System.Globalization.CultureInfo.InvariantCulture, out var fee) && fee > 0 ? fee : null;
 
     public string Id { get; }
 
@@ -68,6 +78,7 @@ public sealed partial class ExtraAccountRow : ObservableObject
     {
         _savedName = DisplayNameText;
         _savedType = AccountType;
+        _savedFee = MonthlyFeeText;
         IsEditing = true;
     }
 
@@ -83,6 +94,7 @@ public sealed partial class ExtraAccountRow : ObservableObject
     {
         DisplayNameText = _savedName;
         AccountType = _savedType;
+        MonthlyFeeText = _savedFee;
         IsEditing = false;
     }
 }

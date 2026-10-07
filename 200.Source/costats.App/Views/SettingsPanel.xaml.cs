@@ -15,6 +15,44 @@ namespace costats.App.Views
             InitializeComponent();
         }
 
+        // 왜: 상태 줄이 없는 머리줄·바닥줄 버튼이라 복사 결과는 툴팁을 잠깐 열어 알린다
+        private static void Flash(FrameworkElement target, string message)
+        {
+            var original = target.ToolTip;
+            var tip = new ToolTip { Content = message, PlacementTarget = target, IsOpen = true };
+            target.ToolTip = tip;
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = System.TimeSpan.FromSeconds(1.8) };
+            timer.Tick += (s, args) =>
+            {
+                timer.Stop();
+                tip.IsOpen = false;
+                target.ToolTip = original;
+            };
+            timer.Start();
+        }
+
+        private static string CopyText(string text, string doneMessage)
+        {
+            try
+            {
+                Clipboard.SetText(text);
+                return doneMessage;
+            }
+            catch (System.Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
+        private void OnShareLinkClick(object sender, RoutedEventArgs e) =>
+            Flash(ShareLinkButton, CopyText(Services.Updates.UpdateOptions.SetupFileUrl, Localization.Loc.T("Copied the setup file link")));
+
+        private void OnShareDownloadClick(object sender, RoutedEventArgs e) =>
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Services.Updates.UpdateOptions.SetupFileUrl) { UseShellExecute = true });
+
+        private void OnAuthorMailClick(object sender, RoutedEventArgs e) =>
+            Flash(AuthorMailText, CopyText("gudwls9730@gmail.com", Localization.Loc.T("Copied the author's email address")));
+
         private void OnLinkNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });

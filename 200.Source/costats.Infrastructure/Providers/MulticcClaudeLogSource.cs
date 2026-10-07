@@ -140,7 +140,7 @@ public sealed class MulticcClaudeLogSource : ISignalSource, IDisposable
 
         return new ProviderReading(
             Usage: usage,
-            Identity: new IdentityCard(Profile.ProviderId, _profile.Name, null, null, planText, "OAuth"),
+            Identity: new IdentityCard(Profile.ProviderId, _profile.Name, null, null, planText, "OAuth", oauthResult?.RateLimitTier),
             StatusSummary: statusSummary,
             CapturedAt: usage.CapturedAt,
             Confidence: confidence,

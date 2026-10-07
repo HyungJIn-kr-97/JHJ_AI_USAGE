@@ -118,7 +118,7 @@ public sealed class ClaudeLogSource : ISignalSource
 
         return new ProviderReading(
             Usage: usage,
-            Identity: new IdentityCard(Profile.ProviderId, Profile.DisplayName, null, null, planText, "OAuth"),
+            Identity: new IdentityCard(Profile.ProviderId, Profile.DisplayName, null, null, planText, "OAuth", oauthResult?.RateLimitTier),
             StatusSummary: statusSummary,
             CapturedAt: usage.CapturedAt,
             Confidence: confidence,

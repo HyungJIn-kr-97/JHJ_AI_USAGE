@@ -7,6 +7,9 @@ public sealed class UpdateOptions
     // 함정: Repository 를 원본(fmdz387/costats)으로 두면 원본 릴리스가 이 포크를 덮어쓴다 — 포크 릴리스 저장소만 적는다
     // 계약: Repository 가 비어 있으면 Enabled 값과 무관하게 업데이트는 꺼진다
     public const string DefaultRepository = "HyungJIn-kr-97/JHJ_AI_USAGE";
+
+    // 계약: 설치 파일 고정 주소 — latest/download 라 언제나 최신 설치 관리자를 받는다. 파일명은 costats.Setup 의 AssemblyName · release.ps1 과 같아야 한다
+    public static string SetupFileUrl => "https://github.com/" + DefaultRepository + "/releases/latest/download/AiUsageMonitor-Setup.exe";
     public bool Enabled { get; init; } = false;
     public string Repository { get; init; } = DefaultRepository;
     public int CheckIntervalHours { get; init; } = 6;

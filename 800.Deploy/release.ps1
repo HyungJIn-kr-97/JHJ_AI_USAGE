@@ -3,8 +3,8 @@
     한 번에 배포한다: (선택) 버전 올리기 -> 커밋 -> 빌드 -> push -> GitHub Release -> 옛 날짜판 정리.
 
 .DESCRIPTION
-    릴리스 이름은 <배포 버전>.<날짜 yyyyMMdd> 다(예: v1.0.0.20261007).
-    질문마다 Enter 만 치면 기본값으로 간다 - 버전은 안 올리고, 날짜는 오늘이다.
+    릴리스 이름은 <배포 버전>.<날짜 yyyyMMdd> 다(예: v1.0.1.20261007).
+    질문마다 Enter 만 치면 기본값으로 간다 - 패치 자리가 하나 올라가고, 날짜는 오늘이다. 안 올리려면 0 을 친다.
     밖으로 나가는 단계(커밋 · push · 릴리스 · 삭제)는 실행 전에 묻는다. Release.bat 으로 실행한다.
     함정: 이 파일은 한글이 있어 반드시 UTF-8 BOM 으로 저장한다 - BOM 이 없으면 Windows PowerShell 5.1 이 깨뜨려 읽는다.
 #>
@@ -35,9 +35,13 @@ function Ask {
     return $answer.Trim().ToLowerInvariant()
 }
 
+# 계약: 기본은 Enter = 예 — 되돌릴 수 없는 질문(기존 릴리스 삭제)만 -DefaultNo 로 Enter = 아니오
 function Confirm {
-    param([string]$Question)
-    return (Ask "$Question (y = 예 / Enter = 아니오)" "n") -match '^(y|yes|ㅛ|예|네)$'
+    param([string]$Question, [switch]$DefaultNo)
+    if ($DefaultNo) {
+        return (Ask "$Question (y = 예 / Enter = 아니오)" "n") -match '^(y|yes|ㅛ|예|네)$'
+    }
+    return (Ask "$Question (Enter = 예 / n = 아니오)" "y") -notmatch '^(n|no|ㅜ|아니오|아니요)$'
 }
 
 function Get-Prefix {
@@ -71,16 +75,16 @@ $sample  = Get-Date -Format "yyyyMMdd"
 
 Write-Host "지금 버전: $current"
 Write-Host ""
-Write-Host "버전을 올릴까요? 고르는 대로 이렇게 올라갑니다 (날짜는 다음 단계에서 바꿀 수 있습니다)."
+Write-Host "버전을 올립니다. Enter 는 패치 자리를 올립니다 (날짜는 다음 단계에서 바꿀 수 있습니다)."
 Write-Host ""
 Write-Host "  선택    뜻                         올라가는 릴리스"
 Write-Host "  -----   ------------------------   ----------------------"
-Write-Host "  Enter   안 올림, 날짜만 바뀜       v$current.$sample"
-Write-Host "  1       고치기만 했음 (패치)       v$patch.$sample"
+Write-Host "  Enter   고치기만 했음 (패치)       v$patch.$sample"
 Write-Host "  2       기능을 더했음 (마이너)     v$minor.$sample"
 Write-Host "  3       호환이 깨짐 (메이저)       v$major.$sample"
+Write-Host "  0       안 올림, 날짜만 바뀜       v$current.$sample"
 Write-Host ""
-$bump = Ask "선택 (Enter · 1 · 2 · 3)" "0"
+$bump = Ask "선택 (Enter · 2 · 3 · 0)" "1"
 
 $bumpArgs = $null
 switch ($bump) {
@@ -88,7 +92,7 @@ switch ($bump) {
     "1" { $bumpArgs = @{ Bump = "patch" } }
     "2" { $bumpArgs = @{ Bump = "minor" } }
     "3" { $bumpArgs = @{ Bump = "major" } }
-    default { Fail "'$bump' 은(는) 고를 수 없습니다. Enter · 1 · 2 · 3 중 하나입니다." }
+    default { Fail "'$bump' 은(는) 고를 수 없습니다. Enter · 2 · 3 · 0 중 하나입니다." }
 }
 
 if ($bumpArgs) {
@@ -165,7 +169,7 @@ Step "5/5 GitHub 에 올리기"
 gh release view $tag --repo $Repository *> $null
 if ($LASTEXITCODE -eq 0) {
     Write-Host "$tag 릴리스가 GitHub 에 이미 있습니다." -ForegroundColor Yellow
-    if (-not (Confirm "지우고 지금 만든 것으로 다시 올릴까요?")) { Fail "취소했습니다. 기존 릴리스는 그대로입니다." }
+    if (-not (Confirm "지우고 지금 만든 것으로 다시 올릴까요?" -DefaultNo)) { Fail "취소했습니다. 기존 릴리스는 그대로입니다." }
     gh release delete $tag --repo $Repository --cleanup-tag --yes
     if ($LASTEXITCODE -ne 0) { Fail "기존 릴리스를 지우지 못했습니다." }
 }
@@ -200,6 +204,15 @@ try {
 }
 catch {
     Write-Host "정리 단계에서 오류가 났습니다(릴리스 자체는 올라갔습니다): $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
+# --- 로컬 옛 꾸러미 정리 ----------------------------------------------------
+# 왜: publish\ 에 지난 릴리스의 zip · exe 가 60MB 씩 쌓인다 - 이번 것만 남긴다(GitHub 에 올라간 것과는 무관하다)
+$oldFiles = @(Get-ChildItem $out -File | Where-Object { $_.Name -match '^AiUsageMonitor-win-.+-v\d' -and $_.Name -notlike "*-$tag.*" })
+if ($oldFiles.Count -gt 0) {
+    $oldFiles | Remove-Item -Force -ErrorAction SilentlyContinue
+    Write-Host ""
+    Write-Host "로컬 publish 폴더의 옛 꾸러미 $($oldFiles.Count)개를 지웠습니다."
 }
 
 # --- 끝 ---------------------------------------------------------------------

@@ -3,6 +3,17 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:costats.App">
     <Application.Resources>
+        <!-- 왜: 산술 툴팁은 한 줄이 길다 — 화면 오른쪽 끝에서 잘리지 않게 폭을 두고 줄을 바꾼다 -->
+        <Style TargetType="ToolTip">
+            <Setter Property="MaxWidth" Value="340" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!-- 계약: 팝업·전체 카드의 「연동」 버튼 — 강조색 테두리의 작은 알약 -->
         <ControlTemplate x:Key="LinkPillButton" TargetType="Button">
             <Border x:Name="pill" CornerRadius="4" Padding="8,2" BorderThickness="1" BorderBrush="{DynamicResource AccentBrush}"

@@ -56,6 +56,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         refreshMinutes = settings.RefreshMinutes;
         startAtLogin = GetStartupRegistryValue();
         refreshOnOpen = settings.RefreshOnOpen;
+        valueGradeBoundsText = string.Join(", ", settings.ValueGradeBounds.Select(b => b.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)));
+        diagnosticsEnabled = settings.DiagnosticsEnabled;
+        DiagnosticsLog.Enabled = settings.DiagnosticsEnabled;
         // 왜: 이 VM 이 HotkeyService 보다 먼저 만들어진다 — 설정값으로 줄을 세운다
         RebuildHotkeySlots();
         pinTrayIcon = settings.PinTrayIcon;
@@ -273,7 +276,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         return new(id, name, text, dir, signedIn,
-            AccountMeta.DisplayNameOf(_settings, id), AccountMeta.TypeOf(_settings, id), OnRowEdited);
+            AccountMeta.DisplayNameOf(_settings, id), AccountMeta.TypeOf(_settings, id), OnRowEdited, AccountMeta.FeeOf(_settings, id));
     }
 
     private static bool HasClaudeToken(string? configDir) => File.Exists(Path.Combine(
@@ -286,7 +289,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private void OnRowEdited(ExtraAccountRow row)
     {
-        var cleared = AccountMeta.Set(_settings, row.Id, row.DisplayNameText, row.AccountType);
+        var cleared = AccountMeta.Set(_settings, row.Id, row.DisplayNameText, row.AccountType, row.MonthlyFee);
         foreach (var other in ClaudeAccounts.Concat(CodexAccounts).Where(r => cleared.Contains(r.Id, StringComparer.OrdinalIgnoreCase)))
         {
             other.ClearTypeSilently();
@@ -1058,6 +1061,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     // 계약: 모양 id 「j」는 기본값이고 화면 이름은 JHJ 다
     private static string PresetLabelOf(string style) => style switch
     {
+        "ai" => "AI",
         "bars" => "Bars",
         "ring" => "Ring",
         "spark" => "Sparkle",
@@ -1077,7 +1081,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 return;
         }
 
-        _settings.TrayIconStyle = string.IsNullOrEmpty(style) ? "j" : style;
+        _settings.TrayIconStyle = string.IsNullOrEmpty(style) ? "ai" : style;
         _ = SaveSettingsAsync();
         RebuildIconOptions();
         TrayIconRenderer.NotifyChanged();
@@ -1103,7 +1107,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         if (style == _settings.TrayIconStyle)
         {
-            SelectTrayIcon("j");
+            SelectTrayIcon("ai");
             return;
         }
 
@@ -1268,6 +1272,41 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged();
             }
         }
+    }
+
+    // 계약: 「활용도」 등급 경계 — 쉼표로 나눈 오름차순 숫자 4개만 받는다. 모양이 틀리면 저장하지 않고 칸만 빨갛게 둔다
+    [ObservableProperty]
+    private string valueGradeBoundsText = string.Empty;
+
+    [ObservableProperty]
+    private bool valueGradeBoundsInvalid;
+
+    partial void OnValueGradeBoundsTextChanged(string value)
+    {
+        var parts = value.Split([',', '·', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var bounds = new List<decimal>();
+        foreach (var part in parts)
+        {
+            if (!decimal.TryParse(part, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var b) || b <= 0)
+            {
+                ValueGradeBoundsInvalid = true;
+                return;
+            }
+
+            bounds.Add(b);
+        }
+
+        if (bounds.Count != 4 || bounds.Zip(bounds.Skip(1)).Any(pair => pair.First >= pair.Second))
+        {
+            ValueGradeBoundsInvalid = true;
+            return;
+        }
+
+        ValueGradeBoundsInvalid = false;
+        _settings.ValueGradeBounds = bounds;
+        ProviderPulseViewModel.ValueGradeBounds = bounds;
+        _ = SaveSettingsAsync();
+        _pulseViewModel?.ApplyAccountMeta();
     }
 
     partial void OnRefreshMinutesChanged(int value)
@@ -1616,6 +1655,77 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void OpenReleases() =>
         Process.Start(new ProcessStartInfo(SelectedRelease?.HtmlUrl ?? ReleasesUrl) { UseShellExecute = true });
 
+    // 계약: 개선 제안·버그 신고는 저장소의 GitHub Issues 로 받는다 — 양식은 .github/ISSUE_TEMPLATE
+    public string FeedbackUrl => "https://github.com/" + costats.App.Services.Updates.UpdateOptions.DefaultRepository + "/issues/new/choose";
+
+    [RelayCommand]
+    private void OpenFeedback() =>
+        Process.Start(new ProcessStartInfo(FeedbackUrl) { UseShellExecute = true });
+
+    public string RepositoryUrl => "https://github.com/" + costats.App.Services.Updates.UpdateOptions.DefaultRepository;
+
+    [RelayCommand]
+    private void OpenRepository() =>
+        Process.Start(new ProcessStartInfo(RepositoryUrl) { UseShellExecute = true });
+
+    // 계약: 진단 정보 — 복사·저장은 사용자가 누를 때만 만든다(DiagnosticsReport). 어디로도 자동 전송하지 않는다
+    [ObservableProperty]
+    private bool diagnosticsEnabled = true;
+
+    [ObservableProperty]
+    private string diagnosticsStatusText = string.Empty;
+
+    partial void OnDiagnosticsEnabledChanged(bool value)
+    {
+        _settings.DiagnosticsEnabled = value;
+        DiagnosticsLog.Enabled = value;
+        _ = SaveSettingsAsync();
+    }
+
+    private string BuildDiagnostics() => DiagnosticsReport.Build(_settings, _pulseViewModel?.LastState, Version);
+
+    // 왜: 「복사」와 「이슈 열기」를 따로 두면 줄이 넘친다 — 이슈를 열 때 진단 정보를 함께 복사한다
+    [RelayCommand]
+    private void OpenIssueWithDiagnostics()
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(BuildDiagnostics());
+            DiagnosticsStatusText = Loc.T("Copied — paste it into the issue body");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsStatusText = ex.Message;
+        }
+
+        OpenFeedback();
+    }
+
+    [RelayCommand]
+    private void SaveDiagnostics()
+    {
+        var dialog = new SaveFileDialog
+        {
+            FileName = $"AiUsageMonitor-diagnostics-{DateTime.Now:yyyyMMdd-HHmm}.md",
+            Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            File.WriteAllText(dialog.FileName, BuildDiagnostics(), new System.Text.UTF8Encoding(true));
+            DiagnosticsStatusText = Loc.T("Saved — attach it to the issue");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DiagnosticsStatusText = ex.Message;
+        }
+    }
+
     // 계약: 낮은 버전도 설치된다(되돌리기) — 받은 뒤 앱이 닫히고 그 버전으로 다시 뜬다
     [RelayCommand(CanExecute = nameof(CanInstallSelected))]
     private async Task InstallSelectedReleaseAsync()
@@ -1633,19 +1743,33 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
         IsCheckingForUpdates = true;
-        UpdateStatusText = Loc.T("Downloading {0}...", "v" + StartupUpdateCoordinator.Display(release.Version));
+        var label = "v" + StartupUpdateCoordinator.Display(release.Version);
+        UpdateStatusText = Loc.T("Downloading {0}...", label);
+        // 계약: Progress<T> 는 UI 스레드에서 만들어야 콜백이 UI 로 돌아온다 — 받는 중 · 검증 · 압축 풀기 세 단계를 상태 줄에 적는다
+        var progress = new Progress<UpdateProgress>(p => UpdateStatusText = p.Stage switch
+        {
+            UpdateStage.Downloading when p.Total > 0 => Loc.T("Downloading {0}... {1} / {2} MB ({3}%)", label, (p.Done / 1_048_576.0).ToString("0.0"), (p.Total / 1_048_576.0).ToString("0.0"), (int)(p.Done * 100 / p.Total)),
+            UpdateStage.Downloading => Loc.T("Downloading {0}... {1} MB", label, (p.Done / 1_048_576.0).ToString("0.0")),
+            UpdateStage.Verifying => Loc.T("Verifying the download..."),
+            _ => Loc.T("Unpacking {0}...", label)
+        });
         try
         {
-            var result = await Task.Run(() => _updateCoordinator.StageReleaseAsync(release.Version, cts.Token), cts.Token);
-            if (result == UpdateCheckResult.UpdateStaged &&
-                await Task.Run(() => _updateCoordinator.TryApplyPendingUpdateAsync(cts.Token, manualTrigger: true), cts.Token))
+            var result = await Task.Run(() => _updateCoordinator.StageReleaseAsync(release.Version, cts.Token, progress), cts.Token);
+            if (result == UpdateCheckResult.UpdateStaged)
             {
-                UpdateStatusText = Loc.T("Installing {0}. The app will restart.", "v" + StartupUpdateCoordinator.Display(release.Version));
-                _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() => System.Windows.Application.Current.Shutdown(0));
-                return;
+                UpdateStatusText = Loc.T("Installing {0}...", label);
+                if (await Task.Run(() => _updateCoordinator.TryApplyPendingUpdateAsync(cts.Token, manualTrigger: true), cts.Token))
+                {
+                    // 왜: 교체 스크립트는 이 프로세스가 끝나기를 기다린다 — 재시작 문구를 1.5초 보여 준 뒤 닫아도 늦지 않다
+                    UpdateStatusText = Loc.T("Installed {0}. The app restarts in a moment.", label);
+                    await Task.Delay(TimeSpan.FromSeconds(1.5), CancellationToken.None);
+                    _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() => System.Windows.Application.Current.Shutdown(0));
+                    return;
+                }
             }
 
-            UpdateStatusText = Loc.T("Could not install {0}.", "v" + StartupUpdateCoordinator.Display(release.Version));
+            UpdateStatusText = Loc.T("Could not install {0}.", label);
         }
         catch (OperationCanceledException)
         {
@@ -1676,10 +1800,10 @@ public sealed partial class SettingsViewModel : ObservableObject
             await LoadReleasesAsync(listCts.Token);
         }
 
-        // 왜: 개발 빌드·설치 폴더 밖 실행은 스스로 교체할 수 없다 — 비교 결과만 보이고 멈춘다
+        // 왜: 개발 빌드·설치 폴더 밖 실행은 스스로 교체할 수 없다 — 설치본과 같은 비교 문구(새 버전 있음 · 최신)만 보이고 멈춘다
         if (!CanInstallRelease)
         {
-            UpdateStatusText = Loc.T("Installing a version works only in the installed app, not in a development build.");
+            UpdateStatusText = string.IsNullOrEmpty(VersionCompareText) ? Loc.T("Could not check for updates.") : VersionCompareText;
             IsCheckingForUpdates = false;
             return;
         }

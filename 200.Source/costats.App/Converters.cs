@@ -44,9 +44,12 @@ public sealed class StringToVisibilityConverter : IValueConverter
 {
     public static StringToVisibilityConverter Instance { get; } = new();
 
+    // 계약: ConverterParameter=Invert 면 빈 문자열일 때 보인다 — 입력칸 placeholder 가 쓴다
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        return string.IsNullOrWhiteSpace(value as string) ? Visibility.Collapsed : Visibility.Visible;
+        var isEmpty = string.IsNullOrWhiteSpace(value as string);
+        var invert = parameter as string == "Invert";
+        return isEmpty != invert ? Visibility.Collapsed : Visibility.Visible;
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

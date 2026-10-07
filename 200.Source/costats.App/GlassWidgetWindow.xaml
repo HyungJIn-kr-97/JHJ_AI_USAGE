@@ -450,6 +450,7 @@
                     <!-- Plan chip badge (only visible when PlanText is not empty) -->
                     <Border x:Name="PlanChip" HorizontalAlignment="Right" VerticalAlignment="Top"
                             CornerRadius="4" BorderThickness="1" Padding="6,2"
+                            ToolTip="{Binding PlanTooltip}" ToolTipService.ShowDuration="30000"
                             Visibility="{Binding PlanText, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
                         <Border.Style>
                             <Style TargetType="Border">
@@ -743,7 +744,8 @@
                             <Run Text="{loc:Tr 'Today:'}" />
                         </TextBlock>
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                            <TextBlock Text="{Binding TodayCostText}" FontSize="12" Foreground="{DynamicResource CostTodayAccent}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding TodayCostText}" FontSize="12" Foreground="{DynamicResource CostTodayAccent}" FontWeight="SemiBold"
+                                       ToolTip="{Binding TodayCostTooltip}" ToolTipService.ShowDuration="60000" />
                             <TextBlock Text=" · " FontSize="12" Foreground="{DynamicResource TextMutedBrush}" />
                             <TextBlock Text="{Binding TodayTokensText}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
@@ -753,7 +755,8 @@
                             <Run Text="{Binding WindowLabelText, Mode=OneWay}" />
                         </TextBlock>
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                            <TextBlock Text="{Binding MonthCostText}" FontSize="12" Foreground="{DynamicResource CostMonthAccent}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding MonthCostText}" FontSize="12" Foreground="{DynamicResource CostMonthAccent}" FontWeight="SemiBold"
+                                       ToolTip="{Binding MonthCostTooltip}" ToolTipService.ShowDuration="60000" />
                             <TextBlock Text=" · " FontSize="12" Foreground="{DynamicResource TextMutedBrush}" />
                             <TextBlock Text="{Binding MonthTokensText}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
@@ -766,6 +769,20 @@
                             <TextBlock Text="{Binding AvgCostText}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
                             <TextBlock Text=" · " FontSize="12" Foreground="{DynamicResource TextMutedBrush}" />
                             <TextBlock Text="{Binding AvgTokensText}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </DockPanel>
+                    <!-- Value: 5-step grade of API-equivalent cost ÷ subscription fee, with the multiple and the fee -->
+                    <DockPanel Margin="0,6,0,0" Background="Transparent" ToolTip="{Binding SubscriptionTooltip}" ToolTipService.ShowDuration="30000"
+                               Visibility="{Binding HasSubscription, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left">
+                            <Run Text="{loc:Tr 'Value:'}" />
+                        </TextBlock>
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding ValueGradeText}" FontSize="12" FontWeight="SemiBold" Foreground="{Binding ValueGradeBrush}" />
+                            <TextBlock Text=" " FontSize="12" />
+                            <TextBlock Text="{Binding ValueRatioText}" FontSize="12" FontWeight="SemiBold" Foreground="{Binding ValueGradeBrush}" />
+                            <TextBlock Text=" · " FontSize="12" Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Text="{Binding SubscriptionFeeText}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
                     </DockPanel>
 
@@ -849,7 +866,7 @@
                             <ItemsControl ItemsSource="{Binding ModelUsages}" VerticalAlignment="Center">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <DockPanel Margin="0,0,0,3" ToolTip="{Binding Tooltip}">
+                                        <DockPanel Margin="0,0,0,3" ToolTip="{Binding Tooltip}" Background="Transparent" ToolTipService.ShowDuration="30000">
                                             <Border Width="8" Height="8" CornerRadius="2" Background="{Binding Color}"
                                                     DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,6,0" />
                                             <TextBlock Text="{Binding ShareText}" FontSize="11" Width="32" DockPanel.Dock="Right" TextAlignment="Right"
@@ -887,6 +904,31 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
+
+                    <!-- Programs: which program spent it (desktop app · VS Code · CLI · agent mode) — Claude accounts only -->
+                    <StackPanel Margin="0,10,0,0" Visibility="{Binding HasProgramUsages, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <ToggleButton Style="{StaticResource SectionToggle}" Content="{Binding ProgramsHeaderText}" HorizontalAlignment="Left" Margin="0,0,0,8"
+                                      IsChecked="{Binding DataContext.IsProgramsExpanded, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
+                        <ItemsControl ItemsSource="{Binding ProgramUsages}"
+                                      Visibility="{Binding DataContext.IsProgramsExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Tooltip}" Background="Transparent">
+                                        <TextBlock Text="{Binding Name}" FontSize="11" Width="76" DockPanel.Dock="Left" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding ShareText}" FontSize="11" Width="32" DockPanel.Dock="Right" TextAlignment="Right"
+                                                   Foreground="{DynamicResource TextFaintBrush}" />
+                                        <TextBlock Text="{Binding TokensText}" FontSize="11" Width="52" DockPanel.Dock="Right" TextAlignment="Right"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding CostText}" FontSize="11" FontWeight="SemiBold" Width="50" DockPanel.Dock="Right"
+                                                   TextAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding Share, Mode=OneWay}" Maximum="1"
+                                                     Height="6" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{Binding Color}" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </StackPanel>
 
             </StackPanel>
@@ -908,7 +950,13 @@
             <StackPanel x:Name="FooterPanel" Grid.Row="3" Margin="0,20,0,0">
                 <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,14" />
                 <DockPanel>
-                    <Button Width="28" Height="28" DockPanel.Dock="Right"
+                    <Grid DockPanel.Dock="Right" VerticalAlignment="Top" Margin="8,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                    <Button Width="28" Height="28" Grid.Row="0" Grid.Column="2" Margin="6,0,0,0"
                             Background="Transparent" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
                             ToolTip="{loc:Tr 'Settings'}" Padding="0" Cursor="Hand" VerticalAlignment="Top"
                             Click="OnSettingsClick">
@@ -943,7 +991,7 @@
                               Stretch="Uniform" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Button>
                     <!-- Theme toggle (light / dark) -->
-                    <Button Width="28" Height="28" DockPanel.Dock="Right" Margin="0,0,6,0"
+                    <Button Width="28" Height="28" Grid.Row="0" Grid.Column="1" Margin="6,0,0,0"
                             Background="Transparent" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
                             ToolTip="{loc:Tr 'Switch light / dark'}" Padding="0" Cursor="Hand" VerticalAlignment="Top"
                             Click="OnThemeToggleClick">
@@ -970,7 +1018,7 @@
                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Button>
                     <!-- Refresh button docked to right first -->
-                    <Button Command="{Binding RefreshCommand}" Width="28" Height="28" DockPanel.Dock="Right" Margin="0,0,6,0"
+                    <Button Command="{Binding RefreshCommand}" Width="28" Height="28" Grid.Row="0" Grid.Column="0"
                             Background="Transparent" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
                             ToolTip="{loc:Tr 'Refresh now'}" Padding="0" Cursor="Hand" VerticalAlignment="Top"
                             IsEnabled="{Binding IsRefreshing, Converter={StaticResource BoolNegationConverter}}">
@@ -1004,22 +1052,16 @@
                         <Path Data="{StaticResource RefreshIconPath}" Fill="{DynamicResource TextSecondaryBrush}"
                               Stretch="Uniform" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Button>
+                    </Grid>
                     <!-- Description text fills remaining space -->
-                    <StackPanel Margin="0,0,12,0">
-                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextFaintBrush}">
-                            <Run FontWeight="SemiBold" Foreground="{StaticResource CodexAccent}">Codex</Run><Run Text="{loc:Tr FooterCodex}" />
-                        </TextBlock>
-                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextFaintBrush}">
-                            <Run FontWeight="SemiBold" Foreground="{StaticResource ClaudeAccent}">Claude</Run><Run Text="{loc:Tr FooterClaude}" />
-                        </TextBlock>
-                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextFaintBrush}"
-                                   Visibility="{Binding IsCopilotEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <Run FontWeight="SemiBold" Foreground="{StaticResource CopilotAccent}">Copilot</Run><Run Text="{loc:Tr FooterCopilot}" />
-                        </TextBlock>
-                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextFaintBrush}"
-                                   Visibility="{Binding IsGeminiEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <Run FontWeight="SemiBold" Foreground="{StaticResource GeminiAccent}">Gemini</Run><Run Text="{loc:Tr FooterGemini}" />
-                        </TextBlock>
+                    <!-- 계약: 켜진 AI 도구 이름만 앱 탭 순서로 한 줄에 — 설명문은 두지 않는다(접힌 항목은 자리를 차지하지 않는다) -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0" Height="28" VerticalAlignment="Top">
+                        <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource ClaudeAccent}" Text="Claude" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource CodexAccent}" Text="Codex" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource CopilotAccent}" Text="Copilot" VerticalAlignment="Center" Margin="0,0,12,0"
+                                   Visibility="{Binding IsCopilotEnabled, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource GeminiAccent}" Text="Gemini" VerticalAlignment="Center"
+                                   Visibility="{Binding IsGeminiEnabled, Converter={StaticResource BoolToVisibilityConverter}}" />
                     </StackPanel>
                 </DockPanel>
             </StackPanel>

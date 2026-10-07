@@ -27,6 +27,10 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private string planText = string.Empty;
 
+    // 계약: 플랜 칩 툴팁 — 등급 · 월 요금 · 출처. Claude 계정이 아니면 빈 문자열
+    [ObservableProperty]
+    private string planTooltip = string.Empty;
+
     // Session metrics
     [ObservableProperty]
     private double sessionProgress;
@@ -81,6 +85,38 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
 
     [ObservableProperty]
     private string monthCostText = "--";
+
+    // 계약: 「오늘」·「최근 N일」 비용 숫자의 툴팁 — 모델별 「토큰 × 단가 = 비용」 산술과 단가 출처
+    [ObservableProperty]
+    private string todayCostTooltip = string.Empty;
+
+    [ObservableProperty]
+    private string monthCostTooltip = string.Empty;
+
+    // 계약: 「활용도」 줄 — 등급(5단계) · 「토큰 환산 비용 ÷ 기간 구독료」 배수 · 월 요금. 요금을 모르는 플랜·비용 없는 계정은 줄 자체가 없다
+    [ObservableProperty]
+    private bool hasSubscription;
+
+    [ObservableProperty]
+    private string subscriptionFeeText = string.Empty;
+
+    [ObservableProperty]
+    private string valueRatioText = string.Empty;
+
+    [ObservableProperty]
+    private string valueGradeText = string.Empty;
+
+    [ObservableProperty]
+    private System.Windows.Media.Brush valueGradeBrush = System.Windows.Media.Brushes.Gray;
+
+    [ObservableProperty]
+    private string subscriptionTooltip = string.Empty;
+
+    // 계약: 등급 경계 4개(배수, 오름차순) — 설정 「일반」에서 바꾸고 PulseViewModel 이 시작 때 넣는다
+    public static IReadOnlyList<decimal> ValueGradeBounds { get; set; } = [1m, 3m, 10m, 20m];
+
+    private static readonly string[] ValueGradeLabels = ["Low", "Fair", "Good", "Great", "Max"];
+    private static readonly System.Windows.Media.Brush[] ValueGradeBrushes = CreateModelColors("#E5484D", "#E6B450", "#3FB68B", "#5B8DEF", "#A78BFA");
 
     // 계약: 「최근 N일」 줄의 머리글 — 기간 칩을 따른다
     [ObservableProperty]
@@ -166,6 +202,16 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private string tokenTypesHeaderText = "Token types";
 
+    // 계약: 선택한 기간의 비용·토큰을 프로그램별로 나눈 줄 — Claude 계정에만 있고, 프로그램을 모르는 이력은 마지막 "Unknown program" 줄로 모인다
+    [ObservableProperty]
+    private IReadOnlyList<ProgramUsageRow> programUsages = [];
+
+    [ObservableProperty]
+    private bool hasProgramUsages;
+
+    [ObservableProperty]
+    private string programsHeaderText = "Programs";
+
     // 계약: 차트 아래 눈금 — 칸마다 그 구간이 시작하는 날짜(또는 달)를 왼쪽 정렬로 적는다
     [ObservableProperty]
     private IReadOnlyList<string> axisLabels = [];
@@ -245,7 +291,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     }
 
     // 함정: 데이터가 없는 판(연동 전 자리)은 Usage 가 null 이다 — providerId 를 안 넘기면 화면 이름이 id 가 되어 Claude 자리로 안 잡힌다
-    public static ProviderPulseViewModel FromReading(ProviderReading reading, string displayNameFallback, string? providerId = null)
+    public static ProviderPulseViewModel FromReading(ProviderReading reading, string displayNameFallback, string? providerId = null, decimal? feeOverride = null)
     {
         var vm = new ProviderPulseViewModel
         {
@@ -254,6 +300,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             StatusSummary = FormatStatusSummary(reading),
             PlanText = reading.Identity?.Plan ?? "Max"
         };
+        ApplySubscriptionPlan(vm, reading.Identity, feeOverride);
 
         PopulateSessionMetrics(vm, reading);
         PopulateWeekMetrics(vm, reading);
@@ -463,6 +510,14 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     // 계약: 이 계정이 보는 (날짜, 모델) 이력 전부 — 기간 칩과 무관하게 걸러지기 전 목록이다
     private List<costats.App.Services.UsageHistoryEntry> _history = [];
 
+    // 계약: 구독 월 요금(USD) — SubscriptionPlans 가 정한다. null 이면 「구독 요금」 줄을 그리지 않는다
+    private decimal? _monthlyFee;
+    private bool _feeIsEstimate;
+    private string _planDetail = string.Empty;
+
+    // 계약: 프로그램 묶음(ProgramGroups 의 Key · UnknownProgramKey)별 이력 — _history 와 같은 단위이고 Claude 계정에만 채워진다
+    private Dictionary<string, List<costats.App.Services.UsageHistoryEntry>> _programHistory = new(StringComparer.OrdinalIgnoreCase);
+
     private static void ApplyCostTexts(ProviderPulseViewModel vm)
     {
         var (todayCost, todayTokens, windowCost, windowTokens) = vm._totals;
@@ -495,6 +550,16 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             vm.CompactCostText = Loc.Tr(vm.CompactCostText);
         }
 
+        // 계약: 「전체」의 구독료는 요금을 아는 계정의 합이다 — 하나라도 추정이면 합도 추정
+        var fees = parts.Where(p => p._monthlyFee is > 0).ToList();
+        vm._monthlyFee = fees.Count == 0 ? null : fees.Sum(p => p._monthlyFee!.Value);
+        vm._feeIsEstimate = fees.Any(p => p._feeIsEstimate);
+        vm._planDetail = string.Join(" · ", fees.Select(p => $"{p.DisplayName} {(p._feeIsEstimate ? "≈" : string.Empty)}{FormatFee(p._monthlyFee!.Value)}"));
+
+        vm._programHistory = parts
+            .SelectMany(p => p._programHistory)
+            .GroupBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => SumByDayModel(g.SelectMany(pair => pair.Value)), StringComparer.OrdinalIgnoreCase);
         RenderHistory(vm, SumByDayModel(parts.SelectMany(p => p._history)));
         return vm;
     }
@@ -509,7 +574,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
 
     private static void PopulateDailyBars(ProviderPulseViewModel vm, ConsumptionDigest? consumption)
     {
-        vm._history = MergedHistory(vm.ProviderId, consumption?.DailyBreakdown ?? []);
+        vm._history = MergedHistory(vm, consumption?.DailyBreakdown ?? []);
         RenderHistory(vm, vm._history);
     }
 
@@ -518,6 +583,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         vm.ChartTitleText = Loc.T(RangeDays <= 30 ? "Daily cost" : RangeDays <= 180 ? "Weekly cost" : "Monthly cost");
         vm.ModelsHeaderText = RangeDays == 365 ? Loc.T("Models · 1 year") : Loc.T("Models · {0} days", RangeDays);
         vm.TokenTypesHeaderText = RangeDays == 365 ? Loc.T("Token types · 1 year") : Loc.T("Token types · {0} days", RangeDays);
+        vm.ProgramsHeaderText = RangeDays == 365 ? Loc.T("Programs · 1 year") : Loc.T("Programs · {0} days", RangeDays);
 
         // 왜: DailyBreakdown 은 일×모델 단위다 — 모델 이름을 접어 합친 뒤, 로그에서 이미 지워진 날은 쌓아 둔 이력으로 메운다
         var today = DateOnly.FromDateTime(DateTime.Now);
@@ -528,6 +594,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
 
         // 계약: 요약 두 줄(최근 N일 · 일 평균)은 차트·모델·토큰 유형과 같은 기간·같은 이력으로 센다
         vm.WindowLabelText = RangeDays == 365 ? Loc.T("Last 1 year:") : Loc.T("Last {0} days:", RangeDays);
+        vm.HasSubscription = false;
         if (vm.HasCostData)
         {
             var rangeCost = entries.Sum(e => e.Cost);
@@ -536,6 +603,40 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             vm.MonthTokensText = UsageFormatter.FormatTokenCount(rangeTokens);
             vm.AvgCostText = UsageFormatter.FormatCurrency(rangeCost / RangeDays);
             vm.AvgTokensText = UsageFormatter.FormatTokenCount(rangeTokens / RangeDays);
+
+            if (IsClaudeProvider(vm.ProviderId))
+            {
+                vm.TodayCostTooltip = CostBreakdownTooltip(Loc.T("Today:"), entries.Where(e => e.Day == today).ToList());
+                vm.MonthCostTooltip = CostBreakdownTooltip(vm.WindowLabelText, entries);
+            }
+
+            // 왜: 구독료는 월 단위라 기간 칩에 맞춰 일할한다 — 7일이면 30분의 7, 1년이면 30분의 365
+            if (vm._monthlyFee is > 0)
+            {
+                var fee = vm._monthlyFee.Value;
+                var feeForRange = fee * RangeDays / 30m;
+                var ratio = feeForRange <= 0 ? 0 : rangeCost / feeForRange;
+                var approx = vm._feeIsEstimate ? "≈" : string.Empty;
+                var grade = Math.Min(ValueGradeBounds.Count(b => ratio >= b), ValueGradeLabels.Length - 1);
+                vm.HasSubscription = true;
+                vm.SubscriptionFeeText = $"{approx}{FormatFee(fee)}/{Loc.T("mo")}";
+                vm.ValueRatioText = Loc.T("{0}x", ratio.ToString("0.0"));
+                vm.ValueGradeText = Loc.T(ValueGradeLabels[grade]);
+                vm.ValueGradeBrush = ValueGradeBrushes[grade];
+                var lines = new List<string>
+                {
+                    $"{approx}{FormatFee(fee)}/{Loc.T("mo")} × {RangeDays}{Loc.T("d")} ÷ 30 = {UsageFormatter.FormatCurrency(feeForRange)}",
+                    $"{UsageFormatter.FormatCurrency(rangeCost)} ÷ {UsageFormatter.FormatCurrency(feeForRange)} = {Loc.T("{0}x", ratio.ToString("0.0"))} → {Loc.T(ValueGradeLabels[grade])}",
+                    Loc.T("Grade bounds {0}x (Settings › General)", string.Join(" · ", ValueGradeBounds.Select(b => b.ToString("0.##"))))
+                };
+                if (vm._planDetail.Length > 0)
+                {
+                    lines.Add(Loc.T(vm._planDetail));
+                }
+
+                lines.Add($"{Loc.T("Source")} {SubscriptionPlans.Source} ({SubscriptionPlans.SourceDate})");
+                vm.SubscriptionTooltip = string.Join("\n", lines);
+            }
         }
 
         var buckets = BuildBuckets(start, today);
@@ -554,6 +655,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             vm.HasDailyBars = true;
             PopulateModelUsages(vm, entries);
             PopulateTokenTypes(vm, entries);
+            PopulateProgramUsages(vm, start, today);
             return;
         }
 
@@ -576,6 +678,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
 
         PopulateModelUsages(vm, entries);
         PopulateTokenTypes(vm, entries);
+        PopulateProgramUsages(vm, start, today);
 
         vm.DailyBars = bars;
         // 왜: 막대 하나가 하루인지 한 주인지 한 달인지 숫자만으로는 알 수 없다 — 최고값에 단위를 붙인다
@@ -586,10 +689,13 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     }
 
     // 계약: 계정 자기 폴더의 이력 + 지금 이 계정에 연동된 프로그램의 이력을 (날짜, 모델)로 합친다 — ClaudeProgramRouter
-    private static List<costats.App.Services.UsageHistoryEntry> MergedHistory(string providerId, IReadOnlyList<ConsumptionSlice> slices)
+    // 계약: 프로그램별 몫은 vm._programHistory 에 따로 남긴다 — 자기 폴더 이력은 프로그램을 몰라 UnknownProgramKey 로 간다
+    private static List<costats.App.Services.UsageHistoryEntry> MergedHistory(ProviderPulseViewModel vm, IReadOnlyList<ConsumptionSlice> slices)
     {
+        var providerId = vm.ProviderId;
         var own = costats.App.Services.UsageHistoryStore.Merge(providerId, ToHistory(slices.Where(s => s.Program is null)));
-        if (!ClaudeProgramRouter.IsActive)
+        vm._programHistory = new(StringComparer.OrdinalIgnoreCase);
+        if (!ClaudeProgramRouter.IsActive || !IsClaudeProvider(providerId))
         {
             return own.ToList();
         }
@@ -603,7 +709,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             .ToDictionary(p => p, p => costats.App.Services.UsageHistoryStore.MergeProgram(p, []), StringComparer.OrdinalIgnoreCase);
         var linked = programs
             .Where(p => string.Equals(ClaudeProgramRouter.OwnerOf(p.Key), providerId, StringComparison.OrdinalIgnoreCase))
-            .SelectMany(p => p.Value);
+            .ToList();
 
         // 왜: 프로그램별로 쌓기 전의 기본 계정 이력(history\claude.json)은 프로그램이 섞여 있어 나눌 수 없다 — 프로그램 이력이 시작되기 전 날짜에만 쓴다
         if (providerId.Equals(ClaudeProgramRouter.DefaultProviderId, StringComparison.OrdinalIgnoreCase))
@@ -612,7 +718,199 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             own = own.Where(e => e.Day < firstProgramDay).ToList();
         }
 
-        return SumByDayModel(own.Concat(linked));
+        foreach (var group in linked.GroupBy(p => ProgramGroupOf(p.Key), StringComparer.OrdinalIgnoreCase))
+        {
+            vm._programHistory[group.Key] = SumByDayModel(group.SelectMany(p => p.Value));
+        }
+
+        if (own.Count > 0)
+        {
+            vm._programHistory[UnknownProgramKey] = own.ToList();
+        }
+
+        return SumByDayModel(own.Concat(linked.SelectMany(p => p.Value)));
+    }
+
+    private static bool IsClaudeProvider(string providerId) =>
+        providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) || providerId.StartsWith("claude:", StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatFee(decimal fee) => "$" + fee.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    // 계약: Claude 계정만 플랜 칩에 월 요금을 붙인다 — 설정에 적은 요금이 먼저, 없으면 플랜 등급에서. 추정이면 ≈ 를 앞에 둔다
+    private static void ApplySubscriptionPlan(ProviderPulseViewModel vm, IdentityCard? identity, decimal? feeOverride)
+    {
+        if (!IsClaudeProvider(vm.ProviderId))
+        {
+            return;
+        }
+
+        var plan = SubscriptionPlans.Claude(identity?.Plan, identity?.PlanTier);
+        var fee = feeOverride is > 0 ? feeOverride : plan.MonthlyUsd;
+        vm._monthlyFee = fee;
+        vm._feeIsEstimate = feeOverride is > 0 ? false : plan.IsEstimate;
+        vm._planDetail = feeOverride is > 0 ? "Fee set in Settings › Accounts" : plan.Detail;
+
+        var lines = new List<string>();
+        if (fee is > 0)
+        {
+            var approx = vm._feeIsEstimate ? "≈" : string.Empty;
+            vm.PlanText = $"{plan.Label} · {approx}{FormatFee(fee.Value)}/{Loc.T("mo")}";
+            lines.Add(vm.PlanText);
+        }
+        else
+        {
+            vm.PlanText = plan.Label;
+            lines.Add(plan.Label);
+        }
+
+        if (vm._planDetail.Length > 0)
+        {
+            lines.Add(Loc.T(vm._planDetail));
+        }
+
+        lines.Add($"{Loc.T("Source")} {SubscriptionPlans.Source} ({SubscriptionPlans.SourceDate})");
+        vm.PlanTooltip = string.Join("\n", lines);
+    }
+
+    private const int MaxTooltipModels = 5;
+
+    // 계약: 비용 숫자의 툴팁 — 기록 합계 · 단가 출처 · 모델별 「토큰 × 단가 = 비용」. 비용 상위 MaxTooltipModels 개만 펼치고 나머지는 한 줄로 접는다
+    private static string CostBreakdownTooltip(string title, IReadOnlyList<costats.App.Services.UsageHistoryEntry> entries)
+    {
+        var lines = new List<string>
+        {
+            $"{title} {UsageFormatter.FormatCurrency(entries.Sum(e => e.Cost))} · {Loc.T("{0} tokens", UsageFormatter.FormatTokenCount(entries.Sum(e => e.Tokens)))}",
+            $"{Loc.T("Rates $/MTok")} {TariffRegistry.ClaudeRateSource} ({TariffRegistry.ClaudeRateSourceDate})",
+            Loc.T("Order: input · output · cache read · cache write")
+        };
+
+        var models = entries
+            .GroupBy(e => e.Model)
+            .Select(g => (Name: g.Key, Cost: g.Sum(e => e.Cost), Entries: g.ToList()))
+            .OrderByDescending(m => m.Cost)
+            .ToList();
+        foreach (var m in models.Take(MaxTooltipModels))
+        {
+            lines.Add(string.Empty);
+            lines.Add($"{m.Name}  {UsageFormatter.FormatCurrency(m.Cost)}{RateLine(m.Name, m.Entries, m.Cost, withRates: false)}");
+        }
+
+        var rest = models.Skip(MaxTooltipModels).ToList();
+        if (rest.Count > 0)
+        {
+            lines.Add(string.Empty);
+            lines.Add($"{Loc.T("Others ({0})", rest.Count)}  {UsageFormatter.FormatCurrency(rest.Sum(m => m.Cost))}");
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    // 계약: 한 모델의 산술 — (withRates 면) 단가 네 개 한 줄 + 「토큰 × 단가 … = 금액」 한 줄. 유형 미상 토큰은 곱할 단가가 없어 기록된 비용과 어긋날 수 있다
+    private static string RateLine(string model, IReadOnlyList<costats.App.Services.UsageHistoryEntry> entries, decimal recorded, bool withRates = true)
+    {
+        var rate = TariffRegistry.FindClaudeRate(model);
+        var known = TariffRegistry.IsKnownClaudeModel(model);
+        var input = entries.Sum(e => e.Input);
+        var output = entries.Sum(e => e.Output);
+        var cacheRead = entries.Sum(e => e.CacheRead);
+        var cacheWrite = entries.Sum(e => e.CacheWrite);
+        var untyped = Math.Max(0, entries.Sum(e => e.Tokens) - (input + output + cacheRead + cacheWrite));
+        var computed = rate.ComputeCost(new TokenLedger
+        {
+            StandardInput = input,
+            CachedInput = cacheRead,
+            GeneratedOutput = output,
+            CacheWriteInput = cacheWrite
+        });
+
+        static string PerM(decimal perToken) => (perToken * 1_000_000m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        var rates = withRates
+            ? $"\n{Loc.T("Rates $/MTok")} {PerM(rate.InputRate)} · {PerM(rate.OutputRate)} · {PerM(rate.CacheReadRate)} · {PerM(rate.CacheWriteRate)}"
+            : string.Empty;
+
+        var math = $"\n{UsageFormatter.FormatTokenCount(input)}×{PerM(rate.InputRate)} + {UsageFormatter.FormatTokenCount(output)}×{PerM(rate.OutputRate)} + " +
+                   $"{UsageFormatter.FormatTokenCount(cacheRead)}×{PerM(rate.CacheReadRate)} + {UsageFormatter.FormatTokenCount(cacheWrite)}×{PerM(rate.CacheWriteRate)} = {UsageFormatter.FormatCurrency(computed)}";
+        var notes = new List<string>();
+        if (!known)
+        {
+            notes.Add(Loc.T("estimated (model not in rate table)"));
+        }
+
+        if (untyped > 0)
+        {
+            notes.Add(Loc.T("{0} untyped tokens at recorded cost", UsageFormatter.FormatTokenCount(untyped)));
+        }
+        else if (recorded > 0 && Math.Abs(recorded - computed) / recorded > 0.01m)
+        {
+            notes.Add(Loc.T("recorded {0}, older rates", UsageFormatter.FormatCurrency(recorded)));
+        }
+
+        return rates + math + (notes.Count > 0 ? $"\n※ {string.Join(" · ", notes)}" : string.Empty);
+    }
+
+    // 계약: 줄 순서가 곧 설정 › 「프로그램 연동」 표의 순서다 — 넷째 에이전트 모드는 표에 없지만 기록이 따로 쌓이므로 따로 보인다
+    private static readonly (string Key, string Label)[] ProgramGroups =
+    [
+        ("claude-desktop", "Desktop app"),
+        ("claude-vscode", "VS Code"),
+        ("cli", "Terminal CLI"),
+        ("local-agent", "Agent mode")
+    ];
+
+    private const string UnknownProgramKey = "unknown";
+
+    // 계약: 기록 단위 "claude-desktop@<계정UUID>" 에서 '@' 앞을 묶음 키로 쓴다 — 표에 없는 이름은 UnknownProgramKey
+    private static string ProgramGroupOf(string source)
+    {
+        var at = source.IndexOf('@');
+        var name = at > 0 ? source[..at] : source;
+        return ProgramGroups.Any(g => g.Key.Equals(name, StringComparison.OrdinalIgnoreCase)) ? name.ToLowerInvariant() : UnknownProgramKey;
+    }
+
+    private static readonly System.Windows.Media.Brush[] ProgramColors = CreateModelColors("#5B8DEF", "#3FB68B", "#E6B450", "#C98A5B", "#8F847C");
+
+    // 계약: 네 프로그램은 0 이어도 "--" 로 늘 그린다 — 줄 수가 같아야 탭·기간을 바꿔도 창 높이가 같다
+    private static void PopulateProgramUsages(ProviderPulseViewModel vm, DateOnly start, DateOnly today)
+    {
+        if (vm._programHistory.Count == 0)
+        {
+            vm.ProgramUsages = [];
+            vm.HasProgramUsages = false;
+            return;
+        }
+
+        var sums = vm._programHistory.ToDictionary(
+            pair => pair.Key,
+            pair =>
+            {
+                var inRange = pair.Value.Where(e => e.Day >= start && e.Day <= today).ToList();
+                return (Cost: inRange.Sum(e => e.Cost), Tokens: inRange.Sum(e => e.Tokens));
+            },
+            StringComparer.OrdinalIgnoreCase);
+
+        var parts = ProgramGroups
+            .Select((g, i) => (g.Label, Hint: string.Empty, Sum: sums.GetValueOrDefault(g.Key), Color: i))
+            .ToList();
+        parts.Add(("Unknown program", "History without program info (older or extra-account folder)", sums.GetValueOrDefault(UnknownProgramKey), ProgramGroups.Length));
+
+        var total = parts.Sum(p => p.Sum.Cost);
+        vm.ProgramUsages = parts
+            .Where(p => p.Color < ProgramGroups.Length || p.Sum.Cost > 0 || p.Sum.Tokens > 0)
+            .Select(p =>
+            {
+                var share = total <= 0 ? 0 : (double)(p.Sum.Cost / total);
+                var tooltip = $"{Loc.T(p.Label)} · {UsageFormatter.FormatCurrency(p.Sum.Cost)} · {Loc.T("{0} tokens", UsageFormatter.FormatTokenCount(p.Sum.Tokens))}";
+                return new ProgramUsageRow(
+                    Loc.T(p.Label),
+                    p.Sum.Cost > 0 ? UsageFormatter.FormatCurrency(p.Sum.Cost) : "--",
+                    p.Sum.Tokens > 0 ? UsageFormatter.FormatTokenCount(p.Sum.Tokens) : "--",
+                    p.Sum.Cost <= 0 ? string.Empty : share < 0.01 ? "<1%" : $"{share:P0}",
+                    share,
+                    ProgramColors[p.Color],
+                    p.Hint.Length == 0 ? tooltip : $"{tooltip}\n{Loc.T(p.Hint)}");
+            })
+            .ToList();
+        vm.HasProgramUsages = true;
     }
 
     private static IEnumerable<costats.App.Services.UsageHistoryEntry> ToHistory(IEnumerable<ConsumptionSlice> slices) =>
@@ -715,7 +1013,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
                 Name: group.Key,
                 Cost: group.Sum(e => e.Cost),
                 Tokens: group.Sum(e => e.Tokens),
-                Types: TypeLine(group)))
+                Types: TypeLine(group) + (IsClaudeProvider(vm.ProviderId) ? RateLine(group.Key, group.ToList(), group.Sum(e => e.Cost)) : string.Empty)))
             .OrderByDescending(m => m.Cost)
             .ThenByDescending(m => m.Tokens)
             .ToList();

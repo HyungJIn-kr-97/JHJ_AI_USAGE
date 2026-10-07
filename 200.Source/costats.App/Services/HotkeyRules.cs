@@ -10,7 +10,7 @@ namespace costats.App.Services
     /// </summary>
     public static class HotkeyRules
     {
-        public const string Default = "Ctrl+Alt+Y";
+        public const string Default = "Ctrl+Alt+2";
 
         public static bool TryParse(string? text, out Key key, out ModifierKeys modifiers)
         {

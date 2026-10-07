@@ -17,7 +17,7 @@ public static class TrayIconRenderer
     public const string TileStyle = "tile";
     public const int CanvasSize = 16;
 
-    public static readonly string[] Presets = ["j", "bars", "ring", "spark"];
+    public static readonly string[] Presets = ["ai", "j", "bars", "ring", "spark"];
 
     public static string IconDir { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AiUsageMonitor", "icons");
@@ -86,6 +86,9 @@ public static class TrayIconRenderer
         {
             case TileStyle:
                 break;
+            case "ai":
+                DrawAI(g, s, c[2]);
+                break;
             case "bars":
                 DrawBars(g, s, c[2], c[3]);
                 break;
@@ -118,6 +121,27 @@ public static class TrayIconRenderer
     }
 
     // 왜: 획을 정수 픽셀에 맞춰야 16px 에서 경계가 번지지 않는다 — 직선 획은 안티앨리어싱을 끈다
+    // 왜: 16px 에서 두 글자가 읽히려면 획을 정수 픽셀에 맞춰야 한다 — 안티앨리어싱 없이 사각형으로만 그린다
+    private static void DrawAI(Graphics g, int s, Color ink)
+    {
+        var t = Math.Max(2, (int)Math.Round(s * 0.13));
+        int top = (int)Math.Round(s * 0.19), bottom = s - (int)Math.Round(s * 0.19);
+        int aw = (int)Math.Round(s * 0.44), iw = (int)Math.Round(s * 0.25);
+        var gap = Math.Max(1, (int)Math.Round(s * 0.12));
+        var x0 = (s - (aw + gap + iw)) / 2;
+        var mid = top + (bottom - top) / 2;
+        using var brush = new SolidBrush(ink);
+        g.SmoothingMode = SmoothingMode.None;
+        g.FillRectangle(brush, x0, top + t, t, bottom - top - t);
+        g.FillRectangle(brush, x0 + aw - t, top + t, t, bottom - top - t);
+        g.FillRectangle(brush, x0 + 1, top, aw - 2, t);
+        g.FillRectangle(brush, x0 + t, mid, aw - t * 2, t);
+        var ix = x0 + aw + gap;
+        g.FillRectangle(brush, ix, top, iw, t);
+        g.FillRectangle(brush, ix, bottom - t, iw, t);
+        g.FillRectangle(brush, ix + (iw - t) / 2, top, t, bottom - top);
+    }
+
     private static void DrawJ(Graphics g, int s, Color ink)
     {
         var t = Math.Max(3, (int)Math.Round(s * 0.21));

@@ -39,6 +39,11 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
 
     partial void OnIsTokenTypesExpandedChanged(bool value) => SaveSection("tokenTypes", value);
 
+    [ObservableProperty]
+    private bool isProgramsExpanded;
+
+    partial void OnIsProgramsExpandedChanged(bool value) => SaveSection("programs", value);
+
     private void SaveSection(string name, bool expanded)
     {
         _settings.CollapsedSections.Remove(name);
@@ -58,6 +63,11 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
         isChartExpanded = !settings.CollapsedSections.Contains("chart");
         isModelsExpanded = !settings.CollapsedSections.Contains("models");
         isTokenTypesExpanded = !settings.CollapsedSections.Contains("tokenTypes");
+        isProgramsExpanded = !settings.CollapsedSections.Contains("programs");
+        if (settings.ValueGradeBounds is { Count: 4 } bounds)
+        {
+            ProviderPulseViewModel.ValueGradeBounds = bounds;
+        }
         isCopilotEnabled = settings.CopilotEnabled;
         isGeminiEnabled = settings.GeminiEnabled;
         _pendingClaudeDefault = AccountMeta.DefaultIdOf(settings, "claude");
@@ -239,6 +249,9 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
     }
 
     // 계약: 설정에서 계정 명칭·유형을 고친 뒤 부른다 — 칩 라벨·제목을 다시 만들고 기본 계정을 다시 고른다
+    // 계약: 진단 보고서가 읽는 마지막 상태 — 갱신 전이면 null
+    public PulseState? LastState => _lastState;
+
     public void ApplyAccountMeta()
     {
         if (_lastState is not null)
@@ -588,16 +601,22 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 var today = DateOnly.FromDateTime(DateTime.Now);
                 // 왜: 달력 주(월~일)로 세면 월요일에는 「오늘」과 같은 값이 된다 — 오늘 포함 최근 7일로 센다
                 var weekStart = today.AddDays(-6);
+                if (!value.IsRefreshing)
+                {
+                    costats.App.Services.DiagnosticsLog.Record("refresh",
+                        $"{value.Trigger} · {value.Providers.Count}곳 · " + string.Join(" · ", value.Providers.Select(p => $"{p.Key}={p.Value.Confidence}/{p.Value.Source}")) +
+                        (value.Errors.Count > 0 ? " · 오류 " + string.Join(" / ", value.Errors) : string.Empty));
+                }
 
                 foreach (var (providerId, reading) in value.Providers)
                 {
                     // 왜: 계정 줄의 제목은 사용자가 정한 명칭이다 — 폴더 이름("jhj-atisys-co-kr")을 보이지 않는다
                     var displayName = providerId.Contains(':') ? AccountMeta.DisplayNameOf(_settings, providerId)
                         : _displayNames.TryGetValue(providerId, out var name) ? name : providerId;
-                    var vm = ProviderPulseViewModel.FromReading(reading, displayName, providerId);
+                    var metaId = providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) ? "claude:default" : providerId;
+                    var vm = ProviderPulseViewModel.FromReading(reading, displayName, providerId, AccountMeta.FeeOf(_settings, metaId));
                     if (vm.ProviderKind is "claude" or "codex")
                     {
-                        var metaId = providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) ? "claude:default" : providerId;
                         vm.AccountType = AccountMeta.TypeOf(_settings, metaId);
                         vm.AccountEmail = AccountMeta.MailOf(metaId) ?? string.Empty;
                     }

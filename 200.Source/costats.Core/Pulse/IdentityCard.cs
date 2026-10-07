@@ -6,4 +6,5 @@ public sealed record IdentityCard(
     string? Email,
     string? Org,
     string? Plan,
-    string? LoginMethod);
+    string? LoginMethod,
+    string? PlanTier = null);

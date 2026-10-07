@@ -1,0 +1,24 @@
+name: 개선 제안
+description: 있으면 좋겠는 기능이나 바꾸고 싶은 동작을 알려 주십시오.
+title: "[제안] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 무엇을
+      description: 어떤 화면·기능을 어떻게 바꾸고 싶은지 한두 문장으로 적어 주십시오.
+      placeholder: 예) 팝업의 「활용도」 줄에 주간 한도 대비 비율도 함께 보고 싶습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 왜
+      description: 지금은 무엇이 불편한지, 바뀌면 무엇이 좋아지는지.
+  - type: input
+    id: version
+    attributes:
+      label: 앱 버전
+      description: 설정 › 일반의 「현재 v…」 값
+      placeholder: v1.0.1.20261007

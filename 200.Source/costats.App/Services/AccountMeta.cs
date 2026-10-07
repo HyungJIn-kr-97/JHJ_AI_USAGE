@@ -24,6 +24,8 @@ public static class AccountMeta
 
     public static string TypeOf(AppSettings settings, string id) => Current(settings, id)?.Type?.Trim() ?? string.Empty;
 
+    public static decimal? FeeOf(AppSettings settings, string id) => Current(settings, id)?.MonthlyFeeUsd;
+
     public static string DisplayNameOf(AppSettings settings, string id) => NameOf(settings, id) ?? AutoNameOf(id);
 
     private static bool IsMainFolder(string folder) =>
@@ -79,7 +81,7 @@ public static class AccountMeta
     }
 
     /// <returns>유형이 「기본」이 되면서 기본을 빼앗긴 같은 도구의 다른 계정 id</returns>
-    public static IReadOnlyList<string> Set(AppSettings settings, string id, string? name, string? type)
+    public static IReadOnlyList<string> Set(AppSettings settings, string id, string? name, string? type, decimal? monthlyFee = null)
     {
         var cleared = new List<string>();
         if (IsDefaultType(type))
@@ -100,6 +102,7 @@ public static class AccountMeta
         entry.Name = trimmed.Length == 0 || trimmed == AutoNameOf(id) ? null
             : trimmed.Length > MaxNameLength ? trimmed[..MaxNameLength] : trimmed;
         entry.Type = string.IsNullOrWhiteSpace(type) ? null : type.Trim();
+        entry.MonthlyFeeUsd = monthlyFee is > 0 ? monthlyFee : null;
         entry.Email = MailOf(id);
         return cleared;
     }

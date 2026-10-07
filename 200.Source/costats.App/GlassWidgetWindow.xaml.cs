@@ -134,7 +134,8 @@ namespace costats.App
                 nameof(PulseViewModel.Gemini) or
                 nameof(PulseViewModel.IsChartExpanded) or
                 nameof(PulseViewModel.IsModelsExpanded) or
-                nameof(PulseViewModel.IsTokenTypesExpanded))
+                nameof(PulseViewModel.IsTokenTypesExpanded) or
+                nameof(PulseViewModel.IsProgramsExpanded))
             {
                 UpdateWindowHeight();
             }

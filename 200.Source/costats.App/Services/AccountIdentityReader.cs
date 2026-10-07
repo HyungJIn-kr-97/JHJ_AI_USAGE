@@ -18,21 +18,12 @@ public static class AccountIdentityReader
         try
         {
             var path = ClaudeAccountFile(configDir);
-            if (!File.Exists(path))
-            {
-                return NotSignedIn;
-            }
-
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            using var doc = JsonDocument.Parse(stream);
-            if (!doc.RootElement.TryGetProperty("oauthAccount", out var account) ||
-                account.ValueKind != JsonValueKind.Object)
-            {
-                return NotSignedIn;
-            }
-
-            var email = GetString(account, "emailAddress");
-            var organization = GetString(account, "organizationName");
+            // 계약: 홈 파일(기본 자리)은 다른 세션이 덮어쓴 값을 거른 신원을 쓴다 — costats.Infrastructure ClaudeHomeIdentity
+            var identity = string.Equals(path, costats.Infrastructure.Providers.ClaudeHomeIdentity.HomeFile, StringComparison.OrdinalIgnoreCase)
+                ? costats.Infrastructure.Providers.ClaudeHomeIdentity.Read()
+                : costats.Infrastructure.Providers.ClaudeHomeIdentity.ReadFile(path);
+            var email = identity?.Email;
+            var organization = identity?.Organization;
             if (string.IsNullOrWhiteSpace(email))
             {
                 return NotSignedIn;

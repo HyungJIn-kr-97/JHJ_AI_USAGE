@@ -16,8 +16,80 @@ namespace costats.Setup
         public const string ExeName = "AiUsageMonitor.exe";
         private const string ShortcutName = "AI 통합 사용량 모니터.lnk";
 
-        public static string InstallDir { get; } = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AiUsageMonitor", "app");
+        // 계약: 설정·이력·동의가 사는 자료 폴더 — 설치 폴더를 어디로 골라도 여기는 고정이다
+        public static string DataDir { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AiUsageMonitor");
+
+        public static string DefaultInstallDir { get; } = Path.Combine(DataDir, "app");
+
+        // 계약: 사용자가 고른 설치 폴더는 install-dir.txt 에 남긴다 — 앱의 「이 버전 설치」(--silent)와 「제거」가 같은 자리를 쓴다
+        private static readonly string InstallDirFile = Path.Combine(DataDir, "install-dir.txt");
+        private static string _installDir;
+
+        public static string InstallDir
+        {
+            get => _installDir ?? (_installDir = ReadSavedInstallDir() ?? DefaultInstallDir);
+            set => _installDir = value;
+        }
+
+        private static string ReadSavedInstallDir()
+        {
+            try
+            {
+                var saved = File.Exists(InstallDirFile) ? File.ReadAllText(InstallDirFile).Trim() : null;
+                return string.IsNullOrEmpty(saved) ? null : saved;
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+        }
+
+        // 계약: 설치본 찾기 — 저장값 · 시작 프로그램 등록(Run) · 시작 메뉴 바로가기 · 기본 폴더 순으로 exe 가 있는 첫 자리를 InstallDir 로 삼는다
+        public static void DetectInstallDir()
+        {
+            var candidates = new System.Collections.Generic.List<string> { ReadSavedInstallDir() };
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))
+                {
+                    var run = key?.GetValue("AiUsageMonitor") as string;
+                    if (!string.IsNullOrEmpty(run))
+                    {
+                        candidates.Add(Path.GetDirectoryName(run.Trim().Trim('"')));
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is System.Security.SecurityException || ex is IOException)
+            {
+            }
+
+            try
+            {
+                var shortcut = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), ShortcutName);
+                var shellType = File.Exists(shortcut) ? Type.GetTypeFromProgID("WScript.Shell") : null;
+                if (shellType != null)
+                {
+                    dynamic shell = Activator.CreateInstance(shellType);
+                    string target = shell.CreateShortcut(shortcut).TargetPath;
+                    if (!string.IsNullOrEmpty(target))
+                    {
+                        candidates.Add(Path.GetDirectoryName(target));
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException || ex is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+            {
+            }
+
+            candidates.Add(DefaultInstallDir);
+            var found = candidates.FirstOrDefault(dir => !string.IsNullOrEmpty(dir) && File.Exists(Path.Combine(dir, ExeName)));
+            _installDir = found ?? _installDir ?? ReadSavedInstallDir() ?? DefaultInstallDir;
+        }
+        private static void SaveInstallDir()
+        {
+            Directory.CreateDirectory(DataDir);
+            File.WriteAllText(InstallDirFile, InstallDir);
+        }
 
         public static string InstalledExe => Path.Combine(InstallDir, ExeName);
 
@@ -86,6 +158,7 @@ namespace costats.Setup
             }
 
             CreateShortcut();
+            SaveInstallDir();
         }
 
         public static void Launch() =>
@@ -132,6 +205,39 @@ namespace costats.Setup
             shortcut.Save();
         }
 
+        // 계약: keepData 면 앱 폴더·바로가기·시작 프로그램만 지우고 설정·이력(상위 폴더)은 남긴다
+        public static void Uninstall(bool keepData)
+        {
+            StopRunningApp();
+            if (Directory.Exists(InstallDir))
+            {
+                Directory.Delete(InstallDir, true);
+            }
+
+            var shortcut = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), ShortcutName);
+            if (File.Exists(shortcut))
+            {
+                File.Delete(shortcut);
+            }
+
+            using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
+            {
+                if (key != null && key.GetValue("AiUsageMonitor") != null)
+                {
+                    key.DeleteValue("AiUsageMonitor", false);
+                }
+            }
+
+            if (File.Exists(InstallDirFile))
+            {
+                File.Delete(InstallDirFile);
+            }
+
+            if (!keepData && Directory.Exists(DataDir))
+            {
+                Directory.Delete(DataDir, true);
+            }
+        }
         public static string FindArg(string[] args, string name) =>
             args.SkipWhile(a => !string.Equals(a, name, StringComparison.OrdinalIgnoreCase)).Skip(1).FirstOrDefault();
     }

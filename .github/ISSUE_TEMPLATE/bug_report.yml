@@ -1,0 +1,33 @@
+name: 버그 신고
+description: 잘못 동작하는 것을 알려 주십시오.
+title: "[버그] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 순서
+      description: 어디서 무엇을 누르면 어떻게 되는지 순서대로.
+      placeholder: |
+        1. Ctrl+Alt+Y 로 팝업을 엽니다
+        2. 기간 칩 「1년」을 누릅니다
+        3. 「프로그램」 구역이 비어 있습니다
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대한 결과
+  - type: input
+    id: version
+    attributes:
+      label: 앱 버전
+      description: 설정 › 일반의 「현재 v…」 값
+      placeholder: v1.0.1.20261007
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: 스크린샷·로그
+      description: 화면을 붙여 넣거나, %LOCALAPPDATA%\AiUsageMonitor\updates\apply-update.log 처럼 관련 로그를 첨부해 주십시오.

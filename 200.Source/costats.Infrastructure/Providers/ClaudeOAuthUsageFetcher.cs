@@ -389,24 +389,11 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
     private static readonly JsonSerializerOptions DiskCacheJsonOptions = new(JsonSerializerDefaults.Web);
 
     //  Credential helpers
-    // 계약: 기본 로그인은 ~/.claude.json, 추가 계정은 <CLAUDE_CONFIG_DIR>/.claude.json 의 oauthAccount.emailAddress
-    private static string? ReadAccountEmail(string? configDir)
-    {
-        var path = configDir is not null
-            ? Path.Combine(configDir, ".claude.json")
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json");
-        try
-        {
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            return doc.RootElement.TryGetProperty("oauthAccount", out var oa) && oa.TryGetProperty("emailAddress", out var e)
-                ? e.GetString()
-                : null;
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
+    // 계약: 기본 로그인은 ~/.claude.json(다른 세션이 덮어쓴 값은 ClaudeHomeIdentity 가 거른다), 추가 계정은 <CLAUDE_CONFIG_DIR>/.claude.json
+    private static string? ReadAccountEmail(string? configDir) =>
+        configDir is null
+            ? ClaudeHomeIdentity.Read()?.Email
+            : ClaudeHomeIdentity.ReadFile(Path.Combine(configDir, ".claude.json"))?.Email;
 
     private static string? ComputeFingerprint(ClaudeCredentials? credentials)
     {
