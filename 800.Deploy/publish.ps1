@@ -85,6 +85,13 @@ $outputBase = Join-Path $PSScriptRoot "publish"
 
 $platforms = if ($Platform -eq "all") { @("win-x64", "win-arm64") } else { @("win-$Platform") }
 
+# 함정: 이 저장소에서 띄운 앱이 bin\ 이나 publish\ 를 잠그면 GenerateBundle 이 죽는다 - 먼저 내린다
+$repoRoot = Split-Path -Parent $PSScriptRoot
+Get-Process -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -and $_.Path.StartsWith($repoRoot, [StringComparison]::OrdinalIgnoreCase) } |
+    Stop-Process -Force
+Start-Sleep -Milliseconds 400
+
 Write-Host "Building AI Usage Monitor v$Release" -ForegroundColor Cyan
 Write-Host "Configuration: $Configuration" -ForegroundColor Gray
 Write-Host "Platforms: $($platforms -join ', ')" -ForegroundColor Gray

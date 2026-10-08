@@ -145,9 +145,10 @@ else {
 
 # --- 4. 빌드 ----------------------------------------------------------------
 Step "4/5 빌드"
-# 왜: 이 폴더에서 띄운 개발 빌드가 bin\ 을 잠가 빌드가 깨진다 - 설치본은 건드리지 않는다. 끝나면 다시 띄운다(아래 「끝」)
-$devApp = Get-Process 'AI-Usage-Monitor_JHJ','AiUsageMonitor' -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -like ($repo + "\200.Source\*") }
+# 왜: 이 저장소에서 띄운 앱이 bin\ 이나 publish\ 를 잠가 빌드가 깨진다 - 설치본(%LOCALAPPDATA%)은 저장소 밖이라 안 걸린다
+# 함정: 200.Source 만 보면 publish\ 산출물로 확인해 본 프로세스를 놓쳐 GenerateBundle 이 UnauthorizedAccessException 으로 죽는다
+$devApp = Get-Process -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -and $_.Path.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) }
 $devAppWasRunning = $null -ne $devApp
 $devApp | Stop-Process -Force
 
