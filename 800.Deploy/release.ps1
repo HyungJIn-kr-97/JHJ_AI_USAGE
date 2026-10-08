@@ -145,10 +145,11 @@ else {
 
 # --- 4. 빌드 ----------------------------------------------------------------
 Step "4/5 빌드"
-# 왜: 이 폴더에서 띄운 개발 빌드가 bin\ 을 잠가 빌드가 깨진다 - 설치본은 건드리지 않는다
-Get-Process AiUsageMonitor -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -like ($repo + "\200.Source\*") } |
-    Stop-Process -Force
+# 왜: 이 폴더에서 띄운 개발 빌드가 bin\ 을 잠가 빌드가 깨진다 - 설치본은 건드리지 않는다. 끝나면 다시 띄운다(아래 「끝」)
+$devApp = Get-Process AiUsageMonitor -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -like ($repo + "\200.Source\*") }
+$devAppWasRunning = $null -ne $devApp
+$devApp | Stop-Process -Force
 
 try { & (Join-Path $PSScriptRoot "publish.ps1") -Platform x64 -BuildDate $date }
 catch { Fail "빌드 실패: $($_.Exception.Message)" }
@@ -236,6 +237,13 @@ if ($manifestDir) {
 }
 Write-Host "  릴리스 페이지 : https://github.com/$Repository/releases/tag/$tag"
 Write-Host "  설치 파일 주소: https://github.com/$Repository/releases/latest/download/AI-Usage-Monitor_JHJ_Setup.exe"
-Write-Host "  빌드하느라 개발 빌드 앱을 껐습니다. 다시 띄우려면:"
-Write-Host "  $repo\200.Source\costats.App\bin\Release\net10.0-windows\win-x64\AiUsageMonitor.exe"
+$devExe = "$repo\200.Source\costats.App\bin\Release\net10.0-windows\win-x64\AiUsageMonitor.exe"
+if ($devAppWasRunning -and (Test-Path $devExe)) {
+    # 왜: 빌드 때 껐던 개발 빌드 앱을 그대로 두면 「앱이 자꾸 종료된다」 — 떠 있던 경우에만 다시 띄운다
+    Start-Process explorer.exe $devExe
+    Write-Host "  빌드하느라 껐던 개발 빌드 앱을 다시 띄웠습니다."
+}
+else {
+    Write-Host "  개발 빌드 앱을 띄우려면: $devExe"
+}
 exit 0

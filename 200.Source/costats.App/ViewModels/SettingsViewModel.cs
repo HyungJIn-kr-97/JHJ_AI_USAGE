@@ -124,6 +124,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// </summary>
     public void RefreshAccounts()
     {
+        // 왜: 그사이 작업 관리자 「시작 앱」에서 켜거나 껐을 수 있다 — 체크를 실제 상태로 다시 맞춘다
+        StartAtLogin = GetStartupRegistryValue();
         RebuildPalettes();
         RebuildIconOptions();
         RebuildHotkeySlots();
@@ -1896,7 +1898,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         await _settingsStore.SaveAsync(_settings, CancellationToken.None);
     }
 
-    private static bool GetStartupRegistryValue()
+    // 계약: 작업 관리자 「시작 앱」의 켬/끔은 StartupApproved\Run 의 첫 바이트다(02=켬 · 03=끔) — Run 값만 보면 작업 관리자에서 끈 것을 켜진 것으로 읽는다
+    private const string StartupApprovedKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+
+    internal static bool GetStartupRegistryValue() => IsStartupRegistered() && !IsStartupDisabledByTaskManager();
+
+    internal static bool IsStartupRegistered()
     {
         try
         {
@@ -1909,25 +1916,46 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    // 계약: 켜면 「지금 실행 중인 exe」 경로로 HKCU Run 에 등록한다 — App 시작 때도 불러 경로가 낡았거나 빠진 등록을 바로잡는다
+    internal static bool IsStartupDisabledByTaskManager()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(StartupApprovedKey, false);
+            return key?.GetValue(AppName) is byte[] { Length: > 0 } flags && flags[0] == 0x03;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // 계약: 켜면 「지금 실행 중인 exe」 경로로 HKCU Run 에 등록하고 작업 관리자 쪽도 「사용」으로 맞춘다 — App 시작 때도 불러 낡은 경로를 바로잡는다
+    // 계약: 끄면 Run 값은 두고 작업 관리자 쪽을 「사용 안 함」으로 만든다 — 그래야 작업 관리자에서 다시 켤 수 있고, 켜면 설정 창도 따라간다
     internal static void SetStartupRegistryValue(bool enable)
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, true);
-            if (key is null) return;
+            using var run = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, true);
+            using var approved = Registry.CurrentUser.CreateSubKey(StartupApprovedKey);
+            if (run is null) return;
 
             if (enable)
             {
                 var exePath = Environment.ProcessPath;
                 if (!string.IsNullOrEmpty(exePath))
                 {
-                    key.SetValue(AppName, $"\"{exePath}\"");
+                    run.SetValue(AppName, $"\"{exePath}\"");
                 }
+
+                approved?.SetValue(AppName, new byte[] { 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
+            }
+            else if (run.GetValue(AppName) is not null)
+            {
+                approved?.SetValue(AppName, new byte[] { 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
             }
             else
             {
-                key.DeleteValue(AppName, false);
+                approved?.DeleteValue(AppName, false);
             }
         }
         catch

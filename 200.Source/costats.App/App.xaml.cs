@@ -111,8 +111,19 @@ namespace costats.App
 
                 var settingsStore = new JsonSettingsStore();
                 var settings = await settingsStore.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-                // 왜: 설정은 켜져 있는데 Run 등록이 없거나 옛 경로인 경우가 있다(폴더 이동·업데이트·다른 환경에서 켠 경우) — 시작할 때마다 맞춘다
-                if (settings.StartAtLogin)
+                // 계약: 작업 관리자 「시작 앱」과 양방향으로 맞춘다 — 거기서 껐으면 설정을 끄고, 거기서 켰으면 설정을 켠다. 그 밖에는 설정대로 낡은 경로를 바로잡는다
+                var registeredNow = costats.App.ViewModels.SettingsViewModel.GetStartupRegistryValue();
+                if (settings.StartAtLogin && costats.App.ViewModels.SettingsViewModel.IsStartupDisabledByTaskManager())
+                {
+                    settings.StartAtLogin = false;
+                    await settingsStore.SaveAsync(settings, CancellationToken.None).ConfigureAwait(false);
+                }
+                else if (!settings.StartAtLogin && registeredNow)
+                {
+                    settings.StartAtLogin = true;
+                    await settingsStore.SaveAsync(settings, CancellationToken.None).ConfigureAwait(false);
+                }
+                else if (settings.StartAtLogin)
                 {
                     costats.App.ViewModels.SettingsViewModel.SetStartupRegistryValue(true);
                 }

@@ -11,6 +11,8 @@
 
     <!-- App metadata -->
     <Product>AI Usage Monitor</Product>
+    <!-- 계약: 작업 관리자 「시작 앱」 · 속성 창의 파일 설명에 보이는 이름 -->
+    <AssemblyTitle>AI 통합 사용량 모니터</AssemblyTitle>
     <Description>Usage statistics for Claude and Codex AI coding assistants</Description>
     <Company>jhj</Company>
     <Authors>jhj</Authors>

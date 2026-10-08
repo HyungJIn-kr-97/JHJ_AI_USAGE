@@ -39,6 +39,16 @@ public static class LegacyMigration
                 key.SetValue(NewName, command);
                 key.DeleteValue(OldName, throwOnMissingValue: false);
             }
+
+            // 왜: 원본 costats · 옛 이름이 남긴 작업 관리자 「시작 앱」 켬/끔 기록은 Run 값이 없으면 고아다 — 목록에 유령 항목으로 남으니 지운다
+            using var approved = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", writable: true);
+            foreach (var orphan in new[] { OldName, "costats" })
+            {
+                if (approved?.GetValue(orphan) is not null && key?.GetValue(orphan) is null)
+                {
+                    approved.DeleteValue(orphan, throwOnMissingValue: false);
+                }
+            }
         }
         catch
         {
