@@ -18,7 +18,7 @@ if errorlevel 1 goto :fail
 
 echo.
 echo [OK] Installer exe : %~dp0publish\win-x64\AI-Usage-Monitor_JHJ.exe
-echo      Run it once - it installs itself to %%LOCALAPPDATA%%\AiUsageMonitor\app
+echo      Run it once - it installs itself to %%LOCALAPPDATA%%\AI-Usage-Monitor_JHJ\app
 echo [OK] Update package: %~dp0publish\AiUsageMonitor-win-x64-v*.zip and .zip.sha256
 echo      Upload both to a GitHub Release tagged v{version} to ship an update
 echo.

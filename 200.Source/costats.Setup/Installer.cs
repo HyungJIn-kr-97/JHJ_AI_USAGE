@@ -21,7 +21,7 @@ namespace costats.Setup
         private const string ShortcutName = "AI 통합 사용량 모니터.lnk";
 
         // 계약: 설정·이력·동의가 사는 자료 폴더 — 설치 폴더를 어디로 골라도 여기는 고정이다
-        public static string DataDir { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AiUsageMonitor");
+        public static string DataDir { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Usage-Monitor_JHJ");
 
         public static string DefaultInstallDir { get; } = Path.Combine(DataDir, "app");
 
@@ -29,8 +29,8 @@ namespace costats.Setup
         private static readonly string InstallDirFile = Path.Combine(DataDir, "install-dir.txt");
 
         // 계약: 「프로그램 추가/제거」 등록 — winget 이 설치 확인·업그레이드·제거에 쓴다. 제거 명령은 DataDir 에 복사해 둔 이 설치 관리자다
-        private const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AiUsageMonitor";
-        public static string SetupCopyPath => Path.Combine(DataDir, "AiUsageMonitor-Setup.exe");
+        private const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AI-Usage-Monitor_JHJ";
+        public static string SetupCopyPath => Path.Combine(DataDir, "AI-Usage-Monitor_JHJ-Setup.exe");
         private static string SelfPath => Path.GetFullPath(typeof(Installer).Assembly.Location);
 
         private static void KeepSetupCopy()
@@ -141,7 +141,7 @@ namespace costats.Setup
             {
                 using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))
                 {
-                    var run = key?.GetValue("AiUsageMonitor") as string;
+                    var run = key?.GetValue("AI-Usage-Monitor_JHJ") as string;
                     if (!string.IsNullOrEmpty(run))
                     {
                         candidates.Add(Path.GetDirectoryName(run.Trim().Trim('"')));
@@ -330,9 +330,9 @@ namespace costats.Setup
 
             using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
             {
-                if (key != null && key.GetValue("AiUsageMonitor") != null)
+                if (key != null && key.GetValue("AI-Usage-Monitor_JHJ") != null)
                 {
-                    key.DeleteValue("AiUsageMonitor", false);
+                    key.DeleteValue("AI-Usage-Monitor_JHJ", false);
                 }
             }
 

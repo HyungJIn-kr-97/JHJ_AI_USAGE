@@ -117,11 +117,12 @@ foreach ($rid in $platforms) {
     # MIT requires the license text to travel with every copy - the UI no longer shows it
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "..\LICENSE") -Destination (Join-Path $outputPath "LICENSE.txt") -Force
 
-    # Contract: older installs look for AiUsageMonitor.exe inside the zip, so ship a copy under the old name too.
+    # Contract: older installs look for AI-Usage-Monitor_JHJ.exe inside the zip, so ship a copy under the old name too.
     # TODO: drop this copy once 1.1.0 or newer is everywhere - see 300.Docs\실행파일-이름-전환.md
     Copy-Item -LiteralPath (Join-Path $outputPath "AI-Usage-Monitor_JHJ.exe") -Destination (Join-Path $outputPath "AiUsageMonitor.exe") -Force
 
     # Create ZIP archive
+    # Contract: keep the OLD name - installed builds look for AiUsageMonitor-<rid>-v<ver>.zip. See 300.Docs\실행파일-이름-전환.md
     $zipPath = Join-Path $outputBase "AiUsageMonitor-$rid-v$Release.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath }
     Compress-Archive -Path "$outputPath\*" -DestinationPath $zipPath
@@ -148,7 +149,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 $setupAsset = Join-Path $outputBase "AI-Usage-Monitor_JHJ_Setup.exe"
-Copy-Item -Path (Join-Path $setupOut "AiUsageMonitor-Setup.exe") -Destination $setupAsset -Force
+Copy-Item -Path (Join-Path $setupOut "AI-Usage-Monitor_JHJ-Setup.exe") -Destination $setupAsset -Force
 $null = Write-Checksum -Path $setupAsset
 Write-Host "Created: $setupAsset" -ForegroundColor Green
 Write-Host ""

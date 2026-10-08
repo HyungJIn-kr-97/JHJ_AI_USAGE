@@ -24,7 +24,7 @@ public sealed class GeminiQuotaFetcher : IDisposable
 
     public GeminiQuotaFetcher()
     {
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "AiUsageMonitor");
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "AI-Usage-Monitor_JHJ");
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 

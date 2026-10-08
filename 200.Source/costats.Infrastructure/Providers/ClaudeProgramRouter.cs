@@ -197,13 +197,13 @@ internal static class ClaudeDesktopSessions
 
 /// <summary>
 /// VS Code·CLI 세션의 주인 — 둘 다 ~/.claude 를 쓰고 로그 줄에 계정이 없어, 앱이 처음 본 순간의 ~/.claude.json 로그인 계정을 세션에 붙여 둔다.
-/// 계약: 기능을 켠 시각(StartedAt) 이후의 줄만 붙인다 — 그 전 세션은 「프로그램 연동」 표를 따른다. 저장은 %LOCALAPPDATA%\AiUsageMonitor\claude-cli-sessions.json.
+/// 계약: 기능을 켠 시각(StartedAt) 이후의 줄만 붙인다 — 그 전 세션은 「프로그램 연동」 표를 따른다. 저장은 %LOCALAPPDATA%\AI-Usage-Monitor_JHJ\claude-cli-sessions.json.
 /// 함정: 붙이는 때는 갱신 주기(5분)만큼 늦다 — 그사이 다른 계정으로 다시 로그인하면 새 계정으로 붙는다.
 /// </summary>
 internal static class ClaudeCliSessions
 {
     private static readonly string FilePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AiUsageMonitor", "claude-cli-sessions.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Usage-Monitor_JHJ", "claude-cli-sessions.json");
 
     private static readonly object Gate = new();
     private static Store? _store;

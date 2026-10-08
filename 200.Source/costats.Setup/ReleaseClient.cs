@@ -33,6 +33,7 @@ namespace costats.Setup
     /// <summary>
     /// 앱과 같은 공개 저장소의 Releases 를 토큰 없이 읽는다.
     /// 계약: 자산 이름 규칙은 800.Deploy/publish.ps1 이 만드는 AiUsageMonitor-&lt;rid&gt;-v&lt;버전&gt;.zip(+ .sha256)이다.
+    /// 함정: 이 zip 이름만은 옛 이름을 지킨다 — 이미 깔린 버전이 이 이름으로만 다음 버전을 찾는다.
     /// </summary>
     internal sealed class ReleaseClient : IDisposable
     {
@@ -45,7 +46,7 @@ namespace costats.Setup
             // 함정: .NET Framework 4.8 은 OS 설정에 따라 TLS 1.0 으로 붙어 GitHub 가 거절한다 — 1.2 를 명시한다
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             _http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-            _http.DefaultRequestHeaders.UserAgent.ParseAdd("AiUsageMonitor-Setup/1.0");
+            _http.DefaultRequestHeaders.UserAgent.ParseAdd("AI-Usage-Monitor_JHJ-Setup/1.0");
             _http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         }
 

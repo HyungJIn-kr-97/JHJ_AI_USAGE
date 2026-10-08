@@ -5,7 +5,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <AssemblyName>AiUsageMonitor-Setup</AssemblyName>
+    <AssemblyName>AI-Usage-Monitor_JHJ-Setup</AssemblyName>
     <RootNamespace>costats.Setup</RootNamespace>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>

@@ -218,7 +218,7 @@ namespace costats.Setup
             // 왜: 설치 폴더는 통째로 비우고 다시 푼다 — 남의 파일이 있는 폴더를 그대로 쓰면 지워진다
             if (System.IO.Directory.Exists(picked) && System.IO.Directory.EnumerateFileSystemEntries(picked).Any() && !System.IO.File.Exists(System.IO.Path.Combine(picked, Installer.ExeName)))
             {
-                picked = System.IO.Path.Combine(picked, "AiUsageMonitor");
+                picked = System.IO.Path.Combine(picked, "AI-Usage-Monitor_JHJ");
             }
 
             ApplyPath(picked);
@@ -385,7 +385,7 @@ namespace costats.Setup
         private void Remove()
         {
             var answer = MessageBox.Show(this,
-                "설치된 앱을 제거합니다.\n\n설정과 사용량 이력(%LOCALAPPDATA%\\AiUsageMonitor)도 함께 지울까요?\n「예」= 모두 지움 · 「아니요」= 앱만 지우고 설정·이력은 남김",
+                "설치된 앱을 제거합니다.\n\n설정과 사용량 이력(%LOCALAPPDATA%\\AI-Usage-Monitor_JHJ)도 함께 지울까요?\n「예」= 모두 지움 · 「아니요」= 앱만 지우고 설정·이력은 남김",
                 "제거", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
             if (answer == DialogResult.Cancel)
             {

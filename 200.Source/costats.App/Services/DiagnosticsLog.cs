@@ -3,7 +3,7 @@ using System.IO;
 namespace costats.App.Services;
 
 /// <summary>
-/// 로컬 이벤트 기록 — %LOCALAPPDATA%\AiUsageMonitor\diagnostics\events.log 한 줄씩(시각 | 분류 | 내용).
+/// 로컬 이벤트 기록 — %LOCALAPPDATA%\AI-Usage-Monitor_JHJ\diagnostics\events.log 한 줄씩(시각 | 분류 | 내용).
 /// 계약: Enabled 가 false 면 아무것도 쓰지 않는다. 2,000줄을 넘으면 뒤 1,000줄만 남긴다. 어디로도 보내지 않는다.
 /// </summary>
 public static class DiagnosticsLog
@@ -12,7 +12,7 @@ public static class DiagnosticsLog
     private static readonly object Gate = new();
 
     public static string Path { get; } = System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AiUsageMonitor", "diagnostics", "events.log");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Usage-Monitor_JHJ", "diagnostics", "events.log");
 
     public static bool Enabled { get; set; } = true;
 

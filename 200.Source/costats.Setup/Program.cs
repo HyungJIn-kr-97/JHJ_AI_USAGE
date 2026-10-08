@@ -6,7 +6,7 @@ namespace costats.Setup
 {
     internal static class Program
     {
-        // 계약: AiUsageMonitor-Setup.exe [--version 1.0.2] [--silent] [--state fresh|installed] | --uninstall [--silent] [--purge]
+        // 계약: AI-Usage-Monitor_JHJ-Setup.exe [--version 1.0.2] [--silent] [--state fresh|installed] | --uninstall [--silent] [--purge]
         //       --state 는 개발 확인용(설치 전/후 화면 강제). --uninstall 은 「프로그램 추가/제거」·winget uninstall 이 부르고, --purge 가 있어야 설정·이력까지 지운다
         [STAThread]
         private static void Main(string[] args)
@@ -32,7 +32,7 @@ namespace costats.Setup
             if (!silent)
             {
                 var answer = MessageBox.Show(
-                    "설치된 앱을 제거합니다.\n\n설정과 사용량 이력(%LOCALAPPDATA%\\AiUsageMonitor)도 함께 지울까요?\n「예」= 모두 지움 · 「아니요」= 앱만 지우고 설정·이력은 남김",
+                    "설치된 앱을 제거합니다.\n\n설정과 사용량 이력(%LOCALAPPDATA%\\AI-Usage-Monitor_JHJ)도 함께 지울까요?\n「예」= 모두 지움 · 「아니요」= 앱만 지우고 설정·이력은 남김",
                     Title + " 제거", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
                 if (answer == DialogResult.Cancel)
                 {

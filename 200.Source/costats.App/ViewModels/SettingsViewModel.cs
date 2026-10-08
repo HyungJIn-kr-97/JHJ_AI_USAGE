@@ -32,7 +32,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private const string ClaudeMainId = "claude:" + AccountProfileStore.DefaultName;
     private const string CodexMainId = "codex";
     private const string StartupRegistryKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-    private const string AppName = "AiUsageMonitor";
+    private const string AppName = "AI-Usage-Monitor_JHJ";
 
     public SettingsViewModel(
         ISettingsStore settingsStore,
@@ -551,7 +551,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         try
         {
             CloseLoginBrowser();
-            _loginBrowserDir = Path.Combine(Path.GetTempPath(), "AiUsageMonitor-login-" + Guid.NewGuid().ToString("N")[..8]);
+            _loginBrowserDir = Path.Combine(Path.GetTempPath(), "AI-Usage-Monitor_JHJ-login-" + Guid.NewGuid().ToString("N")[..8]);
             var info = new System.Diagnostics.ProcessStartInfo(chrome) { UseShellExecute = false };
             info.ArgumentList.Add("--user-data-dir=" + _loginBrowserDir);
             info.ArgumentList.Add("--no-first-run");
@@ -1020,7 +1020,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     // 계약: 팝업 확대 비율 — 0 은 「자동」(화면 작업영역 높이로 정한다). 목록은 갈아 끼우지 않고 Label 만 다시 알린다
     public IReadOnlyList<PopupScaleOption> PopupScaleOptions { get; } =
-        new[] { 0, 100, 115, 130, 150 }.Select(p => new PopupScaleOption(p)).ToArray();
+        new[] { 0, 80, 90, 100, 115, 130, 150 }.Select(p => new PopupScaleOption(p)).ToArray();
 
     public PopupScaleOption SelectedPopupScaleOption
     {
@@ -1874,7 +1874,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         var dialog = new SaveFileDialog
         {
-            FileName = $"AiUsageMonitor-diagnostics-{DateTime.Now:yyyyMMdd-HHmm}.md",
+            FileName = $"AI-Usage-Monitor_JHJ-diagnostics-{DateTime.Now:yyyyMMdd-HHmm}.md",
             Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
         };

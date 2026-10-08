@@ -40,7 +40,7 @@ namespace costats.App
             RegisterExceptionHandlers();
 
             var version = Assembly.GetExecutingAssembly().GetName().Version;
-            Log.Information("AiUsageMonitor starting (v{Version}, PID {Pid})", version, Environment.ProcessId);
+            Log.Information("AI-Usage-Monitor_JHJ starting (v{Version}, PID {Pid})", version, Environment.ProcessId);
 
             if (SelfInstaller.TryInstallAndRelaunch())
             {
@@ -48,7 +48,7 @@ namespace costats.App
                 return;
             }
 
-            _singleInstance = new SingleInstanceCoordinator("AiUsageMonitor");
+            _singleInstance = new SingleInstanceCoordinator("AI-Usage-Monitor_JHJ");
             if (!_singleInstance.IsPrimary)
             {
                 _ = Task.Run(async () =>
@@ -199,14 +199,14 @@ namespace costats.App
         {
             var logDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "AiUsageMonitor", "logs");
+                "AI-Usage-Monitor_JHJ", "logs");
             Directory.CreateDirectory(logDir);
 
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Information()
                 .WriteTo.Debug()
                 .WriteTo.File(
-                    Path.Combine(logDir, "AiUsageMonitor-.log"),
+                    Path.Combine(logDir, "AI-Usage-Monitor_JHJ-.log"),
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 14,
                     outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}")

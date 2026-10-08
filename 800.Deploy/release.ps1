@@ -238,12 +238,13 @@ if ($manifestDir) {
 Write-Host "  릴리스 페이지 : https://github.com/$Repository/releases/tag/$tag"
 Write-Host "  설치 파일 주소: https://github.com/$Repository/releases/latest/download/AI-Usage-Monitor_JHJ_Setup.exe"
 $devExe = "$repo\200.Source\costats.App\bin\Release\net10.0-windows\win-x64\AI-Usage-Monitor_JHJ.exe"
-if ($devAppWasRunning -and (Test-Path $devExe)) {
-    # 왜: 빌드 때 껐던 개발 빌드 앱을 그대로 두면 「앱이 자꾸 종료된다」 — 떠 있던 경우에만 다시 띄운다
+if (Test-Path $devExe) {
+    # 왜: 배포하면 빌드 때문에 앱이 꺼진 채 남는다 — 떠 있었든 아니든 끝나면 다시 띄운다
+    # 함정: explorer.exe 로 띄운다 - 이 콘솔의 자식이 되면 창을 닫을 때 같이 죽는다
     Start-Process explorer.exe $devExe
-    Write-Host "  빌드하느라 껐던 개발 빌드 앱을 다시 띄웠습니다."
+    Write-Host "  개발 빌드 앱을 띄웠습니다: $devExe"
 }
 else {
-    Write-Host "  개발 빌드 앱을 띄우려면: $devExe"
+    Write-Host "  개발 빌드가 없어 앱을 띄우지 못했습니다: $devExe"
 }
 exit 0

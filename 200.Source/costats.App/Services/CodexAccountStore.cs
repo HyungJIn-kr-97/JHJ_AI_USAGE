@@ -12,7 +12,7 @@ public static class CodexAccountStore
     private const string LabelFile = ".label";
 
     public static string RootDir { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AiUsageMonitor", "accounts-codex");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Usage-Monitor_JHJ", "accounts-codex");
 
     public static string DirOf(string name) => Path.Combine(RootDir, name);
 

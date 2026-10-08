@@ -1,7 +1,7 @@
 # winget-manifest.ps1 - writes the three winget manifest files for one published release.
 # Contract: ASCII only (Windows PowerShell 5.1 parses this file). PackageIdentifier must equal UpdateOptions.WingetId in the app.
 # Usage:  .\winget-manifest.ps1 -Version 1.0.3.20261008        (release tag without the leading "v")
-# Output: .\winget\manifests\h\HyungJin\AiUsageMonitor\<version>\*.yaml
+# Output: .\winget\manifests\h\HyungJin\AI-Usage-Monitor_JHJ\<version>\*.yaml
 # Next:   winget validate <dir>  ->  winget install --manifest <dir>  ->  wingetcreate submit <dir>  (or a PR to microsoft/winget-pkgs)
 param(
     [Parameter(Mandatory = $true)][string]$Version,
@@ -13,14 +13,14 @@ $ErrorActionPreference = "Stop"
 $Version = $Version.TrimStart("v", "V")
 if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "Version must look like 1.0.3.20261008 (got '$Version')." }
 
-$id        = "HyungJin.AiUsageMonitor"
+$id        = "HyungJin.AI-Usage-Monitor_JHJ"
 $tag       = "v$Version"
 $url       = "https://github.com/$Repository/releases/download/$tag/AI-Usage-Monitor_JHJ_Setup.exe"
-$outDir    = Join-Path $OutRoot "manifests\h\HyungJin\AiUsageMonitor\$Version"
+$outDir    = Join-Path $OutRoot "manifests\h\HyungJin\AI-Usage-Monitor_JHJ\$Version"
 $schema    = "1.6.0"
 
 # Hash the exact bytes GitHub serves - a local build may differ from the uploaded asset.
-$tmp = Join-Path ([System.IO.Path]::GetTempPath()) "AiUsageMonitor-Setup-$Version.exe"
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) "AI-Usage-Monitor_JHJ-Setup-$Version.exe"
 Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
 $sha = (Get-FileHash -Path $tmp -Algorithm SHA256).Hash.ToUpperInvariant()
 Remove-Item $tmp -Force -ErrorAction SilentlyContinue

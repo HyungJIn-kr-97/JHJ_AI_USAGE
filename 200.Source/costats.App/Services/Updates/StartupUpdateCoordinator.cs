@@ -69,7 +69,7 @@ public sealed class StartupUpdateCoordinator
 
         _updatesRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AiUsageMonitor",
+            "AI-Usage-Monitor_JHJ",
             "updates");
         _statePath = Path.Combine(_updatesRoot, "state.json");
         _pendingPath = Path.Combine(_updatesRoot, "pending.json");
@@ -82,7 +82,7 @@ public sealed class StartupUpdateCoordinator
             Timeout = TimeSpan.FromSeconds(30)
         };
 
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AiUsageMonitor", "1.0"));
+        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AI-Usage-Monitor_JHJ", "1.0"));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
     }
 
@@ -671,7 +671,7 @@ public sealed class StartupUpdateCoordinator
             return false;
         }
 
-        runtimeIdentifier = assetName["AiUsageMonitor-".Length..markerIndex];
+        runtimeIdentifier = assetName["AI-Usage-Monitor_JHJ-".Length..markerIndex];
         var versionText = assetName[(markerIndex + 2)..^4];
         return TryParseSemVer(versionText, out version);
     }
@@ -932,7 +932,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$logDir = Join-Path $env:LOCALAPPDATA "AiUsageMonitor\updates"
+$logDir = Join-Path $env:LOCALAPPDATA "AI-Usage-Monitor_JHJ\updates"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logPath = Join-Path $logDir "apply-update.log"
 

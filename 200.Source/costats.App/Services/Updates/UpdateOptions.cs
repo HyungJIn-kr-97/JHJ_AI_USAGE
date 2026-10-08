@@ -12,7 +12,7 @@ public sealed class UpdateOptions
     public static string SetupFileUrl => "https://github.com/" + DefaultRepository + "/releases/latest/download/AI-Usage-Monitor_JHJ_Setup.exe";
 
     // 계약: winget 패키지 식별자 — 800.Deploy\winget-manifest.ps1 의 PackageIdentifier 와 같아야 한다
-    public const string WingetId = "HyungJin.AiUsageMonitor";
+    public const string WingetId = "HyungJin.AI-Usage-Monitor_JHJ";
 
     public static string WingetCommand => "winget install " + WingetId;
     public bool Enabled { get; init; } = false;
