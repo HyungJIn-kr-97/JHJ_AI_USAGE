@@ -335,6 +335,29 @@ namespace costats.Setup
                 return;
             }
 
+            // 계약: 런타임이 없으면 설치해도 앱이 안 뜬다 — 깔기 전에 받는 곳을 열어 준다
+            if (!Installer.IsRuntimeInstalled())
+            {
+                _status.Text = Installer.RuntimeName + " 이 필요합니다. 받는 곳을 열었습니다 — 설치한 뒤 다시 시도해 주십시오.";
+                if (_silent)
+                {
+                    Environment.ExitCode = 3;
+                    Close();
+                    return;
+                }
+
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Installer.RuntimeUrl) { UseShellExecute = true });
+                }
+                catch (Exception)
+                {
+                    _status.Text = Installer.RuntimeName + " 이 필요합니다: " + Installer.RuntimeUrl;
+                }
+
+                return;
+            }
+
             _install.Enabled = false;
             _remove.Enabled = false;
             _pathChange.Enabled = false;

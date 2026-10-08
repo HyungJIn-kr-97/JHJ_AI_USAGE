@@ -98,12 +98,13 @@ foreach ($rid in $platforms) {
     dotnet publish $projectPath `
         --configuration $Configuration `
         --runtime $rid `
-        --self-contained true `
+        --self-contained false `
         --output $outputPath `
         -p:PublishSingleFile=true `
         -p:PublishReadyToRun=false `
         -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:EnableCompressionInSingleFile=true `
+        -p:EnableCompressionInSingleFile=false `
+        -p:SatelliteResourceLanguages=en `
         -p:DebugType=embedded `
         -p:VersionPrefix=$Version `
         -p:Version=$Version `

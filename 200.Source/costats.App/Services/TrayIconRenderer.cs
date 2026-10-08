@@ -17,7 +17,60 @@ public static class TrayIconRenderer
     public const string TileStyle = "tile";
     public const int CanvasSize = 16;
 
-    public static readonly string[] Presets = ["ai", "j", "bars", "ring", "spark"];
+    // 계약: 앱의 기본 아이콘 모양 — 트레이·exe·설치 관리자가 모두 이것 하나를 쓴다.
+    //       바꾸면 800.Deploy\make-icons.ps1 을 다시 돌려 .ico 를 새로 뽑는다.
+    // 계약: AppSettings.TrayIconStyle 의 기본값과 같은 값이어야 한다 — 층이 반대라 상수를 공유하지 못한다
+    public const string DefaultStyle = "ai";
+
+    // 계약: 기본 아이콘의 팔레트 — ThemeManager 의 기본 팔레트와 같다
+    public const string DefaultPalette = "bull";
+
+    public static readonly string[] Presets = [DefaultStyle, "j", "bars", "ring", "spark"];
+
+    // 계약: Windows 가 자리마다 고르는 크기들 — 트레이 16, 작업 표시줄 24·32, 탐색기 48·256
+    private static readonly int[] IcoSizes = [16, 24, 32, 48, 64, 128, 256];
+
+    /// <summary>기본 아이콘을 여러 크기로 그려 .ico 한 파일로 쓴다 — 리소스 아이콘의 유일한 출처다.</summary>
+    // 왜: 그리는 코드가 두 벌이면 트레이와 exe 아이콘이 조용히 어긋난다 — 같은 Render() 에서 뽑는다
+    public static void SaveIcoFile(string path, string? style = null, string? palette = null)
+    {
+        var frames = IcoSizes.Select(size =>
+        {
+            using var bitmap = Render(style ?? DefaultStyle, palette ?? DefaultPalette, size);
+            using var buffer = new MemoryStream();
+            bitmap.Save(buffer, ImageFormat.Png);
+            return (Size: size, Bytes: buffer.ToArray());
+        }).ToList();
+
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        using var file = File.Create(path);
+        using var w = new BinaryWriter(file);
+
+        // 계약: ICONDIR — 예약 0, 종류 1(아이콘), 그림 수
+        w.Write((ushort)0);
+        w.Write((ushort)1);
+        w.Write((ushort)frames.Count);
+
+        var offset = 6 + (16 * frames.Count);
+        foreach (var (size, bytes) in frames)
+        {
+            // 함정: 256 은 한 바이트에 안 들어가 0 으로 적는다 — 읽는 쪽이 256 으로 해석한다
+            w.Write((byte)(size >= 256 ? 0 : size));
+            w.Write((byte)(size >= 256 ? 0 : size));
+            w.Write((byte)0);
+            w.Write((byte)0);
+            w.Write((ushort)1);
+            w.Write((ushort)32);
+            w.Write((uint)bytes.Length);
+            w.Write((uint)offset);
+            offset += bytes.Length;
+        }
+
+        foreach (var (_, bytes) in frames)
+        {
+            w.Write(bytes);
+        }
+    }
 
     public static string IconDir { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Usage-Monitor_JHJ", "icons");

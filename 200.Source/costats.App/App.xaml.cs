@@ -33,6 +33,15 @@ namespace costats.App
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             base.OnStartup(e);
+
+            // 계약: --export-icon <폴더> 는 기본 아이콘을 .ico 로 뽑고 끝낸다 — 800.Deploy\make-icons.ps1 이 쓴다
+            // 왜: 설치 물음·데이터 이사보다 먼저 갈라야 한다 — 아이콘만 뽑는데 창이 뜨면 안 된다
+            if (TryExportIcon(e.Args))
+            {
+                Shutdown(0);
+                return;
+            }
+
             LegacyMigration.Run();
             ApplyTheme();
 
@@ -190,6 +199,25 @@ namespace costats.App
         /// The host builder replaces this logger with the fully-configured one.
         /// </summary>
         // 계약: 창이 만들어지기 전에 한 번은 불러야 한다 — 테마 키가 없으면 창 XAML 로딩이 실패한다
+        /// <summary>--export-icon &lt;폴더&gt; 를 받았으면 기본 아이콘을 .ico 로 뽑고 true.</summary>
+        // 계약: 뽑는 파일 이름은 리소스와 같다 — tray-icon.ico(앱) · setup-icon.ico(설치 관리자)
+        private static bool TryExportIcon(string[] args)
+        {
+            var at = Array.FindIndex(args, a => string.Equals(a, "--export-icon", StringComparison.OrdinalIgnoreCase));
+            if (at < 0 || at + 1 >= args.Length)
+            {
+                return false;
+            }
+
+            var dir = args[at + 1];
+            foreach (var name in new[] { "tray-icon.ico", "setup-icon.ico" })
+            {
+                TrayIconRenderer.SaveIcoFile(System.IO.Path.Combine(dir, name));
+            }
+
+            return true;
+        }
+
         private static void ApplyTheme()
         {
             ThemeManager.Apply(ThemeManager.ResolveIsDark(ThemeManager.SystemMode));

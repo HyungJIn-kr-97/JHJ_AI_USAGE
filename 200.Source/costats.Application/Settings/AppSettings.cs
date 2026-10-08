@@ -30,6 +30,7 @@ public sealed class AppSettings
     public string Palette { get; set; } = "bull";
 
     // 계약: 트레이 아이콘 모양 — "ai"(기본) · "j"(화면 이름 JHJ) · "bars" · "ring" · "spark"(팔레트 색으로 그림) · "custom:<파일 이름>"(사용자 아이콘)
+    // 계약: costats.App 의 TrayIconRenderer.DefaultStyle 과 같은 값이어야 한다 — 참조 방향이 반대라 상수를 공유하지 못한다
     public string TrayIconStyle { get; set; } = "ai";
 
     /// <summary>

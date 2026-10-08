@@ -10,12 +10,16 @@ MIT 입니다([LICENSE](LICENSE)). 원저작자 고지(`Copyright (c) 2026 fmdz`
 
 ## 설치
 
-[Releases](https://github.com/HyungJIn-kr-97/JHJ_AI_USAGE/releases) 에서 둘 중 하나를 받아 실행합니다. .NET 설치는 필요 없습니다.
+[Releases](https://github.com/HyungJIn-kr-97/JHJ_AI_USAGE/releases) 에서 둘 중 하나를 받아 실행합니다.
+
+> **먼저 [.NET 10 데스크톱 런타임](https://dotnet.microsoft.com/download/dotnet/10.0/runtime)이 있어야 합니다**(한 번만 설치하면 됩니다).
+> 없으면 웹 설치 관리자가 받는 곳을 열어 주고, 앱을 직접 실행했을 때는 Windows 가 받는 곳을 안내합니다.
+> v1.0.5 까지는 런타임을 품어 꾸러미가 64MB 였고, 지금은 **4MB 가 안 됩니다**.
 
 | 파일 | 종류 | 하는 일 |
 |---|---|---|
 | `AI-Usage-Monitor_JHJ_Setup.exe` (약 75KB) | **웹 설치 관리자** | 실행하면 GitHub 릴리스 목록을 읽어 버전을 고르게 하고(기본은 최신), 그 버전을 받아 설치한 뒤 실행합니다. 낮은 버전을 고르면 되돌리기가 됩니다. `--version 1.0.0` · `--silent` 인자를 받습니다. Windows 기본 .NET Framework 4.8 로 돕니다 |
-| `AI-Usage-Monitor_JHJ_<버전>_win-x64.exe` (약 65MB) | **오프라인 설치 파일** | 인터넷 없이 그 버전 하나로 설치합니다. 설치 여부를 묻는 창에서 「예」를 고르면 설치본으로 다시 뜹니다 |
+| `AI-Usage-Monitor_JHJ_<버전>_win-x64.exe` (약 4MB) | **오프라인 설치 파일** | 인터넷 없이 그 버전 하나로 설치합니다. 설치 여부를 묻는 창에서 「예」를 고르면 설치본으로 다시 뜹니다 |
 
 어느 쪽이든 `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\app` 에 놓이고 시작 메뉴 바로가기(`AI 통합 사용량 모니터`)가 생깁니다.
 
@@ -63,6 +67,9 @@ winget install HyungJin.AI-Usage-Monitor_JHJ
 **가리는 것** — 메일은 첫 글자+도메인, UUID 는 앞 8자, 경로의 사용자 폴더는 `%USERPROFILE%`. **넣지 않는 것** — 토큰 · 대화 내용 · 프로젝트 경로. 이벤트 기록은 설정 › 일반 「사용 기록 남기기」로 끌 수 있고, 꺼도 보고서의 나머지 항목은 누를 때 그 자리에서 읽어 만듭니다.
 
 **팝업이 보여 주는 값을 파일로도 남깁니다** — `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\data\`. 다른 도구가 읽어 쓸 수 있게 만든 것이고, 구조·칸의 뜻은 [300.Docs/표시-데이터-저장소.md](300.Docs/표시-데이터-저장소.md) 가 정본입니다. 전송은 하지 않습니다.
+
+**아이콘은 한 곳에서 나옵니다** — 트레이·exe·설치 관리자가 모두 `TrayIconRenderer.DefaultStyle`(기본 `ai`)로 그린 같은 그림입니다.
+모양이나 팔레트를 바꾸면 `pwsh -File 800.Deploy\make-icons.ps1` 로 `.ico` 를 다시 뽑고 빌드하십시오 — `.ico` 에는 다른 출처가 없습니다.
 
 ## 버전 체계
 

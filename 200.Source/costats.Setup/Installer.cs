@@ -25,6 +25,38 @@ namespace costats.Setup
 
         public static string DefaultInstallDir { get; } = Path.Combine(DataDir, "app");
 
+        // 계약: 앱은 .NET 10 데스크톱 런타임이 있어야 뜬다 — 런타임을 품지 않는 대신 꾸러미가 64MB 에서 4MB 로 줄었다
+        public const string RuntimeName = ".NET 10 데스크톱 런타임";
+
+        public const string RuntimeUrl = "https://dotnet.microsoft.com/download/dotnet/10.0/runtime";
+
+        /// <summary>이 PC 에 앱이 요구하는 런타임이 깔려 있나.</summary>
+        // 함정: dotnet --list-runtimes 를 부르면 PATH 에 없을 때 틀린 답이 된다 — 폴더를 직접 본다
+        public static bool IsRuntimeInstalled()
+        {
+            try
+            {
+                foreach (var root in new[]
+                {
+                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                })
+                {
+                    var dir = Path.Combine(root, "dotnet", "shared", "Microsoft.WindowsDesktop.App");
+                    if (Directory.Exists(dir) &&
+                        Directory.GetDirectories(dir).Any(d => Path.GetFileName(d).StartsWith("10.", StringComparison.Ordinal)))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+            }
+
+            return false;
+        }
+
         // 계약: 사용자가 고른 설치 폴더는 install-dir.txt 에 남긴다 — 앱의 「이 버전 설치」(--silent)와 「제거」가 같은 자리를 쓴다
         private static readonly string InstallDirFile = Path.Combine(DataDir, "install-dir.txt");
 
