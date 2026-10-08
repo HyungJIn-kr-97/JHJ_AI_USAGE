@@ -42,8 +42,18 @@ public sealed partial class SettingsViewModel : ObservableObject
         CopilotUsageFetcher copilotFetcher,
         StartupUpdateCoordinator? updateCoordinator = null,
         IMulticcDiscovery? multiccDiscovery = null,
-        PulseViewModel? pulseViewModel = null)
+        PulseViewModel? pulseViewModel = null,
+        ScheduledUpdateService? scheduledUpdate = null)
     {
+        _scheduledUpdate = scheduledUpdate;
+        autoUpdateEnabled = settings.AutoUpdateEnabled;
+        autoUpdateNotify = settings.AutoUpdateNotify;
+        autoUpdateTime = ScheduledUpdateService.NormalizeTime(settings.AutoUpdateTime) ?? ScheduledUpdateService.DefaultTime;
+        if (scheduledUpdate is not null)
+        {
+            scheduledUpdate.StatusChanged += text => UpdateStatusText = text;
+        }
+
         _pulseViewModel = pulseViewModel;
         _settingsStore = settingsStore;
         _settings = settings;
@@ -54,6 +64,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _multiccDiscovery = multiccDiscovery;
 
         refreshMinutes = settings.RefreshMinutes;
+        popupScalePercent = settings.PopupScalePercent;
         startAtLogin = GetStartupRegistryValue();
         refreshOnOpen = settings.RefreshOnOpen;
         valueGradeBoundsText = string.Join(", ", settings.ValueGradeBounds.Select(b => b.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)));
@@ -1007,6 +1018,95 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<RefreshOption> RefreshOptions { get; } =
         new[] { 1, 2, 3, 5, 10, 15 }.Select(m => new RefreshOption(m)).ToArray();
 
+    // 계약: 팝업 확대 비율 — 0 은 「자동」(화면 작업영역 높이로 정한다). 목록은 갈아 끼우지 않고 Label 만 다시 알린다
+    public IReadOnlyList<PopupScaleOption> PopupScaleOptions { get; } =
+        new[] { 0, 100, 115, 130, 150 }.Select(p => new PopupScaleOption(p)).ToArray();
+
+    public PopupScaleOption SelectedPopupScaleOption
+    {
+        get => PopupScaleOptions.FirstOrDefault(o => o.Percent == PopupScalePercent) ?? PopupScaleOptions[0];
+        set
+        {
+            if (value is not null && PopupScalePercent != value.Percent)
+            {
+                PopupScalePercent = value.Percent;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    [ObservableProperty]
+    private int popupScalePercent;
+
+    partial void OnPopupScalePercentChanged(int value)
+    {
+        _settings.PopupScalePercent = value;
+        _ = SaveSettingsAsync();
+    }
+
+    // 계약: 탭 머리의 「기본값으로」 — 그 탭의 설정만 되돌린다. 「계정」 탭에는 두지 않는다
+    [RelayCommand]
+    private async Task ResetGroup(string? group)
+    {
+        if (!Enum.TryParse<SettingsGroup>(group, ignoreCase: true, out var target))
+        {
+            return;
+        }
+
+        _settings.ResetToDefaults(target);
+        ApplyResetToView(target);
+        await SaveSettingsAsync();
+        ResetMessage = Loc.T("Restored to defaults.");
+    }
+
+    [ObservableProperty]
+    private string resetMessage = string.Empty;
+
+    /// <summary>되돌린 값을 화면과 앱에 입힌다 — 설정 파일만 바꾸면 창은 옛 값을 계속 보인다.</summary>
+    // 함정: 아래 대입은 partial OnChanged 로 _settings 에 같은 값을 다시 쓴다 — 무해하지만 순서를 바꾸면 안 된다
+    internal void ApplyResetToView(SettingsGroup target)
+    {
+        if (target is SettingsGroup.General or SettingsGroup.All)
+        {
+            RefreshMinutes = _settings.RefreshMinutes;
+            PopupScalePercent = _settings.PopupScalePercent;
+            StartAtLogin = _settings.StartAtLogin;
+            RefreshOnOpen = _settings.RefreshOnOpen;
+            PinTrayIcon = _settings.PinTrayIcon;
+            MulticcEnabled = _settings.MulticcEnabled;
+            DiagnosticsEnabled = _settings.DiagnosticsEnabled;
+            AutoUpdateEnabled = _settings.AutoUpdateEnabled;
+            AutoUpdateTime = _settings.AutoUpdateTime;
+            AutoUpdateNotify = _settings.AutoUpdateNotify;
+            ValueGradeBoundsText = string.Join(", ", _settings.ValueGradeBounds.Select(b => b.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)));
+            // 함정: 목록은 등록된 키(HotkeyService.Texts)를 먼저 본다 — 서비스를 다시 맞춰야 화면도 바뀐다
+            HotkeyService.Current?.Reload(_settings);
+            RebuildHotkeySlots(HotkeyService.Current?.Texts);
+            OnPropertyChanged(nameof(SelectedRefreshOption));
+            OnPropertyChanged(nameof(SelectedPopupScaleOption));
+        }
+
+        if (target is SettingsGroup.Display or SettingsGroup.All)
+        {
+            ThemeManager.Apply(_settings.Palette, ThemeManager.ResolveIsDark(_settings.Theme));
+            Loc.SetLanguage(_settings.Language);
+            OnPropertyChanged(nameof(LanguageLabel));
+            RebuildPalettes();
+        }
+
+        if (target is SettingsGroup.Icon or SettingsGroup.All)
+        {
+            RebuildIconOptions();
+            TrayIconRenderer.NotifyChanged();
+        }
+
+        if (target is SettingsGroup.All)
+        {
+            CopilotEnabled = _settings.CopilotEnabled;
+            GeminiEnabled = _settings.GeminiEnabled;
+        }
+    }
+
     // 계약: 설정 창의 색 견본 목록. 견본 색은 지금 명암의 대표색이라 명암이 바뀌면 다시 만든다
     [ObservableProperty]
     private IReadOnlyList<PaletteOption> palettes = [];
@@ -1316,7 +1416,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         _settings.RefreshMinutes = value;
         _pulseOrchestrator.UpdateRefreshInterval(TimeSpan.FromMinutes(value));
         _ = SaveSettingsAsync();
+        foreach (var option in PopupScaleOptions)
+        {
+            option.NotifyLanguageChanged();
+        }
+
         OnPropertyChanged(nameof(SelectedRefreshOption));
+        OnPropertyChanged(nameof(SelectedPopupScaleOption));
     }
 
     partial void OnStartAtLoginChanged(bool value)
@@ -1611,6 +1717,66 @@ public sealed partial class SettingsViewModel : ObservableObject
     private string versionCompareText = string.Empty;
 
     public bool CanInstallRelease => _updateCoordinator?.CanInstall ?? false;
+
+    private readonly ScheduledUpdateService? _scheduledUpdate;
+
+    // 계약: 예약 자동 업데이트 — 동작은 Services/Updates/ScheduledUpdateService, 값은 AppSettings.AutoUpdate*
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutoUpdateHintText))]
+    private bool autoUpdateEnabled = true;
+
+    [ObservableProperty]
+    private bool autoUpdateNotify = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutoUpdateHintText))]
+    private string autoUpdateTime = ScheduledUpdateService.DefaultTime;
+
+    public string AutoUpdateHintText
+    {
+        get
+        {
+            if (!CanInstallRelease)
+            {
+                return Loc.T("Automatic update runs only in the installed app.");
+            }
+
+            if (ScheduledUpdateService.NormalizeTime(AutoUpdateTime) is null)
+            {
+                return Loc.T("Enter the time as HH:mm (e.g. 04:00).");
+            }
+
+            return AutoUpdateEnabled && _scheduledUpdate is not null
+                ? Loc.T("Next automatic update: {0}", _scheduledUpdate.DueAt.ToString("MM-dd HH:mm"))
+                : string.Empty;
+        }
+    }
+
+    partial void OnAutoUpdateEnabledChanged(bool value)
+    {
+        _settings.AutoUpdateEnabled = value;
+        _scheduledUpdate?.Reschedule();
+        _ = SaveSettingsAsync();
+    }
+
+    partial void OnAutoUpdateNotifyChanged(bool value)
+    {
+        _settings.AutoUpdateNotify = value;
+        _ = SaveSettingsAsync();
+    }
+
+    partial void OnAutoUpdateTimeChanged(string value)
+    {
+        // 계약: 시각으로 읽히는 값만 저장한다 — 읽히지 않으면 앞선 시각을 그대로 쓴다
+        if (ScheduledUpdateService.NormalizeTime(value) is not { } time || time == _settings.AutoUpdateTime)
+        {
+            return;
+        }
+
+        _settings.AutoUpdateTime = time;
+        _scheduledUpdate?.Reschedule();
+        _ = SaveSettingsAsync();
+    }
 
     public string ReleasesUrl => _updateCoordinator?.ReleasesPageUrl ?? "https://github.com/" + costats.App.Services.Updates.UpdateOptions.DefaultRepository + "/releases";
 
@@ -1930,7 +2096,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     // 계약: 켜면 「지금 실행 중인 exe」 경로로 HKCU Run 에 등록하고 작업 관리자 쪽도 「사용」으로 맞춘다 — App 시작 때도 불러 낡은 경로를 바로잡는다
-    // 계약: 끄면 Run 값은 두고 작업 관리자 쪽을 「사용 안 함」으로 만든다 — 그래야 작업 관리자에서 다시 켤 수 있고, 켜면 설정 창도 따라간다
+    // 계약: 꺼도 Run 값은 남기고 작업 관리자 쪽만 「사용 안 함」으로 둔다 — 줄이 남아야 거기서 다시 켤 수 있고, 켜면 설정 창도 따라간다
+    // 왜: 한 번도 켠 적이 없으면 Run 값이 없어 「시작 앱」 목록에 줄 자체가 없었다 — 꺼진 상태에서도 등록해 둔다
     internal static void SetStartupRegistryValue(bool enable)
     {
         try
@@ -1939,30 +2106,36 @@ public sealed partial class SettingsViewModel : ObservableObject
             using var approved = Registry.CurrentUser.CreateSubKey(StartupApprovedKey);
             if (run is null) return;
 
-            if (enable)
+            // 함정: 경로는 켤 때든 끌 때든 지금 exe 로 다시 쓴다 — 설치·업데이트로 폴더가 바뀌면 옛 경로가 남는다
+            var exePath = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exePath))
             {
-                var exePath = Environment.ProcessPath;
-                if (!string.IsNullOrEmpty(exePath))
-                {
-                    run.SetValue(AppName, $"\"{exePath}\"");
-                }
+                run.SetValue(AppName, $"\"{exePath}\"");
+            }
 
-                approved?.SetValue(AppName, new byte[] { 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
-            }
-            else if (run.GetValue(AppName) is not null)
-            {
-                approved?.SetValue(AppName, new byte[] { 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
-            }
-            else
-            {
-                approved?.DeleteValue(AppName, false);
-            }
+            // 계약: 첫 바이트가 0x02 면 「사용」, 0x03 이면 「사용 안 함」이다 — 나머지 11바이트는 끈 시각이라 0 으로 둔다
+            approved?.SetValue(
+                AppName,
+                new byte[] { enable ? (byte)0x02 : (byte)0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+                RegistryValueKind.Binary);
         }
         catch
         {
             // Silently ignore registry errors
         }
     }
+}
+
+// 계약: Percent 0 은 「자동」이다 — 창이 화면 작업영역 높이로 배율을 정한다(GlassWidgetWindow.AutoScale)
+public sealed class PopupScaleOption(int percent) : ObservableObject
+{
+    public int Percent { get; } = percent;
+
+    public string Label => Percent == 0
+        ? costats.App.Localization.Loc.T("Auto")
+        : $"{Percent}%";
+
+    public void NotifyLanguageChanged() => OnPropertyChanged(nameof(Label));
 }
 
 public sealed class RefreshOption(int minutes) : ObservableObject

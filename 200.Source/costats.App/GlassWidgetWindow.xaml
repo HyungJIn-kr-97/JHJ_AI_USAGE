@@ -103,8 +103,12 @@
         </Style>
     </Window.Resources>
 
+    <!-- 왜: 큰 화면일수록 360 고정 폭이 작아 보인다 — 폭과 글자를 함께 키운다(GlassWidgetWindow.xaml.cs FitToWorkArea) -->
     <Border CornerRadius="10" BorderBrush="{DynamicResource WindowBorderBrush}" BorderThickness="1"
             Background="{DynamicResource BgBrush}">
+        <Border.LayoutTransform>
+            <ScaleTransform x:Name="ShellScale" ScaleX="1" ScaleY="1" />
+        </Border.LayoutTransform>
         <Grid>
             <!-- Title bar -->
             <DockPanel VerticalAlignment="Top" Margin="20,12,30,0" Height="24">
@@ -604,7 +608,7 @@
                     <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding SessionProgress}" Maximum="1" Foreground="{DynamicResource SessionAccent}" />
                     <DockPanel Margin="0,8,0,0">
                         <TextBlock Text="{Binding SessionUsageLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left" />
-                        <TextBlock Text="{Binding SessionResetText}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" DockPanel.Dock="Right" HorizontalAlignment="Right" />
+                        <TextBlock Text="{Binding SessionResetLine}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" DockPanel.Dock="Right" HorizontalAlignment="Right" />
                     </DockPanel>
                 </StackPanel>
 
@@ -634,7 +638,7 @@
                     <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding WeekProgress}" Maximum="1" Foreground="{DynamicResource WeeklyAccent}" />
                     <DockPanel Margin="0,8,0,0">
                         <TextBlock Text="{Binding WeekUsageLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left" />
-                        <TextBlock Text="{Binding WeekResetText}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" DockPanel.Dock="Right" HorizontalAlignment="Right" />
+                        <TextBlock Text="{Binding WeekResetLine}" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" DockPanel.Dock="Right" HorizontalAlignment="Right" />
                     </DockPanel>
                 </StackPanel>
 

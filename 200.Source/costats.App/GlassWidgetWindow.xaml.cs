@@ -42,6 +42,12 @@ namespace costats.App
                 {
                     ApplyLinking();
                 }
+
+                // 왜: 설정 창이 팝업 안에 있다 — 크기를 고르는 순간 눈앞에서 바뀌어야 고른 값을 확인할 수 있다
+                if (e.PropertyName is nameof(SettingsViewModel.PopupScalePercent))
+                {
+                    FitToWorkArea();
+                }
             };
             viewModel.ClaudeProfiles.CollectionChanged += (_, _) => ApplyLinking();
             SourceInitialized += OnSourceInitialized;
@@ -143,12 +149,48 @@ namespace costats.App
 
         // 왜: 탭·계정·접힘에 따라 창 높이가 바뀌면 화면이 흔들린다 — 창은 작업 영역 높이(100%)로 고정하고 본문만 스크롤한다
         // 계약: 위아래 여백 12px 씩은 TrayHost 의 위치 계산과 맞춘 값이다
+        /// <summary>모든 설정을 기본값으로 되돌린다 — 계정과 사용량 이력은 남긴다.</summary>
+        public void ResetAllSettings()
+        {
+            _settings.ResetToDefaults(costats.Application.Settings.SettingsGroup.All);
+            _settingsViewModel.ApplyResetToView(costats.Application.Settings.SettingsGroup.All);
+            _ = _settingsStore.SaveAsync(_settings, System.Threading.CancellationToken.None);
+            FitToWorkArea();
+        }
+
         public void FitToWorkArea()
         {
+            ApplyShellScale();
+
             var target = SystemParameters.WorkArea.Height - 24;
             if (Math.Abs(Height - target) > 1.0)
             {
                 Height = target;
+            }
+        }
+
+        // 계약: 설계 폭은 360 이고 배율만큼 곱해 창 폭을 잡는다 — 내용은 그대로 360 으로 그려진 뒤 ShellScale 이 확대한다
+        private const double DesignWidth = 360;
+
+        // 왜: 4K·QHD 에서 360 고정 폭은 글자가 깨알같이 작아 보인다 — 작업영역 높이를 기준 삼아 키운다(1080p = 1.0 배)
+        // 계약: 1.0~1.5 로 조인다 — 1.5 를 넘기면 세로로 길어 한 화면에 안 들어간다
+        public static double AutoScale(double workAreaHeight) =>
+            Math.Clamp(Math.Round(workAreaHeight / 900.0, 2), 1.0, 1.5);
+
+        private void ApplyShellScale()
+        {
+            var percent = _settings.PopupScalePercent;
+            var scale = percent > 0 ? percent / 100.0 : AutoScale(SystemParameters.WorkArea.Height);
+            if (Math.Abs(ShellScale.ScaleX - scale) > 0.001)
+            {
+                ShellScale.ScaleX = scale;
+                ShellScale.ScaleY = scale;
+            }
+
+            var width = Math.Round(DesignWidth * scale);
+            if (Math.Abs(Width - width) > 1.0)
+            {
+                Width = width;
             }
         }
 

@@ -16,7 +16,7 @@ public static class TrayPinService
     /// <returns>바꾼 항목 수 — 0 이면 아직 Windows 가 이 아이콘을 등록하지 않은 것이다</returns>
     public static int SetPromoted(bool promoted)
     {
-        var exeName = System.IO.Path.GetFileName(Environment.ProcessPath ?? "AiUsageMonitor.exe");
+        var exeName = System.IO.Path.GetFileName(Environment.ProcessPath ?? "AI-Usage-Monitor_JHJ.exe");
         var changed = 0;
         try
         {

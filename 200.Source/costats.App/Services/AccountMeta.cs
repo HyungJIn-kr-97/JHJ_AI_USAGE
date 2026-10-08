@@ -45,6 +45,23 @@ public static class AccountMeta
         return mail.IndexOf('@') > 0 ? mail : null;
     }
 
+    /// <summary>이 id 에 지금 로그인된 Claude 계정 UUID. Claude 가 아니거나 로그인 전이면 null.</summary>
+    // 계약: 기본 자리는 ClaudeHomeIdentity.Read() 를 거친다 — 다른 세션이 덮어쓴 이름을 거른 신원이어야 메일과 짝이 맞는다
+    public static string? UuidOf(string id)
+    {
+        if (KindOf(id) != "claude")
+        {
+            return null;
+        }
+
+        var folder = FolderOf(id);
+        var path = AccountIdentityReader.ClaudeAccountFile(
+            IsMainFolder(folder) ? null : Path.Combine(AccountProfileStore.RootDir, folder));
+        return string.Equals(path, costats.Infrastructure.Providers.ClaudeHomeIdentity.HomeFile, StringComparison.OrdinalIgnoreCase)
+            ? costats.Infrastructure.Providers.ClaudeHomeIdentity.Read()?.Uuid
+            : costats.Infrastructure.Providers.ClaudeHomeIdentity.ReadFile(path)?.Uuid;
+    }
+
     // 계약: 명칭을 안 정했으면 로그인 메일의 @ 앞("atisys.ai") — 로그인 전이면 추가할 때 적은 이름, 이 PC 로그인은 "이 PC"
     public static string AutoNameOf(string id)
     {

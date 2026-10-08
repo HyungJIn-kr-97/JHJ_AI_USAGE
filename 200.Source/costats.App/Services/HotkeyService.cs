@@ -27,6 +27,25 @@ namespace costats.App.Services
             _trayHost = trayHost;
             Current = this;
 
+            LoadFrom(settings);
+            RegisterAll();
+        }
+
+        /// <summary>설정의 단축키로 다시 맞춘다 — 「기본값으로」·「설정 초기화」가 부른다.</summary>
+        // 왜: 설정 파일만 되돌리면 등록된 키는 옛 값 그대로다 — 화면 목록도 등록값을 먼저 보므로 바뀐 게 없어 보인다
+        public void Reload(AppSettings settings)
+        {
+            UnregisterAll();
+            _slots.Clear();
+            LoadFrom(settings);
+            if (!_suspended)
+            {
+                RegisterAll();
+            }
+        }
+
+        private void LoadFrom(AppSettings settings)
+        {
             foreach (var text in new[] { settings.Hotkey }.Concat(settings.ExtraHotkeys).Take(MaxCount))
             {
                 // 왜: 손으로 고친 설정 파일에 Ctrl+C 같은 막힌 키가 있으면 1번은 기본값으로, 나머지는 버린다
@@ -43,8 +62,6 @@ namespace costats.App.Services
                     _slots.Add((key, modifiers));
                 }
             }
-
-            RegisterAll();
         }
 
         public IReadOnlyList<string> Texts => _slots.Select(s => HotkeyRules.Format(s.Key, s.Modifiers)).ToList();

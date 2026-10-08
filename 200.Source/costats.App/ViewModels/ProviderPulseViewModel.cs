@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using costats.App.Localization;
 using costats.Core.Pulse;
@@ -185,6 +186,25 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private bool hasModelUsages;
 
+    // 계약: 세션·주간 한도가 풀리는 절대 시각 — 화면에 직접 묶이지 않고 LocalStamp() 와 저장소가 쓴다
+    public DateTimeOffset? SessionResetsAt { get; set; }
+
+    public DateTimeOffset? WeekResetsAt { get; set; }
+
+    // 계약: 초기화 문구는 세 벌이다 — ResetText 는 상대시간만, ResetAtText 는 절대 일시만, ResetLine 은 둘을 이은 한 줄.
+    //       좁은 계정 카드는 앞 둘을 위아래로, 폭이 넉넉한 단일 계정 화면은 ResetLine 을 쓴다
+    [ObservableProperty]
+    private string sessionResetAtText = string.Empty;
+
+    [ObservableProperty]
+    private string weekResetAtText = string.Empty;
+
+    [ObservableProperty]
+    private string sessionResetLine = string.Empty;
+
+    [ObservableProperty]
+    private string weekResetLine = string.Empty;
+
     // 계약: 전체 주간 한도 아래에 따로 그리는 모델별 주간 한도(예: Fable). 서비스가 주지 않으면 비어 있다
     [ObservableProperty]
     private IReadOnlyList<ModelWeekRow> modelWeeks = [];
@@ -359,7 +379,9 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
                 Loc.T("Weekly · {0}", quota.Label),
                 Math.Clamp(quota.UsedPercent / 100.0, 0, 1),
                 Loc.Tr($"{(int)Math.Round(quota.UsedPercent)}% used"),
-                quota.ResetsAt is { } resetsAt ? Loc.Tr($"Resets {UsageFormatter.ResetCountdown(resetsAt)}") : string.Empty))
+                quota.ResetsAt is { } resetsAt
+                    ? ResetLine(Loc.Tr($"Resets {UsageFormatter.ResetCountdown(resetsAt)}"), LocalStamp(resetsAt))
+                    : string.Empty))
             .ToList();
         // 왜: 탭을 바꿀 때 창 높이가 출렁이지 않게 한다 — 모델별 한도가 없는 도구도 같은 자리를 빈 값으로 차지한다
         if (vm.ModelWeeks.Count == 0)
@@ -370,13 +392,17 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         // 왜: 아래 문장들은 코어·인프라 층이 영어로 만들어 준다 — 화면에 나가기 직전에 한 번에 옮긴다
         // 왜: 「방금 갱신」은 읽은 순간의 말이라 열어 둔 사이 낡는다 — 갱신 시각을 함께 적어 언제 값인지 알게 한다
         var updatedAt = vm.StatusSummary.StartsWith("Updated ", StringComparison.Ordinal)
-            ? $" · {reading.CapturedAt.ToLocalTime():yyyy-MM-dd HH:mm}"
+            ? $" · {LocalStamp(reading.CapturedAt)}"
             : string.Empty;
         vm.StatusSummary = Loc.Tr(vm.StatusSummary) + updatedAt;
         vm.SessionUsageLabel = Loc.Tr(vm.SessionUsageLabel);
         vm.WeekUsageLabel = Loc.Tr(vm.WeekUsageLabel);
         vm.SessionResetText = Loc.Tr(vm.SessionResetText);
+        vm.SessionResetAtText = LocalStamp(vm.SessionResetsAt);
+        vm.SessionResetLine = ResetLine(vm.SessionResetText, vm.SessionResetAtText);
         vm.WeekResetText = Loc.Tr(vm.WeekResetText);
+        vm.WeekResetAtText = LocalStamp(vm.WeekResetsAt);
+        vm.WeekResetLine = ResetLine(vm.WeekResetText, vm.WeekResetAtText);
         vm.SessionPaceText = Loc.Tr(vm.SessionPaceText);
         vm.WeekPaceText = Loc.Tr(vm.WeekPaceText);
         vm.ExtraUsageLabel = Loc.Tr(vm.ExtraUsageLabel);
@@ -400,6 +426,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         // Reset text
         if (usage.SessionWindow?.ResetsAt is { } sessionResets)
         {
+            vm.SessionResetsAt = sessionResets;
             vm.SessionResetText = $"Resets {UsageFormatter.ResetCountdown(sessionResets)}";
 
             // Pace calculation
@@ -436,6 +463,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         // Reset text
         if (usage.WeekWindow?.ResetsAt is { } weekResets)
         {
+            vm.WeekResetsAt = weekResets;
             vm.WeekResetText = $"Resets {UsageFormatter.ResetCountdown(weekResets)}";
 
             // Pace calculation
@@ -506,6 +534,24 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
 
     // 계약: 오늘·최근 30일 합계 — 「전체」 통계(Combine)가 계정마다 더한다
     private (decimal TodayCost, long TodayTokens, decimal WindowCost, long WindowTokens) _totals;
+
+    // 계약: 아래 다섯은 표시 데이터 저장소(DisplayDataStore)가 읽는다 — 화면이 쓴 값 그대로이고 다시 계산하지 않는다
+    internal (decimal TodayCost, long TodayTokens, decimal WindowCost, long WindowTokens) Totals => _totals;
+
+    internal IReadOnlyList<costats.App.Services.UsageHistoryEntry> HistoryEntries => _history;
+
+    internal IReadOnlyDictionary<string, List<costats.App.Services.UsageHistoryEntry>> ProgramHistory => _programHistory;
+
+    internal decimal? MonthlyFeeUsd => _monthlyFee;
+
+    internal bool FeeIsEstimate => _feeIsEstimate;
+
+    // 계약: 기간 칩이 정한 날수의 합계 — RenderHistory 가 화면에 쓴 그 수치다. 비용 데이터가 없으면 null
+    internal decimal? RangeCostUsd { get; private set; }
+
+    internal long? RangeTokens { get; private set; }
+
+    internal double? ValueRatio { get; private set; }
 
     // 계약: 이 계정이 보는 (날짜, 모델) 이력 전부 — 기간 칩과 무관하게 걸러지기 전 목록이다
     private List<costats.App.Services.UsageHistoryEntry> _history = [];
@@ -603,6 +649,8 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             vm.MonthTokensText = UsageFormatter.FormatTokenCount(rangeTokens);
             vm.AvgCostText = UsageFormatter.FormatCurrency(rangeCost / RangeDays);
             vm.AvgTokensText = UsageFormatter.FormatTokenCount(rangeTokens / RangeDays);
+            vm.RangeCostUsd = rangeCost;
+            vm.RangeTokens = rangeTokens;
 
             if (IsClaudeProvider(vm.ProviderId))
             {
@@ -621,6 +669,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
                 vm.HasSubscription = true;
                 vm.SubscriptionFeeText = $"{approx}{FormatFee(fee)}/{Loc.T("mo")}";
                 vm.ValueRatioText = Loc.T("{0}x", ratio.ToString("0.0"));
+                vm.ValueRatio = (double)ratio;
                 vm.ValueGradeText = Loc.T(ValueGradeLabels[grade]);
                 vm.ValueGradeBrush = ValueGradeBrushes[grade];
                 var lines = new List<string>
@@ -1153,6 +1202,32 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
 
         return Math.Clamp((double)used.Value / limit.Value * 100, 0, 100);
     }
+
+    // 왜: 상대시간(「5분 후 초기화」·「4:12 후」)만으로는 그때가 언제인지 알 수 없다 — 절대 시각을 함께 적는다
+    // 계약: 오늘이면 시각만, 다른 날이면 날짜·요일까지. 값이 없으면 빈 문자열이라 부르는 쪽 문구가 그대로 남는다
+    internal static string LocalStamp(DateTimeOffset? moment)
+    {
+        if (moment is not { } at)
+        {
+            return string.Empty;
+        }
+
+        var local = at.ToLocalTime().DateTime;
+        if (local.Date == DateTime.Now.Date)
+        {
+            return $"{local:HH:mm}";
+        }
+
+        // 함정: 요일 이름은 Loc 표에 없다 — 언어에 맞는 CultureInfo 가 만든다
+        var culture = Loc.IsKorean ? KoreanCulture : CultureInfo.InvariantCulture;
+        return $"{local.ToString("MM-dd", culture)}({local.ToString("ddd", culture)}) {local:HH:mm}";
+    }
+
+    // 계약: 폭이 넉넉한 화면이 쓰는 한 줄. 좁은 계정 카드는 두 조각을 위아래로 따로 그린다
+    private static string ResetLine(string text, string stamp) =>
+        text.Length == 0 || stamp.Length == 0 ? text : $"{text} · {stamp}";
+
+    private static readonly CultureInfo KoreanCulture = CultureInfo.GetCultureInfo("ko-KR");
 
     private static string FormatUsageLabel(double usedPercent, long? used)
     {

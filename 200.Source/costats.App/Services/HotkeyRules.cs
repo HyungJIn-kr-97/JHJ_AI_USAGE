@@ -10,7 +10,8 @@ namespace costats.App.Services
     /// </summary>
     public static class HotkeyRules
     {
-        public const string Default = "Ctrl+Alt+2";
+        // 계약: 기본 단축키는 Ctrl+Alt+A 다 — AppSettings.Hotkey 의 기본값과 같은 값이어야 한다(층이 달라 상수를 공유하지 못한다)
+        public const string Default = "Ctrl+Alt+A";
 
         public static bool TryParse(string? text, out Key key, out ModifierKeys modifiers)
         {
@@ -103,6 +104,12 @@ namespace costats.App.Services
             if (isFunction && modifiers == (ModifierKeys.Control | ModifierKeys.Alt) && key <= Key.F12)
             {
                 return (HotkeyVerdict.Recommended, "Recommended — Windows and common apps rarely use Ctrl+Alt+F1–F12.");
+            }
+
+            // 계약: 기본 단축키(Default)도 권장이다 — 기본값이 「적용됨」으로만 뜨면 덜 좋은 선택처럼 보인다
+            if (key == Key.A && modifiers == (ModifierKeys.Control | ModifierKeys.Alt))
+            {
+                return (HotkeyVerdict.Recommended, "Recommended — the default (A for AI).");
             }
 
             if (count == 2 && modifiers.HasFlag(ModifierKeys.Shift) && !isFunction)

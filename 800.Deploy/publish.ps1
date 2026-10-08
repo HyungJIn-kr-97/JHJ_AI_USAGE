@@ -117,6 +117,10 @@ foreach ($rid in $platforms) {
     # MIT requires the license text to travel with every copy - the UI no longer shows it
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "..\LICENSE") -Destination (Join-Path $outputPath "LICENSE.txt") -Force
 
+    # Contract: older installs look for AiUsageMonitor.exe inside the zip, so ship a copy under the old name too.
+    # TODO: drop this copy once 1.1.0 or newer is everywhere - see 300.Docs\실행파일-이름-전환.md
+    Copy-Item -LiteralPath (Join-Path $outputPath "AI-Usage-Monitor_JHJ.exe") -Destination (Join-Path $outputPath "AiUsageMonitor.exe") -Force
+
     # Create ZIP archive
     $zipPath = Join-Path $outputBase "AiUsageMonitor-$rid-v$Release.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath }
@@ -128,7 +132,7 @@ foreach ($rid in $platforms) {
     # Offline installer: the single-file exe installs itself on first run (SelfInstaller), so it ships as-is.
     # Contract: human-facing names carry the maker tag; the update zip above keeps its old name because installed apps look for it.
     $exeAsset = Join-Path $outputBase "AI-Usage-Monitor_JHJ_${Release}_$rid.exe"
-    Copy-Item -Path (Join-Path $outputPath "AiUsageMonitor.exe") -Destination $exeAsset -Force
+    Copy-Item -Path (Join-Path $outputPath "AI-Usage-Monitor_JHJ.exe") -Destination $exeAsset -Force
     $null = Write-Checksum -Path $exeAsset
     Write-Host "Created: $exeAsset" -ForegroundColor Green
     Write-Host ""

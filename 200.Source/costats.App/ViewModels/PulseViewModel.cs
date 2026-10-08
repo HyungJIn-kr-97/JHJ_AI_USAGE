@@ -115,7 +115,8 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
         }
 
         var countdown = $"{(int)left.TotalMinutes}:{left.Seconds:00}";
-        NextRefreshText = Loc.T("Next refresh {0} · in {1}", next.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), countdown);
+        // 왜: 머리줄이 좁다 — 오늘이면 날짜를 빼서 「다음 갱신 20:30 · 4:12 후」 로 들어가게 한다
+        NextRefreshText = Loc.T("Next refresh {0} · in {1}", ProviderPulseViewModel.LocalStamp(next), countdown);
         NextRefreshShortText = Loc.T("Next {0} · in {1}", next.ToLocalTime().ToString("HH:mm"), countdown);
     }
 
@@ -586,6 +587,8 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
             {
                 // ── Build all data in local variables first (no UI mutations yet) ──
                 var newProviders = new List<ProviderPulseViewModel>();
+                // 계약: 표시 데이터 저장소에 넘길 짝 — 화면에 올린 카드와 그 원본 읽기값을 같은 순서로 모은다
+                var displayCards = new List<(string ProviderId, ProviderReading Reading, ProviderPulseViewModel Vm)>();
                 var claudeProfileList = new List<ProviderPulseViewModel>();
                 var codexAccounts = new Dictionary<string, ProviderPulseViewModel>(StringComparer.OrdinalIgnoreCase);
                 ProviderPulseViewModel? newCodex = null;
@@ -628,6 +631,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                     }
 
                     newProviders.Add(vm);
+                    displayCards.Add((providerId, reading, vm));
 
                     if (providerId.Equals("codex", StringComparison.OrdinalIgnoreCase) ||
                         providerId.StartsWith("codex:", StringComparison.OrdinalIgnoreCase))
@@ -742,6 +746,12 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 SyncClaudeAccountChips();
                 SyncCodexAccountChips();
                 ApplyPendingDefaults();
+
+                // 왜: 갱신이 끝난 값만 남긴다 — 진행 중 상태는 한 계정만 실려 와 저장소가 반쪽이 된다
+                if (!value.IsRefreshing)
+                {
+                    costats.App.Services.DisplayDataStore.Write(displayCards, value.LastRefresh, _orchestrator.NextRefreshAt);
+                }
             }
 
             RefreshActiveAccount();

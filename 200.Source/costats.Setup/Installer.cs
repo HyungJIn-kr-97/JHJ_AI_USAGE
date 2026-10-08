@@ -13,7 +13,11 @@ namespace costats.Setup
     /// </summary>
     internal static class Installer
     {
-        public const string ExeName = "AiUsageMonitor.exe";
+        public const string ExeName = "AI-Usage-Monitor_JHJ.exe";
+
+        // 왜: 1.1.0 이전이 깐 설치 폴더에는 이 이름만 있다 — 기존 설치를 알아보고 종료시키는 데만 쓴다
+        // TODO: 옛 이름 사본을 꾸러미에서 빼는 릴리스에서 함께 지운다
+        public const string LegacyExeName = "AiUsageMonitor.exe";
         private const string ShortcutName = "AI 통합 사용량 모니터.lnk";
 
         // 계약: 설정·이력·동의가 사는 자료 폴더 — 설치 폴더를 어디로 골라도 여기는 고정이다
@@ -167,7 +171,8 @@ namespace costats.Setup
             }
 
             candidates.Add(DefaultInstallDir);
-            var found = candidates.FirstOrDefault(dir => !string.IsNullOrEmpty(dir) && File.Exists(Path.Combine(dir, ExeName)));
+            var found = candidates.FirstOrDefault(dir => !string.IsNullOrEmpty(dir)
+                && (File.Exists(Path.Combine(dir, ExeName)) || File.Exists(Path.Combine(dir, LegacyExeName))));
             _installDir = found ?? _installDir ?? ReadSavedInstallDir() ?? DefaultInstallDir;
         }
         private static void SaveInstallDir()
@@ -176,7 +181,21 @@ namespace costats.Setup
             File.WriteAllText(InstallDirFile, InstallDir);
         }
 
-        public static string InstalledExe => Path.Combine(InstallDir, ExeName);
+        // 계약: 새 이름이 없으면 1.1.0 이전이 깐 옛 이름을 가리킨다 — 버전 표시·제거가 기존 설치에서도 되게 한다
+        public static string InstalledExe
+        {
+            get
+            {
+                var current = Path.Combine(InstallDir, ExeName);
+                if (File.Exists(current))
+                {
+                    return current;
+                }
+
+                var legacy = Path.Combine(InstallDir, LegacyExeName);
+                return File.Exists(legacy) ? legacy : current;
+            }
+        }
 
         /// <returns>설치돼 있으면 "1.0.0.20261006"(옛 설치본은 "1.0.3"), 없으면 null</returns>
         public static string InstalledVersion()
@@ -254,7 +273,9 @@ namespace costats.Setup
         // 왜: 앱이 떠 있으면 exe 가 잠겨 폴더를 옮길 수 없다
         private static void StopRunningApp()
         {
-            foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(ExeName)))
+            // 계약: 옛 이름으로 떠 있는 기존 설치본도 함께 내린다 — 안 내리면 폴더 교체가 막힌다
+            foreach (var process in new[] { ExeName, LegacyExeName }
+                .SelectMany(name => Process.GetProcessesByName(Path.GetFileNameWithoutExtension(name))))
             {
                 try
                 {

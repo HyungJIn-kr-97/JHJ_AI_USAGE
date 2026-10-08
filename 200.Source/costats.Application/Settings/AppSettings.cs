@@ -3,7 +3,8 @@ namespace costats.Application.Settings;
 public sealed class AppSettings
 {
     public int RefreshMinutes { get; set; } = 5;
-    public string Hotkey { get; set; } = "Ctrl+Alt+2";
+    // 계약: costats.App 의 HotkeyRules.Default 와 같은 값이어야 한다 — 참조 방향이 반대라 상수를 공유하지 못한다
+    public string Hotkey { get; set; } = "Ctrl+Alt+A";
 
     // 계약: 「팝업 단축키 2」부터 — 기본은 비어 있어 단축키가 하나다
     public List<string> ExtraHotkeys { get; set; } = [];
@@ -74,6 +75,73 @@ public sealed class AppSettings
 
     // 계약: 로컬 이벤트 기록(갱신·오류·연동)을 남길지 — DiagnosticsLog. 어디로도 보내지 않는다
     public bool DiagnosticsEnabled { get; set; } = true;
+
+    // 계약: 끄면 시작할 때의 자동 적용·받아 두기와 예약 적용이 모두 멈춘다 — 「업데이트 확인」·「이 버전 설치」는 그대로 된다
+    // 계약: 팝업의 확대 비율(%) — 0 이면 화면 작업영역 높이로 자동이다. 폭과 글자가 함께 커진다
+    public int PopupScalePercent { get; set; } = 0;
+
+    public bool AutoUpdateEnabled { get; set; } = true;
+
+    // 계약: 받아 둔 업데이트를 적용하는 시각 — 이 PC 의 시간 기준 "HH:mm"
+    public string AutoUpdateTime { get; set; } = "04:00";
+
+    // 계약: 켜면 적용 1분 전에 트레이 알림을 낸다 — 그 1분 안에 자동 업데이트를 끄면 적용하지 않는다
+    public bool AutoUpdateNotify { get; set; } = true;
+
+    /// <summary>이 묶음의 설정만 기본값으로 되돌린다. 계정 관련 값은 건드리지 않는다.</summary>
+    // 함정: 새 설정을 더하면 여기에도 적어야 한다 — 빠뜨리면 「기본값으로」가 그 칸만 조용히 남긴다
+    public void ResetToDefaults(SettingsGroup group)
+    {
+        var d = new AppSettings();
+
+        if (group is SettingsGroup.General or SettingsGroup.All)
+        {
+            RefreshMinutes = d.RefreshMinutes;
+            Hotkey = d.Hotkey;
+            ExtraHotkeys = [];
+            StartAtLogin = d.StartAtLogin;
+            RefreshOnOpen = d.RefreshOnOpen;
+            PinTrayIcon = d.PinTrayIcon;
+            MulticcEnabled = d.MulticcEnabled;
+            PopupScalePercent = d.PopupScalePercent;
+            ValueGradeBounds = [.. d.ValueGradeBounds];
+            DiagnosticsEnabled = d.DiagnosticsEnabled;
+            AutoUpdateEnabled = d.AutoUpdateEnabled;
+            AutoUpdateTime = d.AutoUpdateTime;
+            AutoUpdateNotify = d.AutoUpdateNotify;
+        }
+
+        if (group is SettingsGroup.Display or SettingsGroup.All)
+        {
+            Theme = d.Theme;
+            Palette = d.Palette;
+            Language = d.Language;
+            CollapsedSections = [];
+        }
+
+        if (group is SettingsGroup.Icon or SettingsGroup.All)
+        {
+            TrayIconStyle = d.TrayIconStyle;
+        }
+
+        if (group is SettingsGroup.All)
+        {
+            CopilotEnabled = d.CopilotEnabled;
+            GeminiEnabled = d.GeminiEnabled;
+            MulticcSelectedProfile = d.MulticcSelectedProfile;
+            MulticcConfigPath = d.MulticcConfigPath;
+        }
+    }
+}
+
+/// <summary>설정 묶음 — 설정 창의 탭과 같다.</summary>
+/// 계약: 「계정」은 되돌리지 않는다 — 명칭·유형·요금은 사용자가 손으로 적은 값이라 지우면 되살릴 수 없다.
+public enum SettingsGroup
+{
+    General,
+    Display,
+    Icon,
+    All
 }
 
 public sealed class AccountInfo

@@ -52,11 +52,18 @@ public sealed class StartupUpdateCoordinator
     private readonly Version _currentVersion;
     private readonly SemaphoreSlim _checkLock = new(1, 1);
 
+    // 계약: 지금 실행 파일 이름. 설치 파일명과 같다
+    internal const string ExecutableName = "AI-Usage-Monitor_JHJ.exe";
+
+    // 왜: 1.1.0 이전 버전이 만든 꾸러미·스테이징에는 이 이름만 있다 — 찾을 때는 새 이름 다음에 이것도 본다
+    // TODO: 옛 이름 사본을 꾸러미에서 빼는 릴리스에서 함께 지운다
+    internal const string LegacyExecutableName = "AiUsageMonitor.exe";
+
     public StartupUpdateCoordinator(UpdateOptions options)
     {
         _options = options;
         _appBaseDirectory = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        _executablePath = Environment.ProcessPath ?? Path.Combine(_appBaseDirectory, "AiUsageMonitor.exe");
+        _executablePath = Environment.ProcessPath ?? Path.Combine(_appBaseDirectory, ExecutableName);
         _runtimeRid = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
         _currentVersion = ResolveCurrentVersion();
 
@@ -318,7 +325,7 @@ public sealed class StartupUpdateCoordinator
 
         if (!TryFindStagedExecutable(stageDir, out var stagedExecutablePath))
         {
-            throw new FileNotFoundException("Staged update did not contain AiUsageMonitor.exe.");
+            throw new FileNotFoundException($"Staged update did not contain {ExecutableName}.");
         }
 
         var executableRelativePath = Path.GetRelativePath(stageDir, stagedExecutablePath);
@@ -347,6 +354,13 @@ public sealed class StartupUpdateCoordinator
 
     // 계약: 설치 폴더에서 돌 때만 true — 개발 빌드(bin\)·다운로드 폴더 실행은 비교만 하고 설치는 못 한다
     public bool CanInstall => _options.Enabled && CanSelfUpdate();
+
+    /// <summary>받아 둔(staging) 업데이트의 버전 — 없거나 지금 버전보다 높지 않으면 null.</summary>
+    public async Task<Version?> GetStagedVersionAsync(CancellationToken cancellationToken)
+    {
+        var pending = await ReadJsonAsync<PendingUpdate>(_pendingPath, cancellationToken).ConfigureAwait(false);
+        return pending is not null && IsPendingValidAndNewer(pending) && TryParseSemVer(pending.Version, out var version) ? version : null;
+    }
 
     private readonly Dictionary<Version, ReleaseDocument> _releaseCache = [];
 
@@ -507,7 +521,7 @@ public sealed class StartupUpdateCoordinator
     private static bool TryResolvePendingExecutable(PendingUpdate pending, out string stagedExePath, out string executableRelativePath)
     {
         stagedExePath = string.Empty;
-        executableRelativePath = "AiUsageMonitor.exe";
+        executableRelativePath = ExecutableName;
 
         if (string.IsNullOrWhiteSpace(pending.StagingDirectory) || !Directory.Exists(pending.StagingDirectory))
         {
@@ -535,17 +549,21 @@ public sealed class StartupUpdateCoordinator
         return true;
     }
 
+    // 계약: 새 이름을 먼저 찾고 없으면 옛 이름 — 꾸러미에 둘 다 들어 있는 과도기를 지난다
     private static bool TryFindStagedExecutable(string stageDirectory, out string executablePath)
     {
-        executablePath = Path.Combine(stageDirectory, "AiUsageMonitor.exe");
-        if (File.Exists(executablePath))
+        foreach (var name in new[] { ExecutableName, LegacyExecutableName })
         {
-            return true;
+            executablePath = Path.Combine(stageDirectory, name);
+            if (File.Exists(executablePath))
+            {
+                return true;
+            }
         }
 
-        var discovered = Directory
-            .EnumerateFiles(stageDirectory, "AiUsageMonitor.exe", SearchOption.AllDirectories)
-            .FirstOrDefault();
+        var discovered = new[] { ExecutableName, LegacyExecutableName }
+            .Select(name => Directory.EnumerateFiles(stageDirectory, name, SearchOption.AllDirectories).FirstOrDefault())
+            .FirstOrDefault(found => !string.IsNullOrWhiteSpace(found));
 
         if (string.IsNullOrWhiteSpace(discovered))
         {
@@ -892,7 +910,7 @@ public sealed class StartupUpdateCoordinator
         public string Version { get; set; } = "0.0.0";
         public DateTimeOffset CreatedUtc { get; set; }
         public string StagingDirectory { get; set; } = string.Empty;
-        public string ExecutableRelativePath { get; set; } = "AiUsageMonitor.exe";
+        public string ExecutableRelativePath { get; set; } = ExecutableName;
         public int FailedAttempts { get; set; }
 
         // 계약: 사용자가 낮은 버전을 골라 설치할 때만 true — 자동 업데이트는 내려가지 않는다

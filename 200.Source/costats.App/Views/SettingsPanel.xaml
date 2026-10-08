@@ -453,6 +453,20 @@
                             </ComboBox>
                             <TextBlock Text="{loc:Tr 'Refresh interval'}" Style="{StaticResource RowLabel}" />
                         </DockPanel>
+                        <!-- 계약: 「자동」은 화면 작업영역 높이로 정한다 — 폭과 글자가 같은 비율로 커진다 -->
+                        <DockPanel Margin="0,10,0,0" ToolTip="{loc:Tr 'Scales the popup width and text together. Auto uses your screen size.'}">
+                            <ComboBox ItemsSource="{Binding PopupScaleOptions}"
+                                      SelectedItem="{Binding SelectedPopupScaleOption}"
+                                      Style="{StaticResource SettingsComboBox}"
+                                      DockPanel.Dock="Right" HorizontalAlignment="Right" Width="96">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="{loc:Tr 'Popup size'}" Style="{StaticResource RowLabel}" />
+                        </DockPanel>
                         <!-- 계약: 「활용도」 등급 경계 — 토큰 환산 비용 ÷ 구독료 배수 4개(오름차순). ProviderPulseViewModel.ValueGradeBounds -->
                         <DockPanel Margin="0,10,0,0" ToolTip="{loc:Tr 'Four ascending multiples. Below the 1st = Low, above the 4th = Max.'}">
                             <TextBox DockPanel.Dock="Right" Width="116" FontSize="12" Padding="6,4" VerticalContentAlignment="Center"
@@ -560,6 +574,27 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                        <!-- 계약: 예약 자동 업데이트 — 정한 시각에 받아 둔 버전을 적용한다(Services/Updates/ScheduledUpdateService). 설치본에서만 동작한다 -->
+                        <DockPanel Margin="0,10,0,0" LastChildFill="False">
+                            <CheckBox IsChecked="{Binding AutoUpdateEnabled}" Style="{StaticResource SettingsCheckBox}" VerticalAlignment="Center"
+                                      ToolTip="{loc:Tr 'Checks for a new version at the set time and installs it. The app restarts by itself.'}">
+                                <TextBlock Text="{loc:Tr 'Automatic update'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </CheckBox>
+                            <TextBox DockPanel.Dock="Right" Width="56" FontSize="12" Padding="6,4" MaxLength="5" TextAlignment="Center"
+                                     VerticalContentAlignment="Center" IsEnabled="{Binding AutoUpdateEnabled}"
+                                     Text="{Binding AutoUpdateTime, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="{loc:Tr 'Time to install, by this PC clock (HH:mm).'}"
+                                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                     BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
+                            <CheckBox DockPanel.Dock="Right" IsChecked="{Binding AutoUpdateNotify}" Style="{StaticResource SettingsCheckBox}"
+                                      VerticalAlignment="Center" Margin="0,0,12,0" IsEnabled="{Binding AutoUpdateEnabled}"
+                                      ToolTip="{loc:Tr 'Shows a tray notice 1 minute before installing. Turn automatic update off within that minute to cancel.'}">
+                                <TextBlock Text="{loc:Tr 'Notify before installing'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </CheckBox>
+                        </DockPanel>
+                        <TextBlock Text="{Binding AutoUpdateHintText}" FontSize="10" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   Visibility="{Binding AutoUpdateHintText, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
                         <!-- 계약: 진단 정보 — 설정·자리·라우팅·이력·마지막 갱신을 가린 채 묶는다(Services/DiagnosticsReport). 사용자가 복사·저장해 GitHub 이슈에 붙인다 -->
                         <TextBlock Text="{loc:Tr 'Diagnostics'}" Style="{StaticResource RowLabel}" FontWeight="SemiBold" Margin="0,14,0,4" />
                         <!-- 왜: 체크와 버튼 셋을 한 줄에 — 체크 문구는 짧게 두고 설명은 툴팁이 맡는다 -->
@@ -591,6 +626,14 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                        <!-- 계약: 이 탭의 설정만 기본값으로 — 계정 명칭·유형·요금은 건드리지 않는다 -->
+                        <DockPanel Margin="0,14,0,0">
+                            <Button DockPanel.Dock="Right" Content="{loc:Tr 'Restore defaults'}" Padding="10,3" FontSize="11"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding ResetGroupCommand}" CommandParameter="General"
+                                    ToolTip="{loc:Tr 'Restores only this tab'}" />
+                            <TextBlock Text="{Binding ResetMessage}" FontSize="11" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AccentBrush}" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
                     </StackPanel>
                 </TabItem>
                 <!-- Appearance -->
@@ -638,6 +681,14 @@
                             <TextBlock Style="{StaticResource RowLabel}">
                                 <Run Text="{loc:Tr 'Language'}" /><Run Text=" · " /><Run Text="{Binding LanguageLabel, Mode=OneWay}" Foreground="{DynamicResource TextMutedBrush}" />
                             </TextBlock>
+                        </DockPanel>
+                        <!-- 계약: 이 탭의 설정만 기본값으로 — 계정 명칭·유형·요금은 건드리지 않는다 -->
+                        <DockPanel Margin="0,14,0,0">
+                            <Button DockPanel.Dock="Right" Content="{loc:Tr 'Restore defaults'}" Padding="10,3" FontSize="11"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding ResetGroupCommand}" CommandParameter="Display"
+                                    ToolTip="{loc:Tr 'Restores only this tab'}" />
+                            <TextBlock Text="{Binding ResetMessage}" FontSize="11" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AccentBrush}" TextTrimming="CharacterEllipsis" />
                         </DockPanel>
                     </StackPanel>
                 </TabItem>
@@ -766,6 +817,14 @@
                                         Style="{StaticResource SettingsButton}" Command="{Binding SaveIconDrawingCommand}" />
                             </WrapPanel>
                         </StackPanel>
+                    <!-- 계약: 이 탭의 설정만 기본값으로 — 계정 명칭·유형·요금은 건드리지 않는다 -->
+                    <DockPanel Margin="0,14,0,0">
+                        <Button DockPanel.Dock="Right" Content="{loc:Tr 'Restore defaults'}" Padding="10,3" FontSize="11"
+                                Style="{StaticResource SettingsButton}" Command="{Binding ResetGroupCommand}" CommandParameter="Icon"
+                                ToolTip="{loc:Tr 'Restores only this tab'}" />
+                        <TextBlock Text="{Binding ResetMessage}" FontSize="11" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentBrush}" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
                     </StackPanel>
                 </TabItem>
                 </TabControl>

@@ -102,15 +102,27 @@ namespace costats.App
             {
                 var startupConfiguration = BuildStartupConfiguration();
                 _updateCoordinator = new StartupUpdateCoordinator(UpdateOptions.FromConfiguration(startupConfiguration));
-                if (await _updateCoordinator.TryApplyPendingUpdateAsync(CancellationToken.None).ConfigureAwait(false))
+                var settingsStore = new JsonSettingsStore();
+                // 왜: 설정을 못 읽는 결함도 업데이트로 고칠 수 있어야 한다 — 읽기에 실패하면 자동 업데이트를 켠 것으로 보고 적용부터 한다
+                AppSettings? earlySettings = null;
+                try
+                {
+                    earlySettings = await settingsStore.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Settings load failed before update check");
+                }
+
+                var autoUpdate = earlySettings?.AutoUpdateEnabled ?? true;
+                if (autoUpdate && await _updateCoordinator.TryApplyPendingUpdateAsync(CancellationToken.None).ConfigureAwait(false))
                 {
                     Log.Information("Pending update is being applied, shutting down for update");
                     await Dispatcher.InvokeAsync(() => Shutdown(0));
                     return;
                 }
 
-                var settingsStore = new JsonSettingsStore();
-                var settings = await settingsStore.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                var settings = earlySettings ?? await settingsStore.LoadAsync(CancellationToken.None).ConfigureAwait(false);
                 // 계약: 작업 관리자 「시작 앱」과 양방향으로 맞춘다 — 거기서 껐으면 설정을 끄고, 거기서 켰으면 설정을 켠다. 그 밖에는 설정대로 낡은 경로를 바로잡는다
                 var registeredNow = costats.App.ViewModels.SettingsViewModel.GetStartupRegistryValue();
                 if (settings.StartAtLogin && costats.App.ViewModels.SettingsViewModel.IsStartupDisabledByTaskManager())
@@ -123,10 +135,14 @@ namespace costats.App
                     settings.StartAtLogin = true;
                     await settingsStore.SaveAsync(settings, CancellationToken.None).ConfigureAwait(false);
                 }
-                else if (settings.StartAtLogin)
+                else
                 {
-                    costats.App.ViewModels.SettingsViewModel.SetStartupRegistryValue(true);
+                    // 왜: 꺼진 상태에서도 「시작 앱」에 줄이 보여야 거기서 켤 수 있다 — 경로도 함께 바로잡는다
+                    costats.App.ViewModels.SettingsViewModel.SetStartupRegistryValue(settings.StartAtLogin);
                 }
+
+                // 계약: 실행 파일 이름이 바뀐 업데이트 뒤 시작 메뉴 바로가기를 지금 exe 로 다시 쓴다
+                SelfInstaller.RefreshShortcutIfStale();
 
                 await Dispatcher.InvokeAsync(() =>
                 {
@@ -137,7 +153,7 @@ namespace costats.App
                     tray.ShowWidget();
                 });
 
-                if (_updateCoordinator is not null)
+                if (_updateCoordinator is not null && settings.AutoUpdateEnabled)
                 {
                     // Use a timeout so a stalled download never holds the semaphore forever
                     var backgroundCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
@@ -260,6 +276,7 @@ namespace costats.App
                     if (_updateCoordinator is not null)
                     {
                         services.AddSingleton(_updateCoordinator);
+                        services.AddSingleton<ScheduledUpdateService>();
                     }
 
                     services.AddOptions<PulseOptions>()
@@ -348,7 +365,13 @@ namespace costats.App
             lifetime.ApplicationStopping.Register(() => Log.Warning("Host is stopping"));
 
             _ = _host.Services.GetRequiredService<HotkeyService>();
-            return _host.Services.GetRequiredService<TrayHost>();
+            var tray = _host.Services.GetRequiredService<TrayHost>();
+            if (_host.Services.GetService<ScheduledUpdateService>() is { } scheduledUpdate)
+            {
+                scheduledUpdate.Notify = tray.ShowBalloon;
+            }
+
+            return tray;
         }
 
         private async Task StartListenerAsync(TrayHost tray)

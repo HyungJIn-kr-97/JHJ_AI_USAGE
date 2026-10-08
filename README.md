@@ -41,7 +41,7 @@ winget install HyungJin.AiUsageMonitor
 
 | 하려는 것 | 방법 |
 |---|---|
-| 개발 빌드 | `dotnet build 200.Source\costats.sln -c Release` → `200.Source\costats.App\bin\Release\…\AiUsageMonitor.exe`. 개발 실행이라 설치·업데이트는 동작하지 않습니다 |
+| 개발 빌드 | `dotnet build 200.Source\costats.sln -c Release` → `200.Source\costats.App\bin\Release\…\AI-Usage-Monitor_JHJ.exe`. 개발 실행이라 설치·업데이트는 동작하지 않습니다 |
 | 설치 파일 · 업데이트 꾸러미 | `800.Deploy\Build-Exe.bat` 더블클릭(배포 버전을 올리려면 `Build-Exe.bat 1.0.1` — 날짜 자리는 빌드가 붙인다) → `800.Deploy\publish\` 에 `AiUsageMonitor-win-x64-v<버전>.zip`(업데이트용 — 설치본이 이 이름으로 다음 버전을 찾으므로 **바꾸지 않는다**) · `AI-Usage-Monitor_JHJ_<버전>_win-x64.exe`(오프라인 설치) · `AI-Usage-Monitor_JHJ_Setup.exe`(웹 설치 관리자)와 `.sha256` |
 | 릴리스 | 태그 `v<버전>` 으로 GitHub Release 를 만들고 위 파일을 올립니다. 예: `gh release create v1.0.3.20261007 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.3.20261007.zip 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.3.20261007.zip.sha256 800.Deploy\publish\AI-Usage-Monitor_JHJ_1.0.3.20261007_win-x64.exe 800.Deploy\publish\AI-Usage-Monitor_JHJ_Setup.exe`. 태그는 `v<배포 버전>.<빌드 날짜>` 이고 `publish.ps1` 이 마지막에 출력합니다(아래 「버전 체계」). **한 번에 하려면 `800.Deploy\Release.bat`** — 버전을 올릴지 묻고(Enter 면 날짜만 바뀜) 커밋·빌드·push·릴리스·옛 날짜판 정리까지 단계마다 확인받으며 진행합니다. 손으로 할 때는 올린 뒤 `800.Deploy\prune-releases.ps1`(기본은 목록만, `-Apply` 로 삭제)로 같은 배포 버전의 옛 날짜 릴리스를 지웁니다. 함정: 앱의 업데이트와 웹 설치 관리자는 **zip 이름**으로 버전을 찾으므로 zip 은 빠뜨리면 안 됩니다 |
 
@@ -61,6 +61,8 @@ winget install HyungJin.AiUsageMonitor
 | 마지막 갱신 상태(계정별 신뢰도·출처·상태 문구·한도·비용) · 이벤트 로그 최근 200줄 | 오류 추적 |
 
 **가리는 것** — 메일은 첫 글자+도메인, UUID 는 앞 8자, 경로의 사용자 폴더는 `%USERPROFILE%`. **넣지 않는 것** — 토큰 · 대화 내용 · 프로젝트 경로. 이벤트 기록은 설정 › 일반 「사용 기록 남기기」로 끌 수 있고, 꺼도 보고서의 나머지 항목은 누를 때 그 자리에서 읽어 만듭니다.
+
+**팝업이 보여 주는 값을 파일로도 남깁니다** — `%LOCALAPPDATA%\AiUsageMonitor\data\`. 다른 도구가 읽어 쓸 수 있게 만든 것이고, 구조·칸의 뜻은 [300.Docs/표시-데이터-저장소.md](300.Docs/표시-데이터-저장소.md) 가 정본입니다. 전송은 하지 않습니다.
 
 ## 버전 체계
 
@@ -100,7 +102,7 @@ winget install HyungJin.AiUsageMonitor
 |---|---|---|---|
 | 탭 배치 | Codex · Claude | Claude · Codex | `200.Source/costats.App/GlassWidgetWindow.xaml` |
 | 처음 선택되는 탭 | Codex | Claude | `200.Source/costats.App/ViewModels/PulseViewModel.cs` |
-| 이름 | `costats` · `costats.App.exe` | `AI 통합 사용량 모니터` / `AI Usage Monitor` · `AiUsageMonitor.exe`(프로젝트·네임스페이스는 `costats.*` 유지) | `costats.App.csproj` · `LocStrings.cs` · `TrayHost.cs` |
+| 이름 | `costats` · `costats.App.exe` | `AI 통합 사용량 모니터` / `AI Usage Monitor` · `AI-Usage-Monitor_JHJ.exe`(v1.1.0 에서 설치 파일과 같은 이름으로 바꿨습니다 — 전환 절차는 [300.Docs/실행파일-이름-전환.md](300.Docs/실행파일-이름-전환.md). 프로젝트·네임스페이스는 `costats.*` 유지) | `costats.App.csproj` · `LocStrings.cs` · `TrayHost.cs` |
 | 데이터 폴더 | `%LOCALAPPDATA%\costats` | `%LOCALAPPDATA%\AiUsageMonitor`(1.0.0 의 `costats-jhj` 는 첫 실행 때 자동 이동 — `Services/LegacyMigration.cs`) | `JsonSettingsStore.cs` · `JsonPulseSnapshotWriter.cs` · `ClaudeOAuthUsageFetcher.cs` · `App.xaml.cs` · `appsettings.json` |
 | 단일 실행 이름 · 시작프로그램 이름 | `costats` | `AiUsageMonitor` | `App.xaml.cs` · `SettingsViewModel.cs` |
 | 기본 단축키 | `Ctrl+Alt+U` | `Ctrl+Alt+2` | `AppSettings.cs` · `appsettings.json` · `HotkeyRules.Default` |

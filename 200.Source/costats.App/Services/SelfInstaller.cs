@@ -108,6 +108,45 @@ public static class SelfInstaller
         }
     }
 
+    /// <summary>시작 메뉴 바로가기가 지금 exe 를 가리키지 않으면 다시 쓴다.</summary>
+    // 왜: 자동 업데이트는 설치 폴더를 통째로 갈아 끼우기만 한다 — 실행 파일 이름이 바뀌면 바로가기가 없는 파일을 가리킨다
+    // TODO: 옛 이름 사본을 꾸러미에서 빼는 릴리스 다음에 지운다 — 300.Docs\실행파일-이름-전환.md
+    public static void RefreshShortcutIfStale()
+    {
+        var exePath = Environment.ProcessPath;
+        if (!IsInstalledLocation || exePath is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var shortcutPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), ShortcutName);
+            if (!File.Exists(shortcutPath))
+            {
+                return;
+            }
+
+            var shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType is null)
+            {
+                return;
+            }
+
+            dynamic shell = Activator.CreateInstance(shellType)!;
+            string target = shell.CreateShortcut(shortcutPath).TargetPath;
+            if (!string.Equals(target, exePath, StringComparison.OrdinalIgnoreCase))
+            {
+                CreateStartMenuShortcut(exePath);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException
+            or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        {
+            // 바로가기를 못 고쳐도 앱은 뜬다 — 트레이·시작 프로그램으로 열 수 있다
+        }
+    }
+
     private static void CreateStartMenuShortcut(string targetExe)
     {
         var shellType = Type.GetTypeFromProgID("WScript.Shell");
