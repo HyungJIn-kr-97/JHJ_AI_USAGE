@@ -1809,6 +1809,15 @@ public sealed partial class SettingsViewModel : ObservableObject
                 < 0 => Loc.T("This build is newer than the latest release."),
                 _ => Loc.T("You're up to date.")
             };
+
+            // 왜: 상태 줄은 「업데이트 확인」을 누를 때만 바뀐다 — 안 맞추면 지난번 결과(「최신 버전입니다」)가
+            //     새로 읽은 「새 버전이 있습니다」와 나란히 남아 서로 어긋나 보인다
+            // 계약: 확인·설치가 도는 중에는 그쪽 문구가 먼저다 — 그때는 건드리지 않는다
+            if (!IsCheckingForUpdates)
+            {
+                UpdateStatusText = VersionCompareText;
+            }
+
             return true;
         }
         catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
