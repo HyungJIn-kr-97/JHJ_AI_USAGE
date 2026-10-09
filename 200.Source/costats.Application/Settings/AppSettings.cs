@@ -78,8 +78,9 @@ public sealed class AppSettings
     public bool DiagnosticsEnabled { get; set; } = true;
 
     // 계약: 끄면 시작할 때의 자동 적용·받아 두기와 예약 적용이 모두 멈춘다 — 「업데이트 확인」·「이 버전 설치」는 그대로 된다
-    // 계약: 팝업의 확대 비율(%) — 0 이면 화면 작업영역 높이로 자동이다. 폭과 글자가 함께 커진다
-    public int PopupScalePercent { get; set; } = 0;
+    // 계약: 팝업의 확대 비율(%) — 폭과 글자가 함께 커진다. 0 은 「자동」(화면 작업영역 높이로 정한다)
+    // 왜: 기본값은 100 이다 — 「자동」은 큰 화면에서 1.5배까지 키워 처음 보는 사람에게 너무 크다(2026-10-09)
+    public int PopupScalePercent { get; set; } = 100;
 
     public bool AutoUpdateEnabled { get; set; } = true;
 

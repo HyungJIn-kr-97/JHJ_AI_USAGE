@@ -179,6 +179,7 @@ namespace costats.App
 
         private void ApplyShellScale()
         {
+            // 계약: 0 은 「자동」이다 — 기본값은 100(등배)이고, 자동은 사용자가 고를 때만 쓴다
             var percent = _settings.PopupScalePercent;
             var scale = percent > 0 ? percent / 100.0 : AutoScale(SystemParameters.WorkArea.Height);
             if (Math.Abs(ShellScale.ScaleX - scale) > 0.001)

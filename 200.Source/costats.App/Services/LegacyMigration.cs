@@ -138,26 +138,31 @@ public static class LegacyMigration
     // 계약: JSON 문자열 안의 경로는 역슬래시가 두 번이다
     private static string JsonEscaped(string path) => path.Replace("\\", "\\\\");
 
+    // 계약: 옛 값은 **언제나** 지운다 — 새 값이 이미 있어도다. 안 그러면 「시작 앱」에 옛 이름이 그대로 남는다
+    // 함정: 예전에는 새 값이 있으면 그냥 돌아갔다 — 그래서 한 PC 에 AiUsageMonitor 와 새 이름이 둘 다 남았다
     private static void MoveStartupEntry(string from, string to)
     {
         try
         {
             using var run = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
-            if (run?.GetValue(from) is not string command || run.GetValue(to) is not null)
+            using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey, writable: true);
+            if (run?.GetValue(from) is not string command)
             {
                 return;
             }
 
-            run.SetValue(to, command);
-            run.DeleteValue(from, throwOnMissingValue: false);
-
             // 왜: 작업 관리자 「시작 앱」의 켬/끔 기록은 Run 값 이름으로 묶인다 — 같이 옮기지 않으면 꺼 둔 상태를 잃는다
-            using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey, writable: true);
-            if (approved?.GetValue(from) is byte[] flags && approved.GetValue(to) is null)
+            if (run.GetValue(to) is null)
             {
-                approved.SetValue(to, flags, RegistryValueKind.Binary);
-                approved.DeleteValue(from, throwOnMissingValue: false);
+                run.SetValue(to, command);
+                if (approved?.GetValue(from) is byte[] flags && approved.GetValue(to) is null)
+                {
+                    approved.SetValue(to, flags, RegistryValueKind.Binary);
+                }
             }
+
+            run.DeleteValue(from, throwOnMissingValue: false);
+            approved?.DeleteValue(from, throwOnMissingValue: false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
@@ -165,24 +170,57 @@ public static class LegacyMigration
         }
     }
 
-    // 왜: Run 값이 없는 「시작 앱」 기록은 고아다 — 목록에 유령 항목으로 남으니 지운다
+    // 계약: 이 앱이 옛 이름으로 남겼을 수 있는 「시작 앱」 이름들. 지금 이름은 절대 넣지 않는다
+    private static readonly string[] RetiredNames =
+        ["costats", "costats-jhj", "AiUsageMonitor", "AI-Usage-Monitor_JHJ"];
+
+    /// <summary>옛 이름으로 남은 「시작 앱」 항목을 치운다 — 가리키는 파일이 없는 것과 켬/끔 기록만 남은 것.</summary>
+    // 왜: 예전 버전을 쓰던 PC 에 AiUsageMonitor 같은 줄이 그대로 남아 목록을 더럽힌다
+    // 함정: 경로가 살아 있는 옛 값은 지우지 않는다 — 그건 MoveStartupEntry 가 새 이름으로 옮길 몫이다
     private static void CleanOrphanStartupApproved()
     {
         try
         {
-            using var run = Registry.CurrentUser.OpenSubKey(RunKey, writable: false);
+            using var run = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
             using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey, writable: true);
-            foreach (var orphan in new[] { "costats", "costats-jhj", "AiUsageMonitor", "AI-Usage-Monitor_JHJ" })
+            foreach (var name in RetiredNames)
             {
-                if (approved?.GetValue(orphan) is not null && run?.GetValue(orphan) is null)
+                var command = run?.GetValue(name) as string;
+                if (command is { Length: > 0 } && !ExecutableExists(command))
                 {
-                    approved.DeleteValue(orphan, throwOnMissingValue: false);
+                    // 왜: 가리키는 exe 가 없으면 눌러도 아무 일이 없는 죽은 줄이다
+                    run!.DeleteValue(name, throwOnMissingValue: false);
+                    command = null;
+                }
+
+                if (command is null && approved?.GetValue(name) is not null)
+                {
+                    approved.DeleteValue(name, throwOnMissingValue: false);
                 }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
             // 유령 항목이 남아도 동작에는 지장이 없다
+        }
+    }
+
+    // 함정: Run 값은 따옴표로 감싸고 뒤에 인자가 붙을 수 있다 — 첫 토큰만 떼어 본다
+    private static bool ExecutableExists(string command)
+    {
+        var text = command.Trim();
+        var path = text.StartsWith('"')
+            ? text[1..(text.IndexOf('"', 1) is var end && end > 0 ? end : text.Length)]
+            : text.Split(' ')[0];
+
+        try
+        {
+            return File.Exists(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            // 경로가 말이 안 되면 죽은 줄로 본다
+            return false;
         }
     }
 }

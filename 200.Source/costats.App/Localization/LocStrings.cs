@@ -312,6 +312,7 @@ internal static class LocStrings
         ["AUTOMATION"] = "자동화",
         ["Refresh interval"] = "새로고침 주기",
         ["Popup size"] = "팝업 크기",
+        ["New version downloaded. Press the Install button below to apply."] = "새 버전을 받아 두었습니다 — 아래 「이 버전 설치」를 누르면 적용됩니다.",
         ["Recommended — the default (A for AI)."] = "권장 — 기본 단축키입니다(A = AI).",
         ["Restore defaults"] = "기본값으로",
         ["Restores only this tab"] = "이 탭의 설정만 되돌립니다",

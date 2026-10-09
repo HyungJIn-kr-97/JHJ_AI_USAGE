@@ -108,12 +108,12 @@ foreach ($rid in $platforms) {
     dotnet publish $projectPath `
         --configuration $Configuration `
         --runtime $rid `
-        --self-contained false `
+        --self-contained true `
         --output $outputPath `
         -p:PublishSingleFile=true `
         -p:PublishReadyToRun=false `
         -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:EnableCompressionInSingleFile=false `
+        -p:EnableCompressionInSingleFile=true `
         -p:SatelliteResourceLanguages=en `
         -p:DebugType=embedded `
         -p:VersionPrefix=$Version `
@@ -128,12 +128,11 @@ foreach ($rid in $platforms) {
     # MIT requires the license text to travel with every copy - the UI no longer shows it
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "..\LICENSE") -Destination (Join-Path $outputPath "LICENSE.txt") -Force
 
-    # Contract: older installs look for JHJ_AI-Usage-Monitor.exe inside the zip, so ship a copy under the old name too.
+    # Contract: ship ONE legacy copy - the previous generation only (v1.0.5..1.0.10 look for this name inside the zip).
+    # Trap: the runtime is bundled again, so every extra copy adds ~60MB to the zip. v1.0.4 and older need a manual reinstall.
     # TODO: drop this copy once 1.1.0 or newer is everywhere - see 300.Docs\실행파일-이름-전환.md
-    # Contract: one copy per past generation - each installed build looks for the name it was built with.
-    foreach ($legacyName in @("AI-Usage-Monitor_JHJ.exe", "AiUsageMonitor.exe")) {
-        Copy-Item -LiteralPath (Join-Path $outputPath "JHJ_AI-Usage-Monitor.exe") -Destination (Join-Path $outputPath $legacyName) -Force
-    }
+    Copy-Item -LiteralPath (Join-Path $outputPath "JHJ_AI-Usage-Monitor.exe") `
+        -Destination (Join-Path $outputPath "AI-Usage-Monitor_JHJ.exe") -Force
 
     # Create ZIP archive
     # Contract: keep the OLD name - installed builds look for AiUsageMonitor-<rid>-v<ver>.zip. See 300.Docs\실행파일-이름-전환.md

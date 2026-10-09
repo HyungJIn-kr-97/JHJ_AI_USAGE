@@ -1993,18 +1993,10 @@ public sealed partial class SettingsViewModel : ObservableObject
             {
                 case UpdateCheckResult.UpdateStaged:
                 case UpdateCheckResult.UpdateAlreadyStaged:
-                    UpdateStatusText = Loc.T("Update found. Restarting...");
-                    if (await Task.Run(() => _updateCoordinator.TryApplyPendingUpdateAsync(ct, manualTrigger: true), ct))
-                    {
-                        // Use BeginInvoke to avoid any potential deadlock with synchronous Invoke
-                        _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
-                            System.Windows.Application.Current.Shutdown(0));
-                    }
-                    else
-                    {
-                        UpdateStatusText = Loc.T("Update staged. Restart to apply.");
-                        IsCheckingForUpdates = false;
-                    }
+                    // 계약: 「업데이트 확인」은 확인·내려받기까지만 한다 — 설치·재시작은 「이 버전 설치」를 누를 때다
+                    // 왜: 확인만 눌렀는데 앱이 꺼지고 다시 뜨면 쓰던 일이 끊긴다(1.0.2 부터 있던 결함)
+                    UpdateStatusText = Loc.T("New version downloaded. Press the Install button below to apply.");
+                    IsCheckingForUpdates = false;
                     break;
 
                 case UpdateCheckResult.UpToDate:

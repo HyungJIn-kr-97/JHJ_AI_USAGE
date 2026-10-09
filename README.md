@@ -10,16 +10,12 @@ MIT 입니다([LICENSE](LICENSE)). 원저작자 고지(`Copyright (c) 2026 fmdz`
 
 ## 설치
 
-[Releases](https://github.com/HyungJIn-kr-97/JHJ_AI_USAGE/releases) 에서 둘 중 하나를 받아 실행합니다.
-
-> **먼저 [.NET 10 데스크톱 런타임](https://dotnet.microsoft.com/download/dotnet/10.0/runtime)이 있어야 합니다**(한 번만 설치하면 됩니다).
-> 없으면 웹 설치 관리자가 받는 곳을 열어 주고, 앱을 직접 실행했을 때는 Windows 가 받는 곳을 안내합니다.
-> v1.0.5 까지는 런타임을 품어 꾸러미가 64MB 였고, 지금은 **4MB 가 안 됩니다**.
+[Releases](https://github.com/HyungJIn-kr-97/JHJ_AI_USAGE/releases) 에서 둘 중 하나를 받아 실행합니다. .NET 설치는 필요 없습니다.
 
 | 파일 | 종류 | 하는 일 |
 |---|---|---|
 | `JHJ_AI-Usage-Monitor_Setup.exe` (약 75KB) | **웹 설치 관리자** | 실행하면 GitHub 릴리스 목록을 읽어 버전을 고르게 하고(기본은 최신), 그 버전을 받아 설치한 뒤 실행합니다. 낮은 버전을 고르면 되돌리기가 됩니다. `--version 1.0.0` · `--silent` 인자를 받습니다. Windows 기본 .NET Framework 4.8 로 돕니다 |
-| `JHJ_AI-Usage-Monitor_<버전>_win-x64.exe` (약 4MB) | **오프라인 설치 파일** | 인터넷 없이 그 버전 하나로 설치합니다. 설치 여부를 묻는 창에서 「예」를 고르면 설치본으로 다시 뜹니다 |
+| `JHJ_AI-Usage-Monitor_<버전>_win-x64.exe` (약 65MB) | **오프라인 설치 파일** | 인터넷 없이 그 버전 하나로 설치합니다. 설치 여부를 묻는 창에서 「예」를 고르면 설치본으로 다시 뜹니다 |
 
 어느 쪽이든 `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\app` 에 놓이고 시작 메뉴 바로가기(`AI 통합 사용량 모니터`)가 생깁니다.
 
