@@ -11,7 +11,11 @@ namespace costats.App.Services;
 public static class SelfInstaller
 {
     private const string AppName = "JHJ_AI-Usage-Monitor";
-    private const string ShortcutName = "AI 통합 사용량 모니터.lnk";
+    // 계약: costats.Setup 의 Installer.ShortcutName 과 같은 값이어야 한다 — 다르면 바로가기가 둘이 된다
+    private const string ShortcutName = "JHJ AI 통합 사용량 모니터.lnk";
+
+    // 계약: 옛 이름 바로가기 — 새것을 만든 뒤 지운다. TODO: 1.1.0 이 퍼지면 함께 지운다
+    internal static readonly string[] LegacyShortcutNames = ["AI 통합 사용량 모니터.lnk"];
     private static readonly string[] SiblingFiles = ["appsettings.json", "apply-update.ps1"];
 
     public static string InstallDir { get; } = Path.Combine(
@@ -155,12 +159,36 @@ public static class SelfInstaller
             return;
         }
 
+        DeleteLegacyShortcuts();
+
         var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
         dynamic shell = Activator.CreateInstance(shellType)!;
         dynamic shortcut = shell.CreateShortcut(Path.Combine(programs, ShortcutName));
         shortcut.TargetPath = targetExe;
         shortcut.WorkingDirectory = InstallDir;
         shortcut.Save();
+    }
+
+    // 왜: 이름이 바뀌면 옛 바로가기가 죽은 링크로 시작 메뉴에 남는다 — 새것을 만들 때 함께 지운다
+    // TODO: 1.1.0 이 퍼지면 LegacyShortcutNames 와 함께 지운다
+    private static void DeleteLegacyShortcuts()
+    {
+        var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+        foreach (var name in LegacyShortcutNames)
+        {
+            try
+            {
+                var path = Path.Combine(programs, name);
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // 못 지워도 새 바로가기는 만들어진다
+            }
+        }
     }
 
     // 왜: 빌드 폴더 등 옛 경로로 등록된 자동 실행이 있으면 설치본으로 돌려야 다음 로그인에 설치본이 뜬다

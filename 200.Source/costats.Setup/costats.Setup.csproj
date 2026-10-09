@@ -12,7 +12,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <ApplicationIcon>Resources\setup-icon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Product>AI 통합 사용량 모니터 설치</Product>
+    <Product>JHJ AI 통합 사용량 모니터 설치</Product>
   </PropertyGroup>
 
   <ItemGroup>

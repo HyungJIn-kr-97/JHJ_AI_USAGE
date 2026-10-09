@@ -51,7 +51,7 @@ InstallerSwitches:
   SilentWithProgress: --silent --version $Version
 UpgradeBehavior: install
 AppsAndFeaturesEntries:
-- DisplayName: AI Usage Monitor
+- DisplayName: JHJ AI Usage Monitor
   Publisher: HyungJin Ju
   DisplayVersion: $Version
 Installers:
@@ -70,7 +70,7 @@ PackageLocale: en-US
 Publisher: HyungJin Ju
 PublisherUrl: https://github.com/HyungJIn-kr-97
 PublisherSupportUrl: https://github.com/$Repository/issues
-PackageName: AI Usage Monitor
+PackageName: JHJ AI Usage Monitor
 PackageUrl: https://github.com/$Repository
 License: MIT
 LicenseUrl: https://github.com/$Repository/blob/main/LICENSE

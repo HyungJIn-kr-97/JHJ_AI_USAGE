@@ -130,7 +130,10 @@ foreach ($rid in $platforms) {
 
     # Contract: older installs look for JHJ_AI-Usage-Monitor.exe inside the zip, so ship a copy under the old name too.
     # TODO: drop this copy once 1.1.0 or newer is everywhere - see 300.Docs\실행파일-이름-전환.md
-    Copy-Item -LiteralPath (Join-Path $outputPath "JHJ_AI-Usage-Monitor.exe") -Destination (Join-Path $outputPath "AiUsageMonitor.exe") -Force
+    # Contract: one copy per past generation - each installed build looks for the name it was built with.
+    foreach ($legacyName in @("AI-Usage-Monitor_JHJ.exe", "AiUsageMonitor.exe")) {
+        Copy-Item -LiteralPath (Join-Path $outputPath "JHJ_AI-Usage-Monitor.exe") -Destination (Join-Path $outputPath $legacyName) -Force
+    }
 
     # Create ZIP archive
     # Contract: keep the OLD name - installed builds look for AiUsageMonitor-<rid>-v<ver>.zip. See 300.Docs\실행파일-이름-전환.md

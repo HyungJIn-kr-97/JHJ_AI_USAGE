@@ -18,7 +18,11 @@ namespace costats.Setup
         // 왜: 옛 버전이 깐 설치 폴더에는 이 이름들만 있다 — 기존 설치를 알아보고 종료시키는 데만 쓴다
         // TODO: 옛 이름 사본을 꾸러미에서 빼는 릴리스에서 함께 지운다
         public static readonly string[] LegacyExeNames = { "AI-Usage-Monitor_JHJ.exe", "AiUsageMonitor.exe" };
-        private const string ShortcutName = "AI 통합 사용량 모니터.lnk";
+        // 계약: costats.App 의 SelfInstaller.ShortcutName 과 같은 값이어야 한다
+        private const string ShortcutName = "JHJ AI 통합 사용량 모니터.lnk";
+
+        // 계약: 옛 이름 바로가기 — 설치 폴더를 찾을 때 보고, 제거할 때 함께 지운다
+        private static readonly string[] LegacyShortcutNames = { "AI 통합 사용량 모니터.lnk" };
 
         // 계약: 설정·이력·동의가 사는 자료 폴더 — 설치 폴더를 어디로 골라도 여기는 고정이다
         public static string DataDir { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JHJ_AI-Usage-Monitor");
@@ -88,7 +92,7 @@ namespace costats.Setup
                     return;
                 }
 
-                key.SetValue("DisplayName", "AI 통합 사용량 모니터");
+                key.SetValue("DisplayName", "JHJ AI 통합 사용량 모니터");
                 key.SetValue("DisplayVersion", InstalledVersion() ?? string.Empty);
                 key.SetValue("Publisher", "HyungJin Ju");
                 key.SetValue("InstallLocation", InstallDir);
@@ -186,7 +190,10 @@ namespace costats.Setup
 
             try
             {
-                var shortcut = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), ShortcutName);
+                var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+                var shortcut = new[] { ShortcutName }.Concat(LegacyShortcutNames)
+                    .Select(name => Path.Combine(programs, name))
+                    .FirstOrDefault(File.Exists) ?? Path.Combine(programs, ShortcutName);
                 var shellType = File.Exists(shortcut) ? Type.GetTypeFromProgID("WScript.Shell") : null;
                 if (shellType != null)
                 {
@@ -354,10 +361,14 @@ namespace costats.Setup
                 Directory.Delete(InstallDir, true);
             }
 
-            var shortcut = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), ShortcutName);
-            if (File.Exists(shortcut))
+            // 계약: 옛 이름 바로가기도 함께 지운다 — 안 지우면 죽은 링크가 시작 메뉴에 남는다
+            foreach (var name in new[] { ShortcutName }.Concat(LegacyShortcutNames))
             {
-                File.Delete(shortcut);
+                var shortcut = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), name);
+                if (File.Exists(shortcut))
+                {
+                    File.Delete(shortcut);
+                }
             }
 
             using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
