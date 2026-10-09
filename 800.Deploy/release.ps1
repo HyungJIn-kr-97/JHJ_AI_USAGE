@@ -18,6 +18,8 @@ $ErrorActionPreference = "Continue"
 $env:GIT_TERMINAL_PROMPT = "0"
 
 $repo  = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+# 계약: 이 저장소가 만드는 실행 파일 이름 - 빌드 전에 내릴 대상이다. 옛 이름도 남긴다(설치 폴더에 사본이 있다)
+$appProcessNames = @('JHJ_AI-Usage-Monitor', 'AI-Usage-Monitor_JHJ', 'AiUsageMonitor')
 $props = Join-Path $repo "200.Source\Directory.Build.props"
 $out   = Join-Path $PSScriptRoot "publish"
 
@@ -147,8 +149,9 @@ else {
 Step "4/5 빌드"
 # 왜: 이 저장소에서 띄운 앱이 bin\ 이나 publish\ 를 잠가 빌드가 깨진다 - 설치본(%LOCALAPPDATA%)은 저장소 밖이라 안 걸린다
 # 함정: 200.Source 만 보면 publish\ 산출물로 확인해 본 프로세스를 놓쳐 GenerateBundle 이 UnauthorizedAccessException 으로 죽는다
-$devApp = Get-Process -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -and $_.Path.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) }
+# 함정: 이름으로 먼저 거른다 - 전체 프로세스를 훑으면 경로 비교가 빗나갔을 때 남의 프로세스를 내린다
+$devApp = Get-Process $appProcessNames -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -and $repo -and $_.Path.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) }
 $devAppWasRunning = $null -ne $devApp
 $devApp | Stop-Process -Force
 
@@ -159,8 +162,8 @@ if ($LASTEXITCODE -ne 0) { Fail "빌드 실패. 위 메시지를 확인해 주�
 $assets = @(
     (Join-Path $out "AiUsageMonitor-win-x64-$tag.zip"),
     (Join-Path $out "AiUsageMonitor-win-x64-$tag.zip.sha256"),
-    (Join-Path $out "AI-Usage-Monitor_JHJ_$($tag.TrimStart('v'))_win-x64.exe"),
-    (Join-Path $out "AI-Usage-Monitor_JHJ_Setup.exe")
+    (Join-Path $out "JHJ_AI-Usage-Monitor_$($tag.TrimStart('v'))_win-x64.exe"),
+    (Join-Path $out "JHJ_AI-Usage-Monitor_Setup.exe")
 )
 foreach ($asset in $assets) {
     if (-not (Test-Path $asset)) { Fail "빌드 결과물이 없습니다: $asset" }
@@ -237,8 +240,8 @@ if ($manifestDir) {
     Write-Host "  winget 제출     : wingetcreate submit `"$manifestDir`"   (처음 한 번 winget install wingetcreate)"
 }
 Write-Host "  릴리스 페이지 : https://github.com/$Repository/releases/tag/$tag"
-Write-Host "  설치 파일 주소: https://github.com/$Repository/releases/latest/download/AI-Usage-Monitor_JHJ_Setup.exe"
-$devExe = "$repo\200.Source\costats.App\bin\Release\net10.0-windows\win-x64\AI-Usage-Monitor_JHJ.exe"
+Write-Host "  설치 파일 주소: https://github.com/$Repository/releases/latest/download/JHJ_AI-Usage-Monitor_Setup.exe"
+$devExe = "$repo\200.Source\costats.App\bin\Release\net10.0-windows\win-x64\JHJ_AI-Usage-Monitor.exe"
 if (Test-Path $devExe) {
     # 왜: 배포하면 빌드 때문에 앱이 꺼진 채 남는다 — 떠 있었든 아니든 끝나면 다시 띄운다
     # 함정: explorer.exe 로 띄운다 - 이 콘솔의 자식이 되면 창을 닫을 때 같이 죽는다

@@ -4,10 +4,10 @@ using Microsoft.Win32;
 namespace costats.App.Services;
 
 /// <summary>
-/// 옛 이름으로 쌓인 데이터 폴더와 자동 실행 등록을 지금 이름(AI-Usage-Monitor_JHJ)으로 옮긴다.
+/// 옛 이름으로 쌓인 데이터 폴더와 자동 실행 등록을 지금 이름(JHJ_AI-Usage-Monitor)으로 옮긴다.
 /// 계약: 로거·설정보다 먼저 한 번 부른다 — 새 폴더가 이미 있으면 그 세대는 건너뛴다.
 /// 계약: 세대는 오래된 것부터 차례로 옮긴다 — costats-jhj 로 머문 PC 도 한 번에 지금 이름까지 온다.
-/// TODO: 모든 PC 가 1.0.5 이상이 되면 지운다.
+/// TODO: 모든 PC 가 1.1.0 이상이 되면 지운다.
 /// </summary>
 public static class LegacyMigration
 {
@@ -16,6 +16,7 @@ public static class LegacyMigration
     [
         ("costats-jhj", "AiUsageMonitor"),
         ("AiUsageMonitor", "AI-Usage-Monitor_JHJ"),
+        ("AI-Usage-Monitor_JHJ", "JHJ_AI-Usage-Monitor"),
     ];
 
     private const string RunKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
@@ -171,7 +172,7 @@ public static class LegacyMigration
         {
             using var run = Registry.CurrentUser.OpenSubKey(RunKey, writable: false);
             using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey, writable: true);
-            foreach (var orphan in new[] { "costats", "costats-jhj", "AiUsageMonitor" })
+            foreach (var orphan in new[] { "costats", "costats-jhj", "AiUsageMonitor", "AI-Usage-Monitor_JHJ" })
             {
                 if (approved?.GetValue(orphan) is not null && run?.GetValue(orphan) is null)
                 {

@@ -9,10 +9,10 @@ public sealed class UpdateOptions
     public const string DefaultRepository = "HyungJIn-kr-97/JHJ_AI_USAGE";
 
     // 계약: 설치 파일 고정 주소 — latest/download 라 언제나 최신 설치 관리자를 받는다. 파일명은 publish.ps1 이 올리는 자산 이름과 같아야 한다
-    public static string SetupFileUrl => "https://github.com/" + DefaultRepository + "/releases/latest/download/AI-Usage-Monitor_JHJ_Setup.exe";
+    public static string SetupFileUrl => "https://github.com/" + DefaultRepository + "/releases/latest/download/JHJ_AI-Usage-Monitor_Setup.exe";
 
     // 계약: winget 패키지 식별자 — 800.Deploy\winget-manifest.ps1 의 PackageIdentifier 와 같아야 한다
-    public const string WingetId = "HyungJin.AI-Usage-Monitor_JHJ";
+    public const string WingetId = "HyungJin.JHJ_AI-Usage-Monitor";
 
     public static string WingetCommand => "winget install " + WingetId;
     public bool Enabled { get; init; } = false;

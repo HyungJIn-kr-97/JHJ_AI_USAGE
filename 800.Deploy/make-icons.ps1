@@ -9,17 +9,21 @@ param(
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
 $appDir = Join-Path $repo "200.Source\costats.App"
-$exe = Join-Path $appDir "bin\$Configuration\net10.0-windows\win-x64\AI-Usage-Monitor_JHJ.exe"
+# Trap: a RID-less build drops the exe one level up, a RID build puts it under win-x64 - take the newest of both.
+$exe = Get-ChildItem (Join-Path $appDir "bin\$Configuration") -Recurse -Filter "JHJ_AI-Usage-Monitor.exe" -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1 -ExpandProperty FullName
 
-if (-not (Test-Path $exe)) {
+if (-not $exe) {
     Write-Host "Build first: dotnet build 200.Source\costats.sln -c $Configuration" -ForegroundColor Red
     exit 1
 }
 
 # Trap: the app refuses to start a second instance, so stop the running dev build first.
-Get-Process -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -and $_.Path.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) } |
-    Stop-Process -Force
+# Trap: filter by NAME first - walking every process would kill unrelated ones if the path test ever misfires.
+Get-Process 'JHJ_AI-Usage-Monitor','AI-Usage-Monitor_JHJ','AiUsageMonitor' -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -and $repo -and $_.Path.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) } |
+    Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 400
 
 $stage = Join-Path $env:TEMP ("icon-export-" + [guid]::NewGuid().ToString("N"))

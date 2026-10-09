@@ -11,14 +11,14 @@ if not "%~1"=="" (
 )
 
 rem A dev-build instance started from this folder locks bin\ and breaks publish. Installed copies are left alone.
-powershell -NoProfile -Command "$root = (Resolve-Path '%~dp0..').Path; Get-Process 'AI-Usage-Monitor_JHJ','AiUsageMonitor' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like ($root + '\200.Source\*') } | Stop-Process -Force"
+powershell -NoProfile -Command "$root = (Resolve-Path '%~dp0..').Path; Get-Process 'JHJ_AI-Usage-Monitor','AiUsageMonitor' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like ($root + '\200.Source\*') } | Stop-Process -Force"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0publish.ps1" -Platform x64
 if errorlevel 1 goto :fail
 
 echo.
-echo [OK] Installer exe : %~dp0publish\win-x64\AI-Usage-Monitor_JHJ.exe
-echo      Run it once - it installs itself to %%LOCALAPPDATA%%\AI-Usage-Monitor_JHJ\app
+echo [OK] Installer exe : %~dp0publish\win-x64\JHJ_AI-Usage-Monitor.exe
+echo      Run it once - it installs itself to %%LOCALAPPDATA%%\JHJ_AI-Usage-Monitor\app
 echo [OK] Update package: %~dp0publish\AiUsageMonitor-win-x64-v*.zip and .zip.sha256
 echo      Upload both to a GitHub Release tagged v{version} to ship an update
 echo.

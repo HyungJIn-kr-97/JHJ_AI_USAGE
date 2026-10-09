@@ -53,11 +53,11 @@ public sealed class StartupUpdateCoordinator
     private readonly SemaphoreSlim _checkLock = new(1, 1);
 
     // 계약: 지금 실행 파일 이름. 설치 파일명과 같다
-    internal const string ExecutableName = "AI-Usage-Monitor_JHJ.exe";
+    internal const string ExecutableName = "JHJ_AI-Usage-Monitor.exe";
 
-    // 왜: 1.1.0 이전 버전이 만든 꾸러미·스테이징에는 이 이름만 있다 — 찾을 때는 새 이름 다음에 이것도 본다
+    // 왜: 옛 버전이 만든 꾸러미·스테이징에는 이 이름들만 있다 — 찾을 때는 새 이름 다음에 이것도 본다
     // TODO: 옛 이름 사본을 꾸러미에서 빼는 릴리스에서 함께 지운다
-    internal const string LegacyExecutableName = "AiUsageMonitor.exe";
+    internal static readonly string[] LegacyExecutableNames = ["AI-Usage-Monitor_JHJ.exe", "AiUsageMonitor.exe"];
 
     public StartupUpdateCoordinator(UpdateOptions options)
     {
@@ -69,7 +69,7 @@ public sealed class StartupUpdateCoordinator
 
         _updatesRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AI-Usage-Monitor_JHJ",
+            "JHJ_AI-Usage-Monitor",
             "updates");
         _statePath = Path.Combine(_updatesRoot, "state.json");
         _pendingPath = Path.Combine(_updatesRoot, "pending.json");
@@ -82,7 +82,7 @@ public sealed class StartupUpdateCoordinator
             Timeout = TimeSpan.FromSeconds(30)
         };
 
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AI-Usage-Monitor_JHJ", "1.0"));
+        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("JHJ_AI-Usage-Monitor", "1.0"));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
     }
 
@@ -552,7 +552,7 @@ public sealed class StartupUpdateCoordinator
     // 계약: 새 이름을 먼저 찾고 없으면 옛 이름 — 꾸러미에 둘 다 들어 있는 과도기를 지난다
     private static bool TryFindStagedExecutable(string stageDirectory, out string executablePath)
     {
-        foreach (var name in new[] { ExecutableName, LegacyExecutableName })
+        foreach (var name in new[] { ExecutableName }.Concat(LegacyExecutableNames))
         {
             executablePath = Path.Combine(stageDirectory, name);
             if (File.Exists(executablePath))
@@ -561,7 +561,7 @@ public sealed class StartupUpdateCoordinator
             }
         }
 
-        var discovered = new[] { ExecutableName, LegacyExecutableName }
+        var discovered = new[] { ExecutableName }.Concat(LegacyExecutableNames)
             .Select(name => Directory.EnumerateFiles(stageDirectory, name, SearchOption.AllDirectories).FirstOrDefault())
             .FirstOrDefault(found => !string.IsNullOrWhiteSpace(found));
 
@@ -671,7 +671,7 @@ public sealed class StartupUpdateCoordinator
             return false;
         }
 
-        runtimeIdentifier = assetName["AI-Usage-Monitor_JHJ-".Length..markerIndex];
+        runtimeIdentifier = assetName["JHJ_AI-Usage-Monitor-".Length..markerIndex];
         var versionText = assetName[(markerIndex + 2)..^4];
         return TryParseSemVer(versionText, out version);
     }
@@ -932,7 +932,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$logDir = Join-Path $env:LOCALAPPDATA "AI-Usage-Monitor_JHJ\updates"
+$logDir = Join-Path $env:LOCALAPPDATA "JHJ_AI-Usage-Monitor\updates"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logPath = Join-Path $logDir "apply-update.log"
 

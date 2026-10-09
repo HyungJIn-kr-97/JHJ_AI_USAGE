@@ -13,15 +13,15 @@ namespace costats.Setup
     /// </summary>
     internal static class Installer
     {
-        public const string ExeName = "AI-Usage-Monitor_JHJ.exe";
+        public const string ExeName = "JHJ_AI-Usage-Monitor.exe";
 
-        // 왜: 1.1.0 이전이 깐 설치 폴더에는 이 이름만 있다 — 기존 설치를 알아보고 종료시키는 데만 쓴다
+        // 왜: 옛 버전이 깐 설치 폴더에는 이 이름들만 있다 — 기존 설치를 알아보고 종료시키는 데만 쓴다
         // TODO: 옛 이름 사본을 꾸러미에서 빼는 릴리스에서 함께 지운다
-        public const string LegacyExeName = "AiUsageMonitor.exe";
+        public static readonly string[] LegacyExeNames = { "AI-Usage-Monitor_JHJ.exe", "AiUsageMonitor.exe" };
         private const string ShortcutName = "AI 통합 사용량 모니터.lnk";
 
         // 계약: 설정·이력·동의가 사는 자료 폴더 — 설치 폴더를 어디로 골라도 여기는 고정이다
-        public static string DataDir { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Usage-Monitor_JHJ");
+        public static string DataDir { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JHJ_AI-Usage-Monitor");
 
         public static string DefaultInstallDir { get; } = Path.Combine(DataDir, "app");
 
@@ -61,8 +61,8 @@ namespace costats.Setup
         private static readonly string InstallDirFile = Path.Combine(DataDir, "install-dir.txt");
 
         // 계약: 「프로그램 추가/제거」 등록 — winget 이 설치 확인·업그레이드·제거에 쓴다. 제거 명령은 DataDir 에 복사해 둔 이 설치 관리자다
-        private const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AI-Usage-Monitor_JHJ";
-        public static string SetupCopyPath => Path.Combine(DataDir, "AI-Usage-Monitor_JHJ-Setup.exe");
+        private const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\JHJ_AI-Usage-Monitor";
+        public static string SetupCopyPath => Path.Combine(DataDir, "JHJ_AI-Usage-Monitor-Setup.exe");
         private static string SelfPath => Path.GetFullPath(typeof(Installer).Assembly.Location);
 
         private static void KeepSetupCopy()
@@ -173,7 +173,7 @@ namespace costats.Setup
             {
                 using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))
                 {
-                    var run = key?.GetValue("AI-Usage-Monitor_JHJ") as string;
+                    var run = key?.GetValue("JHJ_AI-Usage-Monitor") as string;
                     if (!string.IsNullOrEmpty(run))
                     {
                         candidates.Add(Path.GetDirectoryName(run.Trim().Trim('"')));
@@ -204,7 +204,7 @@ namespace costats.Setup
 
             candidates.Add(DefaultInstallDir);
             var found = candidates.FirstOrDefault(dir => !string.IsNullOrEmpty(dir)
-                && (File.Exists(Path.Combine(dir, ExeName)) || File.Exists(Path.Combine(dir, LegacyExeName))));
+                && (File.Exists(Path.Combine(dir, ExeName)) || LegacyExeNames.Any(n => File.Exists(Path.Combine(dir, n)))));
             _installDir = found ?? _installDir ?? ReadSavedInstallDir() ?? DefaultInstallDir;
         }
         private static void SaveInstallDir()
@@ -224,8 +224,8 @@ namespace costats.Setup
                     return current;
                 }
 
-                var legacy = Path.Combine(InstallDir, LegacyExeName);
-                return File.Exists(legacy) ? legacy : current;
+                var legacy = LegacyExeNames.Select(n => Path.Combine(InstallDir, n)).FirstOrDefault(File.Exists);
+                return legacy ?? current;
             }
         }
 
@@ -306,7 +306,7 @@ namespace costats.Setup
         private static void StopRunningApp()
         {
             // 계약: 옛 이름으로 떠 있는 기존 설치본도 함께 내린다 — 안 내리면 폴더 교체가 막힌다
-            foreach (var process in new[] { ExeName, LegacyExeName }
+            foreach (var process in new[] { ExeName }.Concat(LegacyExeNames)
                 .SelectMany(name => Process.GetProcessesByName(Path.GetFileNameWithoutExtension(name))))
             {
                 try
@@ -362,9 +362,9 @@ namespace costats.Setup
 
             using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
             {
-                if (key != null && key.GetValue("AI-Usage-Monitor_JHJ") != null)
+                if (key != null && key.GetValue("JHJ_AI-Usage-Monitor") != null)
                 {
-                    key.DeleteValue("AI-Usage-Monitor_JHJ", false);
+                    key.DeleteValue("JHJ_AI-Usage-Monitor", false);
                 }
             }
 

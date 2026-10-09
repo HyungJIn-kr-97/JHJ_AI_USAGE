@@ -46,7 +46,7 @@ namespace costats.Setup
             // 함정: .NET Framework 4.8 은 OS 설정에 따라 TLS 1.0 으로 붙어 GitHub 가 거절한다 — 1.2 를 명시한다
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             _http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-            _http.DefaultRequestHeaders.UserAgent.ParseAdd("AI-Usage-Monitor_JHJ-Setup/1.0");
+            _http.DefaultRequestHeaders.UserAgent.ParseAdd("JHJ_AI-Usage-Monitor-Setup/1.0");
             _http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         }
 

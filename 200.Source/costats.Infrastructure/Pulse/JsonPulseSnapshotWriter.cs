@@ -23,6 +23,6 @@ public sealed class JsonPulseSnapshotWriter : IPulseSnapshotWriter
     private static string GetSnapshotPath()
     {
         var basePath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(basePath, "AI-Usage-Monitor_JHJ", "snapshots", "pulse.json");
+        return Path.Combine(basePath, "JHJ_AI-Usage-Monitor", "snapshots", "pulse.json");
     }
 }

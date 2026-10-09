@@ -32,7 +32,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private const string ClaudeMainId = "claude:" + AccountProfileStore.DefaultName;
     private const string CodexMainId = "codex";
     private const string StartupRegistryKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-    private const string AppName = "AI-Usage-Monitor_JHJ";
+    private const string AppName = "JHJ_AI-Usage-Monitor";
 
     public SettingsViewModel(
         ISettingsStore settingsStore,
@@ -551,7 +551,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         try
         {
             CloseLoginBrowser();
-            _loginBrowserDir = Path.Combine(Path.GetTempPath(), "AI-Usage-Monitor_JHJ-login-" + Guid.NewGuid().ToString("N")[..8]);
+            _loginBrowserDir = Path.Combine(Path.GetTempPath(), "JHJ_AI-Usage-Monitor-login-" + Guid.NewGuid().ToString("N")[..8]);
             var info = new System.Diagnostics.ProcessStartInfo(chrome) { UseShellExecute = false };
             info.ArgumentList.Add("--user-data-dir=" + _loginBrowserDir);
             info.ArgumentList.Add("--no-first-run");
@@ -1874,7 +1874,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         var dialog = new SaveFileDialog
         {
-            FileName = $"AI-Usage-Monitor_JHJ-diagnostics-{DateTime.Now:yyyyMMdd-HHmm}.md",
+            FileName = $"JHJ_AI-Usage-Monitor-diagnostics-{DateTime.Now:yyyyMMdd-HHmm}.md",
             Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
         };

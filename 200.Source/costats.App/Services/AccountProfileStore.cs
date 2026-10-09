@@ -15,7 +15,7 @@ public static class AccountProfileStore
     public const string DefaultName = "default";
 
     public static string RootDir { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Usage-Monitor_JHJ", "accounts");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JHJ_AI-Usage-Monitor", "accounts");
 
     private static string ConfigPath => Path.Combine(RootDir, "config.json");
 

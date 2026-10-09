@@ -24,9 +24,9 @@ public static class DiagnosticsReport
     {
         var sb = new StringBuilder();
         // 계약: 첫 줄은 이슈 제목으로 잘라 붙이는 줄이다(bug_report.yml 의 "[버그] " 접두와 같다) — 그 아래가 본문
-        sb.AppendLine($"[버그] AI-Usage-Monitor_JHJ v{version} — (한 줄 요약을 적어 주십시오)");
+        sb.AppendLine($"[버그] JHJ_AI-Usage-Monitor v{version} — (한 줄 요약을 적어 주십시오)");
         sb.AppendLine();
-        sb.AppendLine("# AI-Usage-Monitor_JHJ 진단 정보");
+        sb.AppendLine("# JHJ_AI-Usage-Monitor 진단 정보");
         sb.AppendLine();
         sb.AppendLine("## 증상 — 여기에 적어 주십시오");
         sb.AppendLine();
@@ -93,7 +93,7 @@ public static class DiagnosticsReport
 
         Section(sb, "이력 파일", () =>
         {
-            var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Usage-Monitor_JHJ", "history");
+            var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JHJ_AI-Usage-Monitor", "history");
             if (!Directory.Exists(root))
             {
                 sb.AppendLine("- 없음");

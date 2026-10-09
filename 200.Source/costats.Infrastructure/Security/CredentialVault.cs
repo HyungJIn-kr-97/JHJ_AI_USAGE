@@ -6,11 +6,11 @@ namespace costats.Infrastructure.Security;
 
 public sealed class CredentialVault : ICredentialVault
 {
-    private const string TargetPrefix = "AI-Usage-Monitor_JHJ:";
-    private const string Username = "AI-Usage-Monitor_JHJ";
+    private const string TargetPrefix = "JHJ_AI-Usage-Monitor:";
+    private const string Username = "JHJ_AI-Usage-Monitor";
 
-    // 계약: 1.0.4 까지 쓰던 접두 — 읽을 때 한 번 옮겨 오는 데만 쓴다
-    private const string LegacyTargetPrefix = "AiUsageMonitor:";
+    // 계약: 옛 버전이 쓰던 접두 — 읽을 때 한 번 옮겨 오는 데만 쓴다
+    private static readonly string[] LegacyTargetPrefixes = ["AI-Usage-Monitor_JHJ:", "AiUsageMonitor:"];
 
     public Task SaveAsync(string key, string secret, CancellationToken cancellationToken)
     {
@@ -41,15 +41,21 @@ public sealed class CredentialVault : ICredentialVault
     {
         try
         {
-            var legacy = CredentialManager.GetCredentials(LegacyTargetPrefix + key.Trim());
-            if (legacy?.Password is not { Length: > 0 })
+            foreach (var prefix in LegacyTargetPrefixes)
             {
-                return null;
+                var legacyTarget = prefix + key.Trim();
+                var legacy = CredentialManager.GetCredentials(legacyTarget);
+                if (legacy?.Password is not { Length: > 0 })
+                {
+                    continue;
+                }
+
+                CredentialManager.SaveCredentials(target, new NetworkCredential(Username, legacy.Password), CredentialType.Generic);
+                CredentialManager.RemoveCredentials(legacyTarget, CredentialType.Generic);
+                return legacy;
             }
 
-            CredentialManager.SaveCredentials(target, new NetworkCredential(Username, legacy.Password), CredentialType.Generic);
-            CredentialManager.RemoveCredentials(LegacyTargetPrefix + key.Trim(), CredentialType.Generic);
-            return legacy;
+            return null;
         }
         catch (Exception)
         {

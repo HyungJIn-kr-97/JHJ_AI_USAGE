@@ -9,7 +9,7 @@ using costats.Core.Pulse;
 namespace costats.App.Services;
 
 /// <summary>
-/// 팝업이 보여 주는 값을 앱 바깥에서도 읽을 수 있게 파일로 남긴다 — %LOCALAPPDATA%\AI-Usage-Monitor_JHJ\data\.
+/// 팝업이 보여 주는 값을 앱 바깥에서도 읽을 수 있게 파일로 남긴다 — %LOCALAPPDATA%\JHJ_AI-Usage-Monitor\data\.
 /// 계약: 저장 구조·칸의 의미·갱신 주기의 정본은 300.Docs\표시-데이터-저장소.md 다.
 /// 계약: 값은 화면이 쓴 것을 그대로 옮긴다 — 이 클래스는 집계를 새로 하지 않고 기간 합계만 더한다.
 /// 왜: UsageHistoryStore 는 날짜×모델 사용량만 갖는다 — 신원·플랜·한도창·활용도는 어디에도 남지 않아 다른 도구가 읽을 수 없었다.
@@ -19,7 +19,7 @@ public static class DisplayDataStore
     public const int SchemaVersion = 1;
 
     private static readonly string RootDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Usage-Monitor_JHJ", "data");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JHJ_AI-Usage-Monitor", "data");
 
     private static readonly string SnapshotPath = Path.Combine(RootDir, "snapshot.json");
 

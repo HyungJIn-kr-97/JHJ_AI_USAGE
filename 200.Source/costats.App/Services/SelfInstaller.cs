@@ -5,12 +5,12 @@ using Microsoft.Win32;
 namespace costats.App.Services;
 
 /// <summary>
-/// 받은 exe 를 그대로 실행하면 고정 위치(%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\app)에 스스로 설치하고 거기서 다시 뜬다.
+/// 받은 exe 를 그대로 실행하면 고정 위치(%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\app)에 스스로 설치하고 거기서 다시 뜬다.
 /// 계약: 설치 폴더는 이 앱 전용이다 — 업데이트가 폴더를 통째로 갈아 끼우므로 다른 파일을 두지 않는다.
 /// </summary>
 public static class SelfInstaller
 {
-    private const string AppName = "AI-Usage-Monitor_JHJ";
+    private const string AppName = "JHJ_AI-Usage-Monitor";
     private const string ShortcutName = "AI 통합 사용량 모니터.lnk";
     private static readonly string[] SiblingFiles = ["appsettings.json", "apply-update.ps1"];
 

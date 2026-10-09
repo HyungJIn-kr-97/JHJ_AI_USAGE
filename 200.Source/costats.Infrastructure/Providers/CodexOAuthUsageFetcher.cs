@@ -25,7 +25,7 @@ public sealed class CodexOAuthUsageFetcher : IDisposable
             BaseAddress = new Uri(BaseUrl),
             Timeout = TimeSpan.FromSeconds(10)
         };
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "AI-Usage-Monitor_JHJ");
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "JHJ_AI-Usage-Monitor");
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 

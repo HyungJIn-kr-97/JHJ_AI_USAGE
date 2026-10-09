@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
-PackageIdentifier: HyungJin.AI-Usage-Monitor_JHJ
+PackageIdentifier: HyungJin.JHJ_AI-Usage-Monitor
 PackageVersion: 1.0.5.20261008
 PackageLocale: en-US
 Publisher: HyungJin Ju

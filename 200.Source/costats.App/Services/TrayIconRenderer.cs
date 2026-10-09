@@ -73,7 +73,7 @@ public static class TrayIconRenderer
     }
 
     public static string IconDir { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-Usage-Monitor_JHJ", "icons");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JHJ_AI-Usage-Monitor", "icons");
 
     // 계약: 사용자 아이콘은 icons\drawn-<시각>.png(직접 그림) · icons\image-<시각>.png(불러온 그림), 모양 id 는 "custom:<파일 이름>"
     public static IReadOnlyList<string> CustomStyles() => Directory.Exists(IconDir)

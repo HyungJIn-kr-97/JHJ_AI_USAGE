@@ -7,9 +7,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <RootNamespace>costats.App</RootNamespace>
-    <!-- 계약: 설치 파일(AI-Usage-Monitor_JHJ_&lt;버전&gt;_win-x64.exe)과 같은 이름이다 -->
+    <!-- 계약: 설치 파일(JHJ_AI-Usage-Monitor_&lt;버전&gt;_win-x64.exe)과 같은 이름이다 -->
     <!-- 함정: 바꾸면 업데이트·설치 관리자·배포 스크립트가 함께 걸린다 — 범위는 300.Docs\실행파일-이름-전환.md -->
-    <AssemblyName>AI-Usage-Monitor_JHJ</AssemblyName>
+    <AssemblyName>JHJ_AI-Usage-Monitor</AssemblyName>
 
     <!-- App metadata -->
     <Product>AI Usage Monitor</Product>

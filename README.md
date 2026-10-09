@@ -18,20 +18,20 @@ MIT 입니다([LICENSE](LICENSE)). 원저작자 고지(`Copyright (c) 2026 fmdz`
 
 | 파일 | 종류 | 하는 일 |
 |---|---|---|
-| `AI-Usage-Monitor_JHJ_Setup.exe` (약 75KB) | **웹 설치 관리자** | 실행하면 GitHub 릴리스 목록을 읽어 버전을 고르게 하고(기본은 최신), 그 버전을 받아 설치한 뒤 실행합니다. 낮은 버전을 고르면 되돌리기가 됩니다. `--version 1.0.0` · `--silent` 인자를 받습니다. Windows 기본 .NET Framework 4.8 로 돕니다 |
-| `AI-Usage-Monitor_JHJ_<버전>_win-x64.exe` (약 4MB) | **오프라인 설치 파일** | 인터넷 없이 그 버전 하나로 설치합니다. 설치 여부를 묻는 창에서 「예」를 고르면 설치본으로 다시 뜹니다 |
+| `JHJ_AI-Usage-Monitor_Setup.exe` (약 75KB) | **웹 설치 관리자** | 실행하면 GitHub 릴리스 목록을 읽어 버전을 고르게 하고(기본은 최신), 그 버전을 받아 설치한 뒤 실행합니다. 낮은 버전을 고르면 되돌리기가 됩니다. `--version 1.0.0` · `--silent` 인자를 받습니다. Windows 기본 .NET Framework 4.8 로 돕니다 |
+| `JHJ_AI-Usage-Monitor_<버전>_win-x64.exe` (약 4MB) | **오프라인 설치 파일** | 인터넷 없이 그 버전 하나로 설치합니다. 설치 여부를 묻는 창에서 「예」를 고르면 설치본으로 다시 뜹니다 |
 
-어느 쪽이든 `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\app` 에 놓이고 시작 메뉴 바로가기(`AI 통합 사용량 모니터`)가 생깁니다.
+어느 쪽이든 `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\app` 에 놓이고 시작 메뉴 바로가기(`AI 통합 사용량 모니터`)가 생깁니다.
 
 처음 실행할 때 「Windows의 PC 보호」(SmartScreen) 창이 뜨면 **「추가 정보」 → 「실행」** 을 누르십시오. 코드 서명이 없는 exe 에 Windows 가 늘 보이는 창이고, 같은 파일은 두 번째부터 묻지 않습니다.
 
 **winget 으로 설치**(SmartScreen 창 없음 · `winget upgrade` 로 업데이트) — 터미널에 아래 한 줄. 패키지 등록(microsoft/winget-pkgs 심사)이 끝난 뒤부터 됩니다. 설치 관리자가 「프로그램 추가/제거」에 등록하므로 거기서도 제거할 수 있습니다.
 
 ```text
-winget install HyungJin.AI-Usage-Monitor_JHJ
+winget install HyungJin.JHJ_AI-Usage-Monitor
 ```
 
-설치 파일 고정 주소 — https://github.com/HyungJIn-kr-97/JHJ_AI_USAGE/releases/latest/download/AI-Usage-Monitor_JHJ_Setup.exe
+설치 파일 고정 주소 — https://github.com/HyungJIn-kr-97/JHJ_AI_USAGE/releases/latest/download/JHJ_AI-Usage-Monitor_Setup.exe
 (언제나 최신 웹 설치 관리자를 받습니다. 설정 「앱 설정」 머리줄의 「앱 공유하기」 🔗 가 같은 주소를 클립보드에 넣고, ⬇ 가 바로 내려받습니다)
 
 - 단축키 `Ctrl+Alt+2` 로 팝업을 열고 닫습니다. 설정 › 일반 「팝업 단축키 1」에서 바꾸고 「+ 단축키 추가」로 4개까지 늘릴 수 있습니다(권장 `Ctrl+Alt+F1~F12`, `Ctrl+C`·`Alt+F4` 같은 수정키 하나짜리·Win 조합·편집 키는 막습니다). 설정 창은 팝업 우측 아래 톱니입니다.
@@ -45,9 +45,9 @@ winget install HyungJin.AI-Usage-Monitor_JHJ
 
 | 하려는 것 | 방법 |
 |---|---|
-| 개발 빌드 | `dotnet build 200.Source\costats.sln -c Release` → `200.Source\costats.App\bin\Release\…\AI-Usage-Monitor_JHJ.exe`. 개발 실행이라 설치·업데이트는 동작하지 않습니다 |
-| 설치 파일 · 업데이트 꾸러미 | `800.Deploy\Build-Exe.bat` 더블클릭(배포 버전을 올리려면 `Build-Exe.bat 1.0.1` — 날짜 자리는 빌드가 붙인다) → `800.Deploy\publish\` 에 `AiUsageMonitor-win-x64-v<버전>.zip`(업데이트용 — 설치본이 이 이름으로 다음 버전을 찾으므로 **바꾸지 않는다**) · `AI-Usage-Monitor_JHJ_<버전>_win-x64.exe`(오프라인 설치) · `AI-Usage-Monitor_JHJ_Setup.exe`(웹 설치 관리자)와 `.sha256` |
-| 릴리스 | 태그 `v<버전>` 으로 GitHub Release 를 만들고 위 파일을 올립니다. 예: `gh release create v1.0.3.20261007 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.3.20261007.zip 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.3.20261007.zip.sha256 800.Deploy\publish\AI-Usage-Monitor_JHJ_1.0.3.20261007_win-x64.exe 800.Deploy\publish\AI-Usage-Monitor_JHJ_Setup.exe`. 태그는 `v<배포 버전>.<빌드 날짜>` 이고 `publish.ps1` 이 마지막에 출력합니다(아래 「버전 체계」). **한 번에 하려면 `800.Deploy\Release.bat`** — 버전을 올릴지 묻고(Enter 면 날짜만 바뀜) 커밋·빌드·push·릴리스·옛 날짜판 정리까지 단계마다 확인받으며 진행합니다. 손으로 할 때는 올린 뒤 `800.Deploy\prune-releases.ps1`(기본은 목록만, `-Apply` 로 삭제)로 같은 배포 버전의 옛 날짜 릴리스를 지웁니다. 함정: 앱의 업데이트와 웹 설치 관리자는 **zip 이름**으로 버전을 찾으므로 zip 은 빠뜨리면 안 됩니다 |
+| 개발 빌드 | `dotnet build 200.Source\costats.sln -c Release` → `200.Source\costats.App\bin\Release\…\JHJ_AI-Usage-Monitor.exe`. 개발 실행이라 설치·업데이트는 동작하지 않습니다 |
+| 설치 파일 · 업데이트 꾸러미 | `800.Deploy\Build-Exe.bat` 더블클릭(배포 버전을 올리려면 `Build-Exe.bat 1.0.1` — 날짜 자리는 빌드가 붙인다) → `800.Deploy\publish\` 에 `AiUsageMonitor-win-x64-v<버전>.zip`(업데이트용 — 설치본이 이 이름으로 다음 버전을 찾으므로 **바꾸지 않는다**) · `JHJ_AI-Usage-Monitor_<버전>_win-x64.exe`(오프라인 설치) · `JHJ_AI-Usage-Monitor_Setup.exe`(웹 설치 관리자)와 `.sha256` |
+| 릴리스 | 태그 `v<버전>` 으로 GitHub Release 를 만들고 위 파일을 올립니다. 예: `gh release create v1.0.3.20261007 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.3.20261007.zip 800.Deploy\publish\AiUsageMonitor-win-x64-v1.0.3.20261007.zip.sha256 800.Deploy\publish\JHJ_AI-Usage-Monitor_1.0.3.20261007_win-x64.exe 800.Deploy\publish\JHJ_AI-Usage-Monitor_Setup.exe`. 태그는 `v<배포 버전>.<빌드 날짜>` 이고 `publish.ps1` 이 마지막에 출력합니다(아래 「버전 체계」). **한 번에 하려면 `800.Deploy\Release.bat`** — 버전을 올릴지 묻고(Enter 면 날짜만 바뀜) 커밋·빌드·push·릴리스·옛 날짜판 정리까지 단계마다 확인받으며 진행합니다. 손으로 할 때는 올린 뒤 `800.Deploy\prune-releases.ps1`(기본은 목록만, `-Apply` 로 삭제)로 같은 배포 버전의 옛 날짜 릴리스를 지웁니다. 함정: 앱의 업데이트와 웹 설치 관리자는 **zip 이름**으로 버전을 찾으므로 zip 은 빠뜨리면 안 됩니다 |
 
 - `800.Deploy\publish\` 는 git 에 올라가지 않습니다.
 
@@ -66,7 +66,7 @@ winget install HyungJin.AI-Usage-Monitor_JHJ
 
 **가리는 것** — 메일은 첫 글자+도메인, UUID 는 앞 8자, 경로의 사용자 폴더는 `%USERPROFILE%`. **넣지 않는 것** — 토큰 · 대화 내용 · 프로젝트 경로. 이벤트 기록은 설정 › 일반 「사용 기록 남기기」로 끌 수 있고, 꺼도 보고서의 나머지 항목은 누를 때 그 자리에서 읽어 만듭니다.
 
-**팝업이 보여 주는 값을 파일로도 남깁니다** — `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\data\`. 다른 도구가 읽어 쓸 수 있게 만든 것이고, 구조·칸의 뜻은 [300.Docs/표시-데이터-저장소.md](300.Docs/표시-데이터-저장소.md) 가 정본입니다. 전송은 하지 않습니다.
+**팝업이 보여 주는 값을 파일로도 남깁니다** — `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\data\`. 다른 도구가 읽어 쓸 수 있게 만든 것이고, 구조·칸의 뜻은 [300.Docs/표시-데이터-저장소.md](300.Docs/표시-데이터-저장소.md) 가 정본입니다. 전송은 하지 않습니다.
 
 **아이콘은 한 곳에서 나옵니다** — 트레이·exe·설치 관리자가 모두 `TrayIconRenderer.DefaultStyle`(기본 `ai`)로 그린 같은 그림입니다.
 모양이나 팔레트를 바꾸면 `pwsh -File 800.Deploy\make-icons.ps1` 로 `.ico` 를 다시 뽑고 빌드하십시오 — `.ico` 에는 다른 출처가 없습니다.
@@ -109,13 +109,13 @@ winget install HyungJin.AI-Usage-Monitor_JHJ
 |---|---|---|---|
 | 탭 배치 | Codex · Claude | Claude · Codex | `200.Source/costats.App/GlassWidgetWindow.xaml` |
 | 처음 선택되는 탭 | Codex | Claude | `200.Source/costats.App/ViewModels/PulseViewModel.cs` |
-| 이름 | `costats` · `costats.App.exe` | `AI 통합 사용량 모니터` / `AI Usage Monitor` · `AI-Usage-Monitor_JHJ.exe`(v1.1.0 에서 설치 파일과 같은 이름으로 바꿨습니다 — 전환 절차는 [300.Docs/실행파일-이름-전환.md](300.Docs/실행파일-이름-전환.md). 프로젝트·네임스페이스는 `costats.*` 유지) | `costats.App.csproj` · `LocStrings.cs` · `TrayHost.cs` |
-| 데이터 폴더 | `%LOCALAPPDATA%\costats` | `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ`(1.0.0 의 `costats-jhj` 는 첫 실행 때 자동 이동 — `Services/LegacyMigration.cs`) | `JsonSettingsStore.cs` · `JsonPulseSnapshotWriter.cs` · `ClaudeOAuthUsageFetcher.cs` · `App.xaml.cs` · `appsettings.json` |
-| 단일 실행 이름 · 시작프로그램 이름 | `costats` | `AI-Usage-Monitor_JHJ` | `App.xaml.cs` · `SettingsViewModel.cs` |
+| 이름 | `costats` · `costats.App.exe` | `AI 통합 사용량 모니터` / `AI Usage Monitor` · `JHJ_AI-Usage-Monitor.exe`(v1.1.0 에서 설치 파일과 같은 이름으로 바꿨습니다 — 전환 절차는 [300.Docs/실행파일-이름-전환.md](300.Docs/실행파일-이름-전환.md). 프로젝트·네임스페이스는 `costats.*` 유지) | `costats.App.csproj` · `LocStrings.cs` · `TrayHost.cs` |
+| 데이터 폴더 | `%LOCALAPPDATA%\costats` | `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor`(1.0.0 의 `costats-jhj` 는 첫 실행 때 자동 이동 — `Services/LegacyMigration.cs`) | `JsonSettingsStore.cs` · `JsonPulseSnapshotWriter.cs` · `ClaudeOAuthUsageFetcher.cs` · `App.xaml.cs` · `appsettings.json` |
+| 단일 실행 이름 · 시작프로그램 이름 | `costats` | `JHJ_AI-Usage-Monitor` | `App.xaml.cs` · `SettingsViewModel.cs` |
 | 기본 단축키 | `Ctrl+Alt+U` | `Ctrl+Alt+2` | `AppSettings.cs` · `appsettings.json` · `HotkeyRules.Default` |
-| 아이콘 | costats 로고 | JHJ 공통 아이콘(bull 색 바탕 + JHJ 모노그램) 위에 앱 유형 표지 — 앱은 `gauge`(사용량 막대), 웹 설치 관리자는 `install`(내려받기 화살표). 트레이 아이콘은 설정 「앱 설정 › 아이콘」에서 바꿉니다 — 기본 모양 4종(JHJ(기본) · 막대 · 링 · 반짝임, 테마 색을 따름)에 「+ 그리기」(16×16, 바탕만 깔린 칸에서 시작) · 「+ 불러오기」(가운데 정사각형으로 잘라 저장)로 **사용자 아이콘을 하나씩 더하고** ✕ 로 지웁니다. 기본 모양은 앱이 트레이 크기(16px × 화면 배율)로 정수 픽셀에 맞춰 직접 그리고, 사용자 그림은 `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\icons\` 에 둡니다(`Services/TrayIconRenderer.cs`). 규격·생성기는 `JHJ_DEV/000.AGENTS_MD/070.아이콘/` (`python make_jhj_icon.py gauge <out.ico>`) | `200.Source/costats.App/Resources/tray-icon.ico` · `200.Source/costats.Setup/Resources/setup-icon.ico` |
-| 설치 | zip + `install.ps1` | exe 를 실행하면 `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\app` 에 스스로 설치 | `Services/SelfInstaller.cs` · `App.xaml.cs` |
-| 자동 업데이트 | 원본 저장소 릴리스 | **이 저장소 릴리스만**(`Costats:Update:Repository`). 비어 있으면 꺼짐. 상태 폴더는 `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\updates`, 설정 창 「일반」에 `업데이트 확인` 버튼 | `UpdateOptions.cs` · `StartupUpdateCoordinator.cs` · `apply-update.ps1` · `appsettings.json` · `Views/SettingsPanel.xaml` |
+| 아이콘 | costats 로고 | JHJ 공통 아이콘(bull 색 바탕 + JHJ 모노그램) 위에 앱 유형 표지 — 앱은 `gauge`(사용량 막대), 웹 설치 관리자는 `install`(내려받기 화살표). 트레이 아이콘은 설정 「앱 설정 › 아이콘」에서 바꿉니다 — 기본 모양 4종(JHJ(기본) · 막대 · 링 · 반짝임, 테마 색을 따름)에 「+ 그리기」(16×16, 바탕만 깔린 칸에서 시작) · 「+ 불러오기」(가운데 정사각형으로 잘라 저장)로 **사용자 아이콘을 하나씩 더하고** ✕ 로 지웁니다. 기본 모양은 앱이 트레이 크기(16px × 화면 배율)로 정수 픽셀에 맞춰 직접 그리고, 사용자 그림은 `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\icons\` 에 둡니다(`Services/TrayIconRenderer.cs`). 규격·생성기는 `JHJ_DEV/000.AGENTS_MD/070.아이콘/` (`python make_jhj_icon.py gauge <out.ico>`) | `200.Source/costats.App/Resources/tray-icon.ico` · `200.Source/costats.Setup/Resources/setup-icon.ico` |
+| 설치 | zip + `install.ps1` | exe 를 실행하면 `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\app` 에 스스로 설치 | `Services/SelfInstaller.cs` · `App.xaml.cs` |
+| 자동 업데이트 | 원본 저장소 릴리스 | **이 저장소 릴리스만**(`Costats:Update:Repository`). 비어 있으면 꺼짐. 상태 폴더는 `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\updates`, 설정 창 「일반」에 `업데이트 확인` 버튼 | `UpdateOptions.cs` · `StartupUpdateCoordinator.cs` · `apply-update.ps1` · `appsettings.json` · `Views/SettingsPanel.xaml` |
 | 색·글꼴 | 라벤더 | JHJ 팔레트 5종(bull·navy·emerald·violet·slate) × 라이트·다크 · Pretendard. 팔레트는 설정 창 견본으로 고른다 | `Services/ThemeManager.cs` · `App.xaml.cs` · 창 XAML 3개 |
 | 모델별 주간 한도 | 없음 | 주간 아래에 `주간 · Fable` 막대(응답 `limits[]` 의 `weekly_scoped`) | `ClaudeOAuthUsageFetcher.cs` · `UsagePulse.cs` · `ProviderPulseViewModel.cs` · `ModelWeekRow.cs` |
 | 설정 창 구성 | 구분선 나열 | 위 「앱 설정」(일반·화면·아이콘) / 아래 「계정 · AI 도구」 두 탭. 계정 줄은 「편집」을 눌러야 명칭·유형 칸이 열리고 「저장」해야 반영됩니다 — 「계정」 아래는 Agent 마다(Claude·Codex), 「AI 도구」 아래는 연동 대상마다(Copilot·Gemini) 하위 탭. 설명은 툴팁으로, 탭·콤보는 테마 색 템플릿 | `Views/SettingsPanel.xaml` |
@@ -128,7 +128,7 @@ winget install HyungJin.AI-Usage-Monitor_JHJ
 | 로그인 | 각 CLI 를 사용자가 따로 실행 | 설정 창 「계정」의 Claude·Codex `로그인` 버튼이 공식 CLI 로그인(`claude auth login` · `codex login`)을 최소화된 터미널로 띄워 브라우저로 넘긴다. CLI 가 끝나면 계정을 다시 읽는다. Codex 는 PATH 에 없으면 VS Code 확장(`openai.chatgpt`)에 든 `codex.exe` 를 쓴다 | `Services/CliLocator.cs` · `SettingsViewModel.cs` · `Views/SettingsPanel.xaml` |
 | 토큰 유형 통계 | 없음 | 모델 아래에 `토큰 유형` 구역 — 입력·출력·캐시 읽기·캐시 쓰기의 토큰 수와 비중(모델 줄 툴팁에도 유형별 토큰). 이력 파일에 유형 칸을 더했고, 그 전에 쌓인 날은 `유형 미상` 으로 모인다 | `Services/UsageHistoryStore.cs` · `ProviderPulseViewModel.cs` · `TokenTypeRow.cs` · `GlassWidgetWindow.xaml` |
 | 차트 눈금 · 접기 | 시작일과 「오늘」만 | 차트 아래에 구간 시작일(달) 눈금, 최고값에 단위(`일·주·월 최고`). 차트·모델·토큰 유형 머리글을 누르면 접히고 상태는 설정에 저장. 창 높이는 본문에 맞춰 스스로 조정 | `GlassWidgetWindow.xaml` · `GlassWidgetWindow.xaml.cs` · `PulseViewModel.cs` · `AppSettings.cs` |
-| 추가 Codex 계정 | 없음 | 설정 창 「계정」의 Codex 구역에서 추가·로그인·삭제. 계정마다 `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\accounts-codex\<이름>\` 을 `CODEX_HOME` 으로 쓰고 `codex:<이름>` 으로 따로 집계한다. Codex 탭에서는 제목 줄 드롭다운으로 계정을 고른다(Claude 와 달리 「All」 쌓아 보기는 없다). 추가·삭제는 앱을 다시 띄워야 반영 | `Services/CodexAccountStore.cs` · `CodexLogSource.cs` · `CodexOAuthUsageFetcher.cs` · `UsageLogScanner.cs` · `LogDigestor.cs` · `PulseViewModel.cs` · `App.xaml.cs` |
+| 추가 Codex 계정 | 없음 | 설정 창 「계정」의 Codex 구역에서 추가·로그인·삭제. 계정마다 `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\accounts-codex\<이름>\` 을 `CODEX_HOME` 으로 쓰고 `codex:<이름>` 으로 따로 집계한다. Codex 탭에서는 제목 줄 드롭다운으로 계정을 고른다(Claude 와 달리 「All」 쌓아 보기는 없다). 추가·삭제는 앱을 다시 띄워야 반영 | `Services/CodexAccountStore.cs` · `CodexLogSource.cs` · `CodexOAuthUsageFetcher.cs` · `UsageLogScanner.cs` · `LogDigestor.cs` · `PulseViewModel.cs` · `App.xaml.cs` |
 | Gemini | 없음 | 4번째 탭(설정 창 「Gemini」에서 켬, 기본 꺼짐). 한도는 Code Assist 비공개 API(`retrieveUserQuota`)에서 Pro·Flash 계열의 일일 사용률, 일별 토큰·비용은 `~/.gemini/tmp/<프로젝트>/chats/session-*.json(l)` 에서 | `GeminiLogSource.cs` · `GeminiQuotaFetcher.cs` · `RateCard.cs` · `PulseViewModel.cs` · `GlassWidgetWindow.xaml` · `Views/SettingsPanel.xaml` |
 | 언어 | 영어만 | 한국어 기본, 설정 창에서 한국어/English 전환(즉시 반영, 설정에 저장) | `Localization/Loc.cs` · `Localization/LocStrings.cs` · 창 XAML 3개 · 뷰모델 3개 · `TrayHost.cs` |
 | 열 때 새로고침 | 선택 탭만 표시 없이 | 기본 꺼짐(백그라운드 주기 갱신만). 설정 창 「일반」의 `열 때마다 새로고침` 을 켜면 전체를 스피너와 함께 | `Services/TrayHost.cs` · `AppSettings.cs` · `Views/SettingsPanel.xaml` |
@@ -143,8 +143,8 @@ winget install HyungJin.AI-Usage-Monitor_JHJ
 | 창 높이 · 닫기 | 580 | 690 · `Esc` 로 닫힘 | `GlassWidgetWindow.xaml` · `GlassWidgetWindow.xaml.cs` |
 
 - 색 정본은 `JHJ_OPS/200.Source/100.Web/src/styles.css` 의 bull 팔레트입니다. 라이트·다크는 **앱을 시작할 때의 Windows 앱 모드**로 정해지고, 바꾸려면 앱을 다시 띄워야 합니다.
-- 추가 계정은 `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\accounts\<이름>\` 폴더를 `CLAUDE_CONFIG_DIR` 로 쓰고, 목록은 같은 폴더의 `config.json`(multicc 형식)에 둡니다. **로그인은 앱이 띄운 터미널에서 사용자가 직접** 하고, 추가·삭제는 앱을 다시 띄워야 반영됩니다. 삭제하면 그 폴더(로그인 토큰 포함)도 지웁니다.
-- 일별 사용량은 `%LOCALAPPDATA%\AI-Usage-Monitor_JHJ\history\<계정>.json` 에 쌓습니다. Claude Code 가 오래된 대화 기록을 지워도 여기 쌓인 날은 남습니다 — **이 폴더를 지우면 로그에 없는 과거는 되살릴 수 없습니다.**
+- 추가 계정은 `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\accounts\<이름>\` 폴더를 `CLAUDE_CONFIG_DIR` 로 쓰고, 목록은 같은 폴더의 `config.json`(multicc 형식)에 둡니다. **로그인은 앱이 띄운 터미널에서 사용자가 직접** 하고, 추가·삭제는 앱을 다시 띄워야 반영됩니다. 삭제하면 그 폴더(로그인 토큰 포함)도 지웁니다.
+- 일별 사용량은 `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\history\<계정>.json` 에 쌓습니다. Claude Code 가 오래된 대화 기록을 지워도 여기 쌓인 날은 남습니다 — **이 폴더를 지우면 로그에 없는 과거는 되살릴 수 없습니다.**
 - 계정은 `~/.claude.json` 의 `oauthAccount` 와 `~/.codex/auth.json` 의 `id_token` 에서 이메일만 읽습니다.
 - 함정: Claude 는 메일(`.claude.json`)만 남고 토큰(`.credentials.json`)이 없을 수 있습니다 — 그때 설정 줄은 「토큰이 없음 — 다시 로그인」과 `로그인` 버튼을 보이고, 팝업은 한도를 비웁니다. 한도 캐시는 **받아 둔 계정 메일과 지금 로그인 메일이 같을 때만** 씁니다(다른 계정의 한도가 새 로그인 이름 아래 보이던 결함). 명칭·유형도 정할 때의 메일에 묶여, 같은 칸에 다른 계정으로 다시 로그인하면 따라가지 않습니다.
 - 함정: 비용·토큰 통계(30일)는 이 PC 의 Claude Code 로그(`~/.claude/projects`)에서 오므로 **계정을 가리지 않습니다** — 한 PC 에서 두 계정을 번갈아 쓰면 합산됩니다. 계정별로 나뉘는 것은 세션·주간 한도뿐입니다.

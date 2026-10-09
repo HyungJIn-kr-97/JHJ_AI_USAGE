@@ -349,7 +349,7 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
         var profileSuffix = _configDir is not null
             ? "_" + Path.GetFileName(_configDir)
             : "";
-        return Path.Combine(basePath, "AI-Usage-Monitor_JHJ", "cache", $"claude-oauth{profileSuffix}.json");
+        return Path.Combine(basePath, "JHJ_AI-Usage-Monitor", "cache", $"claude-oauth{profileSuffix}.json");
     }
 
     private async Task WriteDiskCacheAsync(ClaudeOAuthUsageResult result)

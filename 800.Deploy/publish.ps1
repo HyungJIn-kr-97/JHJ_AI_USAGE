@@ -86,11 +86,14 @@ $outputBase = Join-Path $PSScriptRoot "publish"
 $platforms = if ($Platform -eq "all") { @("win-x64", "win-arm64") } else { @("win-$Platform") }
 
 # 함정: 이 저장소에서 띄운 앱이 bin\ 이나 publish\ 를 잠그면 GenerateBundle 이 죽는다 - 먼저 내린다
-$repoRoot = Split-Path -Parent $PSScriptRoot
-Get-Process -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -and $_.Path.StartsWith($repoRoot, [StringComparison]::OrdinalIgnoreCase) } |
-    Stop-Process -Force
-Start-Sleep -Milliseconds 400
+# 함정: 반드시 이름으로 먼저 거른다 - 전체 프로세스를 훑으면 경로 비교가 빗나갔을 때 남의 프로세스를 내린다
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+if ($repoRoot) {
+    Get-Process 'JHJ_AI-Usage-Monitor','AI-Usage-Monitor_JHJ','AiUsageMonitor' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -and $_.Path.StartsWith($repoRoot, [StringComparison]::OrdinalIgnoreCase) } |
+        Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 400
+}
 
 Write-Host "Building AI Usage Monitor v$Release" -ForegroundColor Cyan
 Write-Host "Configuration: $Configuration" -ForegroundColor Gray
@@ -125,9 +128,9 @@ foreach ($rid in $platforms) {
     # MIT requires the license text to travel with every copy - the UI no longer shows it
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "..\LICENSE") -Destination (Join-Path $outputPath "LICENSE.txt") -Force
 
-    # Contract: older installs look for AI-Usage-Monitor_JHJ.exe inside the zip, so ship a copy under the old name too.
+    # Contract: older installs look for JHJ_AI-Usage-Monitor.exe inside the zip, so ship a copy under the old name too.
     # TODO: drop this copy once 1.1.0 or newer is everywhere - see 300.Docs\실행파일-이름-전환.md
-    Copy-Item -LiteralPath (Join-Path $outputPath "AI-Usage-Monitor_JHJ.exe") -Destination (Join-Path $outputPath "AiUsageMonitor.exe") -Force
+    Copy-Item -LiteralPath (Join-Path $outputPath "JHJ_AI-Usage-Monitor.exe") -Destination (Join-Path $outputPath "AiUsageMonitor.exe") -Force
 
     # Create ZIP archive
     # Contract: keep the OLD name - installed builds look for AiUsageMonitor-<rid>-v<ver>.zip. See 300.Docs\실행파일-이름-전환.md
@@ -140,8 +143,8 @@ foreach ($rid in $platforms) {
 
     # Offline installer: the single-file exe installs itself on first run (SelfInstaller), so it ships as-is.
     # Contract: human-facing names carry the maker tag; the update zip above keeps its old name because installed apps look for it.
-    $exeAsset = Join-Path $outputBase "AI-Usage-Monitor_JHJ_${Release}_$rid.exe"
-    Copy-Item -Path (Join-Path $outputPath "AI-Usage-Monitor_JHJ.exe") -Destination $exeAsset -Force
+    $exeAsset = Join-Path $outputBase "JHJ_AI-Usage-Monitor_${Release}_$rid.exe"
+    Copy-Item -Path (Join-Path $outputPath "JHJ_AI-Usage-Monitor.exe") -Destination $exeAsset -Force
     $null = Write-Checksum -Path $exeAsset
     Write-Host "Created: $exeAsset" -ForegroundColor Green
     Write-Host ""
@@ -156,8 +159,8 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to build web installer" -ForegroundColor Red
     exit 1
 }
-$setupAsset = Join-Path $outputBase "AI-Usage-Monitor_JHJ_Setup.exe"
-Copy-Item -Path (Join-Path $setupOut "AI-Usage-Monitor_JHJ-Setup.exe") -Destination $setupAsset -Force
+$setupAsset = Join-Path $outputBase "JHJ_AI-Usage-Monitor_Setup.exe"
+Copy-Item -Path (Join-Path $setupOut "JHJ_AI-Usage-Monitor-Setup.exe") -Destination $setupAsset -Force
 $null = Write-Checksum -Path $setupAsset
 Write-Host "Created: $setupAsset" -ForegroundColor Green
 Write-Host ""
