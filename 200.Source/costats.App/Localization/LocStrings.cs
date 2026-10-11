@@ -4,8 +4,8 @@ using Jhj.Core.Wpf.Localization;
 namespace costats.App.Localization;
 
 /// <summary>
-/// 한국어 문안. 키는 화면에 쓰이던 영어 원문 그대로다(Footer* 만 이름 키).
-/// 계약: 새 문구를 화면에 더하면 여기에 한 줄을 더한다 — 빠뜨리면 한국어 모드에서도 영어로 나올 뿐 깨지지는 않는다.
+/// 한국어 문안. 키는 화면에 쓰이던 영어 원문 그대로다(Footer* 만 이름 키). 중국어는 LocStringsZh 가 같은 키로 갖는다.
+/// 계약: 새 문구를 화면에 더하면 여기와 LocStringsZh 에 한 줄씩 더한다 — 빠뜨리면 그 언어에서 영어로 나올 뿐 깨지지는 않는다.
 /// </summary>
 internal static class LocStrings
 {
@@ -323,6 +323,13 @@ internal static class LocStrings
         ["Restart app to apply"] = "앱을 다시 시작해 적용",
         ["SYSTEM"] = "시스템",
         ["Start at login"] = "로그인 시 자동 실행",
+        ["Start menu shortcut"] = "시작 메뉴 바로가기",
+        ["Keep a shortcut to this app in the Start menu."] = "시작 메뉴에 이 앱의 바로가기를 둡니다.",
+        ["Desktop shortcut"] = "바탕 화면 바로가기",
+        ["Keep a shortcut to this app on the desktop."] = "바탕 화면에 이 앱의 바로가기를 둡니다.",
+        ["Pin to taskbar…"] = "작업 표시줄에 고정…",
+        ["✓ Pinned to taskbar"] = "✓ 작업 표시줄에 고정됨",
+        ["Windows does not let apps pin themselves. This opens the shortcut so you can right-click it and choose Pin to taskbar."] = "Windows 는 앱이 스스로 고정하는 것을 막습니다. 바로가기를 열어 드리니 오른쪽 클릭 → 「작업 표시줄에 고정」을 눌러 주십시오.",
         ["Refresh when opened"] = "열 때마다 새로고침",
         ["Fetch usage again every time the popup opens. Off: only the background interval refreshes."] = "팝업을 열 때마다 재조회 · 끄면 주기 갱신만",
         ["Automatically launch AI Usage Monitor when Windows starts."] = "Windows 시작 시 자동 실행",
@@ -491,11 +498,13 @@ internal static class LocStrings
         Tables = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal)
         {
             [Loc.Korean] = Korean,
+            [Loc.Chinese] = LocStringsZh.Table,
             [Loc.English] = EnglishOverrides,
         },
         Patterns = new Dictionary<string, IReadOnlyList<(Regex Pattern, Func<Match, string> Replace)>>(StringComparer.Ordinal)
         {
             [Loc.Korean] = KoreanPatterns,
+            [Loc.Chinese] = LocStringsZh.Patterns,
         },
     };
 }

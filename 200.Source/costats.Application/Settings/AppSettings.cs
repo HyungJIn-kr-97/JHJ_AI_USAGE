@@ -25,14 +25,10 @@ public sealed class AppSettings : IScheduledUpdateSettings
     // 계약: 팝업에서 접어 둔 구역의 이름("chart" · "models" · "tokenTypes") — 없으면 펼친 것이다
     public List<string> CollapsedSections { get; set; } = [];
 
-    /// <summary>
-    /// "system" | "light" | "dark". system 은 시작할 때의 Windows 앱 모드를 따른다.
-    /// </summary>
+    /// <summary>"system" | "light" | "dark". system 은 시작할 때의 Windows 앱 모드를 따른다.</summary>
     public string Theme { get; set; } = "system";
 
-    /// <summary>
-    /// "bull" | "navy" | "emerald" | "violet" | "slate". 색상 팔레트.
-    /// </summary>
+    /// <summary>"bull" | "navy" | "emerald" | "violet" | "slate". 색상 팔레트.</summary>
     public string Palette { get; set; } = "bull";
 
     // 계약: 트레이 아이콘 모양 — "jhj-ai"(기본 · JHJ + AI 표지) · "ai"(두 글자) · "j"(화면 이름 JHJ) · "bars" · "ring" · "spark"(팔레트 색으로 그림) · "custom:<파일 이름>"(사용자 아이콘)
@@ -59,30 +55,18 @@ public sealed class AppSettings : IScheduledUpdateSettings
         return true;
     }
 
-    /// <summary>
-    /// "ko" | "en". 화면 문구의 언어.
-    /// </summary>
-    public string Language { get; set; } = "ko";
+    /// <summary>"en" | "ko" | "zh". 화면 문구의 언어.</summary>
+    /// 계약: 기본값은 Core 의 Loc.Default 와 같은 글자다 — 이 층은 Jhj.Core.Wpf 를 못 물어 글자로 적는다.
+    public string Language { get; set; } = "en";
 
-    /// <summary>
-    /// Whether multicc integration is enabled. Default true when multicc is detected.
-    /// </summary>
     public bool MulticcEnabled { get; set; } = true;
 
-    /// <summary>
-    /// When set, only show this single profile instead of all profiles stacked.
-    /// Null means "show all profiles" (stacked mode).
-    /// </summary>
+    /// <summary>계약: 값이 있으면 그 프로필 하나만 보인다 — null 은 전체를 쌓아 보인다.</summary>
     public string? MulticcSelectedProfile { get; set; }
 
-    /// <summary>
-    /// Override path for multicc config directory. Null means auto-detect (~/.multicc or $MULTICC_DIR).
-    /// </summary>
+    /// <summary>계약: null 은 자동 찾기다(~/.multicc 또는 $MULTICC_DIR).</summary>
     public string? MulticcConfigPath { get; set; }
 
-    /// <summary>
-    /// Whether the GitHub Copilot personal usage provider is enabled.
-    /// </summary>
     public bool CopilotEnabled { get; set; } = false;
 
     // 계약: 켜야 Gemini 탭이 보이고 ~/.gemini 를 읽는다 — Gemini CLI 를 쓰지 않는 PC 에서 빈 탭이 뜨지 않게 기본은 꺼 둔다
@@ -113,11 +97,11 @@ public sealed class AppSettings : IScheduledUpdateSettings
     // 계약: 사용자가 붙인 장비 명칭 — 비어 있으면 PC 이름을 쓴다. 「기본값으로」로 지우지 않는다
     public string DeviceLabel { get; set; } = string.Empty;
 
-    // 계약: 끄면 시작할 때의 자동 적용·받아 두기와 예약 적용이 모두 멈춘다 — 「업데이트 확인」·「이 버전 설치」는 그대로 된다
     // 계약: 팝업의 확대 비율(%) — 폭과 글자가 함께 커진다. 0 은 「자동」(화면 작업영역 높이로 정한다)
-    // 왜: 기본값은 100 이다 — 「자동」은 큰 화면에서 1.5배까지 키워 처음 보는 사람에게 너무 크다(2026-10-09)
+    // 왜: 기본값은 100 이다 — 「자동」은 큰 화면에서 1.5배까지 키워 처음 보는 사람에게 너무 크다
     public int PopupScalePercent { get; set; } = 100;
 
+    // 계약: 끄면 시작할 때의 자동 적용·받아 두기와 예약 적용이 모두 멈춘다 — 「업데이트 확인」·「이 버전 설치」는 그대로 된다
     public bool AutoUpdateEnabled { get; set; } = true;
 
     // 계약: 받아 둔 업데이트를 적용하는 시각 — 이 PC 의 시간 기준 "HH:mm"

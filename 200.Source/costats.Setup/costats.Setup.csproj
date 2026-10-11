@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- 계약: 웹 설치 관리자 — Windows 10/11 에 기본으로 있는 .NET Framework 4.8 로 만들어 런타임 없이 수백 KB 로 돈다 -->
+  <!-- 계약: 웹 설치 관리자 — Windows 10/11 에 기본으로 있는 .NET Framework 4.8 로 만들어 런타임 없이 수백 KB 로 돈다
+       계약: 몸통은 JHJ_CS_CORE 의 Jhj.Core.Setup 이다 — dll 이 아니라 소스 링크(JhjCoreProjects=setup)라 exe 한 파일이 그대로 유지된다 -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
@@ -13,14 +14,9 @@
     <ApplicationIcon>Resources\setup-icon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Product>JHJ AI 통합 사용량 모니터 설치</Product>
+    <JhjCoreProjects>setup</JhjCoreProjects>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.IO.Compression" />
-    <Reference Include="System.IO.Compression.FileSystem" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Web.Extensions" />
-  </ItemGroup>
+  <Import Project="..\..\..\JHJ_CS_CORE\200.Source\100.Core\cs\Jhj.Core.props" />
 
 </Project>

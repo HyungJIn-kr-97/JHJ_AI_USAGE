@@ -427,6 +427,33 @@
                                   ToolTip="{loc:Tr 'Keep the icon on the taskbar instead of the hidden icons (^), so one click opens the popup.'}">
                             <TextBlock Text="{loc:Tr 'Always show icon on taskbar'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
                         </CheckBox>
+                        <!-- 바로가기 — 규격은 JHJ_CS_CORE/300.Docs/030.설정-창-기본-규격.md §2 -->
+                        <CheckBox IsChecked="{Binding StartMenuShortcut}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
+                                  ToolTip="{loc:Tr 'Keep a shortcut to this app in the Start menu.'}">
+                            <TextBlock Text="{loc:Tr 'Start menu shortcut'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding DesktopShortcut}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
+                                  ToolTip="{loc:Tr 'Keep a shortcut to this app on the desktop.'}">
+                            <TextBlock Text="{loc:Tr 'Desktop shortcut'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <DockPanel Margin="0,0,0,10" LastChildFill="False"
+                                   ToolTip="{loc:Tr 'Windows does not let apps pin themselves. This opens the shortcut so you can right-click it and choose Pin to taskbar.'}">
+                            <Button DockPanel.Dock="Left" Content="{loc:Tr 'Pin to taskbar…'}" Style="{StaticResource SettingsButton}"
+                                    Command="{Binding RevealForTaskbarPinCommand}" />
+                            <TextBlock DockPanel.Dock="Left" Text="{loc:Tr '✓ Pinned to taskbar'}" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextMutedBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PinnedToTaskbar}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DockPanel>
                         <CheckBox IsChecked="{Binding RefreshOnOpen}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
                                   ToolTip="{loc:Tr 'Fetch usage again every time the popup opens. Off: only the background interval refreshes.'}">
                             <TextBlock Text="{loc:Tr 'Refresh when opened'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -699,10 +726,20 @@
                             <TextBlock Text="{loc:Tr 'Theme'}" Style="{StaticResource RowLabel}" />
                         </DockPanel>
                         <DockPanel>
-                            <Button Content="English" DockPanel.Dock="Right" Padding="10,4" FontSize="11" Margin="4,0,0,0"
-                                    Style="{StaticResource SettingsButton}" Command="{Binding SetLanguageCommand}" CommandParameter="en" />
-                            <Button Content="한국어" DockPanel.Dock="Right" Padding="10,4" FontSize="11"
-                                    Style="{StaticResource SettingsButton}" Command="{Binding SetLanguageCommand}" CommandParameter="ko" />
+                            <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding Languages}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{Binding Name}" Padding="10,4" FontSize="11" Margin="4,0,0,0"
+                                                Style="{StaticResource SettingsButton}" CommandParameter="{Binding Code}"
+                                                Command="{Binding DataContext.SetLanguageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                             <TextBlock Style="{StaticResource RowLabel}">
                                 <Run Text="{loc:Tr 'Language'}" /><Run Text=" · " /><Run Text="{Binding LanguageLabel, Mode=OneWay}" Foreground="{DynamicResource TextMutedBrush}" />
                             </TextBlock>

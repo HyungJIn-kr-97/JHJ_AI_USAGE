@@ -1,6 +1,6 @@
 using System;
-using System.Linq;
 using System.Windows.Forms;
+using Jhj.Core.Setup;
 
 namespace costats.Setup
 {
@@ -13,27 +13,26 @@ namespace costats.Setup
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            var silent = Has(args, "--silent");
-            if (Has(args, "--uninstall"))
+            var silent = SetupArgs.Has(args, "--silent");
+            if (SetupArgs.Has(args, "--uninstall"))
             {
-                Environment.ExitCode = Uninstall(silent, Has(args, "--purge"));
+                Environment.ExitCode = Uninstall(silent, SetupArgs.Has(args, "--purge"));
                 return;
             }
 
-            Application.Run(new SetupForm(Installer.FindArg(args, "--version"), silent, Installer.FindArg(args, "--state")));
+            Application.Run(new SetupForm(SetupArgs.Find(args, "--version"), silent, SetupArgs.Find(args, "--state")));
         }
-
-        private const string Title = "JHJ AI 통합 사용량 모니터";
 
         private static int Uninstall(bool silent, bool purge)
         {
-            Installer.DetectInstallDir();
+            var title = Setup.App.DisplayName;
+            Setup.Installer.DetectInstallDir();
             var keepData = !purge;
             if (!silent)
             {
                 var answer = MessageBox.Show(
-                    "설치된 앱을 제거합니다.\n\n설정과 사용량 이력(%LOCALAPPDATA%\\JHJ_AI-Usage-Monitor)도 함께 지울까요?\n「예」= 모두 지움 · 「아니요」= 앱만 지우고 설정·이력은 남김",
-                    Title + " 제거", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+                    "설치된 앱을 제거합니다.\n\n설정과 사용량 이력(" + Setup.Installer.DataDir + ")도 함께 지울까요?\n「예」= 모두 지움 · 「아니요」= 앱만 지우고 설정·이력은 남김",
+                    title + " 제거", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
                 if (answer == DialogResult.Cancel)
                 {
                     return 0;
@@ -44,10 +43,10 @@ namespace costats.Setup
 
             try
             {
-                Installer.Uninstall(keepData);
+                Setup.Installer.Uninstall(keepData);
                 if (!silent)
                 {
-                    MessageBox.Show(keepData ? "제거했습니다. 설정·이력은 남겨 두었습니다." : "제거했습니다. 설정·이력도 지웠습니다.", Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(keepData ? "제거했습니다. 설정·이력은 남겨 두었습니다." : "제거했습니다. 설정·이력도 지웠습니다.", title, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
 
                 return 0;
@@ -56,13 +55,11 @@ namespace costats.Setup
             {
                 if (!silent)
                 {
-                    MessageBox.Show("제거하지 못했습니다: " + ex.Message, Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("제거하지 못했습니다: " + ex.Message, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
 
                 return 1;
             }
         }
-
-        private static bool Has(string[] args, string name) => args.Any(a => string.Equals(a, name, StringComparison.OrdinalIgnoreCase));
     }
 }

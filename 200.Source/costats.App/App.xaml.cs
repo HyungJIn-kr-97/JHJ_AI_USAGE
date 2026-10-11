@@ -229,10 +229,10 @@ namespace costats.App
             return true;
         }
 
-        // 계약: 묻고 알리는 것은 앱 몫이다 — Core 의 SelfInstaller 는 WPF 를 모른다
-        private static bool ConfirmInstall(string installDir) =>
+        // 계약: 묻고 알리는 것은 앱 몫이다 — Core 의 SelfInstaller 는 WPF 를 모른다. 본문(설치본 버전 → 이번 버전)은 Core 의 InstallPromptText 다
+        private static bool ConfirmInstall(Jhj.Core.Windows.Install.InstallPrompt prompt) =>
             System.Windows.MessageBox.Show(
-                $"{Loc.T("Install to this PC and run?")}\n\n{installDir}\n\n{Loc.T("Choosing No runs it from here without installing.")}",
+                InstallPromptText.Describe(prompt),
                 JhjApp.Current.DisplayName,
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question) == MessageBoxResult.Yes;

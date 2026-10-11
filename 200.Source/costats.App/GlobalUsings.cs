@@ -11,6 +11,7 @@ global using LegacyMigration = Jhj.Core.Windows.Install.LegacyMigration;
 global using Loc = Jhj.Core.Wpf.Localization.Loc;
 global using ReleaseInfo = Jhj.Core.Updates.ReleaseInfo;
 global using ScheduledUpdateService = Jhj.Core.Wpf.Updates.ScheduledUpdateService;
+global using AppShortcuts = Jhj.Core.Windows.Install.AppShortcuts;
 global using SelfInstaller = Jhj.Core.Windows.Install.SelfInstaller;
 global using SingleInstance = Jhj.Core.Wpf.Boot.SingleInstance;
 global using StartupRegistry = Jhj.Core.Windows.Startup.StartupRegistry;

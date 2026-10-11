@@ -145,6 +145,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         // 왜: 그사이 작업 관리자 「시작 앱」에서 켜거나 껐을 수 있다 — 체크를 실제 상태로 다시 맞춘다
         StartAtLogin = GetStartupRegistryValue();
+        RefreshShortcutState();
         RebuildPalettes();
         RebuildIconOptions();
         RebuildHotkeySlots();
@@ -1478,7 +1479,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void CancelIconEditor() => IsIconEditorOpen = false;
 
-    public string LanguageLabel =>Loc.IsKorean ? "한국어" : "English";
+    public string LanguageLabel => Jhj.Core.Wpf.Localization.LocLanguages.NameOf(Loc.Language);
+
+    // 계약: 언어 단추는 Core 의 목록에서 만든다 — 앱이 코드를 박아 두면 Core 가 언어를 더해도 빠진다
+    public IReadOnlyList<LanguageChoice> Languages { get; } =
+        Jhj.Core.Wpf.Localization.LocLanguages.All.Select(l => new LanguageChoice(l.Code, l.Name)).ToList();
 
     [RelayCommand]
     private void SetLanguage(string? language)
@@ -1563,6 +1568,47 @@ public sealed partial class SettingsViewModel : ObservableObject
         SetStartupRegistryValue(value);
         _ = SaveSettingsAsync();
     }
+
+    // 계약: 바로가기 세 줄은 설정 파일이 아니라 디스크 상태가 정본이다 — 설치 관리자나 사용자가 지워도 창을 열 때 다시 읽는다
+    [ObservableProperty]
+    private bool startMenuShortcut;
+
+    [ObservableProperty]
+    private bool desktopShortcut;
+
+    [ObservableProperty]
+    private bool pinnedToTaskbar;
+
+    private bool _readingShortcuts;
+
+    private void RefreshShortcutState()
+    {
+        _readingShortcuts = true;
+        StartMenuShortcut = AppShortcuts.HasStartMenu;
+        DesktopShortcut = AppShortcuts.HasDesktop;
+        PinnedToTaskbar = AppShortcuts.IsPinnedToTaskbar;
+        _readingShortcuts = false;
+    }
+
+    partial void OnStartMenuShortcutChanged(bool value)
+    {
+        if (!_readingShortcuts)
+        {
+            AppShortcuts.SetStartMenu(value);
+        }
+    }
+
+    partial void OnDesktopShortcutChanged(bool value)
+    {
+        if (!_readingShortcuts)
+        {
+            AppShortcuts.SetDesktop(value);
+        }
+    }
+
+    // 왜: 작업 표시줄 고정은 Windows 가 프로그램에 허용하지 않는다 — 단추로 바로가기를 띄워 사용자가 고정하게 한다
+    [RelayCommand]
+    private void RevealForTaskbarPin() => AppShortcuts.RevealForTaskbarPin();
 
     partial void OnRefreshOnOpenChanged(bool value)
     {
@@ -2223,9 +2269,14 @@ public sealed class RefreshOption(int minutes) : ObservableObject
 {
     public int Minutes { get; } = minutes;
 
-    public string Label => Loc.IsKorean
-        ? $"{Minutes}분"
-        : Minutes == 1 ? "1 minute" : $"{Minutes} minutes";
+    public string Label => Loc.Language switch
+    {
+        Loc.Korean => $"{Minutes}분",
+        Loc.Chinese => $"{Minutes} 分钟",
+        _ => Minutes == 1 ? "1 minute" : $"{Minutes} minutes"
+    };
 
     public void NotifyLanguageChanged() => OnPropertyChanged(nameof(Label));
 }
+
+public sealed record LanguageChoice(string Code, string Name);
