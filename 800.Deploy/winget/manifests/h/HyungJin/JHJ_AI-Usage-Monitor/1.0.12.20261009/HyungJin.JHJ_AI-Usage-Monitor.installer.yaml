@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: HyungJin.JHJ_AI-Usage-Monitor
+PackageVersion: 1.0.12.20261009
+InstallerType: exe
+Scope: user
+InstallModes:
+- silent
+- silentWithProgress
+InstallerSwitches:
+  Silent: --silent --version 1.0.12.20261009
+  SilentWithProgress: --silent --version 1.0.12.20261009
+UpgradeBehavior: install
+AppsAndFeaturesEntries:
+- DisplayName: JHJ AI Usage Monitor
+  Publisher: HyungJin Ju
+  DisplayVersion: 1.0.12.20261009
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/HyungJIn-kr-97/JHJ_AI_USAGE/releases/download/v1.0.12.20261009/JHJ_AI-Usage-Monitor_Setup.exe
+  InstallerSha256: 0FC862E9C0253A0F3C836849BA0F9BAE16C8E147A8450DF3ADC2FE4FE24D945A
+ManifestType: installer
+ManifestVersion: 1.6.0

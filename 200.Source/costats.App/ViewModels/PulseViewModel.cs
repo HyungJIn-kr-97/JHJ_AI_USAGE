@@ -606,7 +606,7 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 var weekStart = today.AddDays(-6);
                 if (!value.IsRefreshing)
                 {
-                    costats.App.Services.DiagnosticsLog.Record("refresh",
+                    DiagnosticsLog.Record("refresh",
                         $"{value.Trigger} · {value.Providers.Count}곳 · " + string.Join(" · ", value.Providers.Select(p => $"{p.Key}={p.Value.Confidence}/{p.Value.Source}")) +
                         (value.Errors.Count > 0 ? " · 오류 " + string.Join(" / ", value.Errors) : string.Empty));
                 }

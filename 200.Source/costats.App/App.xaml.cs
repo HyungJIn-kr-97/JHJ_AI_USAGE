@@ -8,13 +8,15 @@ using costats.Application.Abstractions;
 using costats.Application.Pulse;
 using costats.Application.Security;
 using costats.Application.Settings;
-using costats.Application.Shell;
 using costats.Infrastructure.Providers;
 using costats.Infrastructure.Pulse;
 using costats.Infrastructure.Security;
 using costats.Infrastructure.Settings;
 using costats.Infrastructure.Time;
-using costats.Infrastructure.Windows;
+using Jhj.Core.App;
+using Jhj.Core.Settings;
+using Jhj.Core.Wpf.Boot;
+using Jhj.Core.Wpf.Localization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,8 +28,8 @@ namespace costats.App
     public partial class App : System.Windows.Application
     {
         private IHost? _host;
-        private SingleInstanceCoordinator? _singleInstance;
-        private StartupUpdateCoordinator? _updateCoordinator;
+        private SingleInstance? _singleInstance;
+        private GithubUpdateService? _updateCoordinator;
 
         protected override void OnStartup(System.Windows.StartupEventArgs e)
         {
@@ -42,42 +44,38 @@ namespace costats.App
                 return;
             }
 
-            LegacyMigration.Run();
-            ApplyTheme();
+            // 계약: 이 앱만의 이사 규칙 — 계정 목록이 폴더를 절대경로로 들고 있고, 포크 원본 이름의 죽은 줄도 치운다
+            LegacyMigration.PathHolders = ["", "accounts", "accounts-codex"];
+            LegacyMigration.ExtraRetiredNames = ["costats"];
+            SelfInstaller.LegacyShortcutNames = ["AI 통합 사용량 모니터.lnk"];
 
-            BootstrapEarlyLogger();
+            // ①~③ 신원 → 옛 이름 이사 → 테마 브러시(창보다 먼저 — 키가 없으면 창 XAML 로딩이 실패한다)
+            ThemeManager.Extend = ThemeExtras.Add;
+            JhjBoot.Begin(new JhjApp
+            {
+                Name = "JHJ_AI-Usage-Monitor",
+                DisplayName = "JHJ AI 통합 사용량 모니터",
+                DefaultPalette = JhjPalettes.Bull,
+                // 계약: 오래된 것부터 — 두 세대 전에 머문 PC 도 한 번에 지금 이름까지 온다
+                LegacyNames = ["costats-jhj", "AiUsageMonitor", "AI-Usage-Monitor_JHJ"],
+                LegacyExecutableNames = ["AI-Usage-Monitor_JHJ.exe", "AiUsageMonitor.exe"],
+            });
+
+            JhjBoot.BootstrapLogger();
             RegisterExceptionHandlers();
 
-            var version = Assembly.GetExecutingAssembly().GetName().Version;
-            Log.Information("JHJ_AI-Usage-Monitor starting (v{Version}, PID {Pid})", version, Environment.ProcessId);
+            Loc.Register(CoreStrings.Catalog);
+            Loc.Register(costats.App.Localization.LocStrings.Catalog);
 
-            if (SelfInstaller.TryInstallAndRelaunch())
+            if (SelfInstaller.TryInstallAndRelaunch(ConfirmInstall, WarnInstallFailed))
             {
                 Shutdown(0);
                 return;
             }
 
-            _singleInstance = new SingleInstanceCoordinator("JHJ_AI-Usage-Monitor");
-            if (!_singleInstance.IsPrimary)
+            if (JhjBoot.TryHandOffToRunningInstance(out _singleInstance))
             {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await SingleInstanceCoordinator.SignalPrimaryAsync(
-                            _singleInstance.PipeName,
-                            ActivationMessage.ShowWidget,
-                            TimeSpan.FromSeconds(2));
-                    }
-                    catch
-                    {
-                        // Ignore activation errors on secondary instances.
-                    }
-                    finally
-                    {
-                        Dispatcher.Invoke(() => Shutdown(0));
-                    }
-                });
+                Shutdown(0);
                 return;
             }
 
@@ -110,7 +108,7 @@ namespace costats.App
             try
             {
                 var startupConfiguration = BuildStartupConfiguration();
-                _updateCoordinator = new StartupUpdateCoordinator(UpdateOptions.FromConfiguration(startupConfiguration));
+                _updateCoordinator = new GithubUpdateService(UpdateOptions.FromConfiguration(startupConfiguration));
                 var settingsStore = new JsonSettingsStore();
                 // 왜: 설정을 못 읽는 결함도 업데이트로 고칠 수 있어야 한다 — 읽기에 실패하면 자동 업데이트를 켠 것으로 보고 적용부터 한다
                 AppSettings? earlySettings = null;
@@ -132,6 +130,11 @@ namespace costats.App
                 }
 
                 var settings = earlySettings ?? await settingsStore.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                if (settings.MoveLegacyTrayIconDefault())
+                {
+                    await settingsStore.SaveAsync(settings, CancellationToken.None).ConfigureAwait(false);
+                }
+
                 // 계약: 작업 관리자 「시작 앱」과 양방향으로 맞춘다 — 거기서 껐으면 설정을 끄고, 거기서 켰으면 설정을 켠다. 그 밖에는 설정대로 낡은 경로를 바로잡는다
                 var registeredNow = costats.App.ViewModels.SettingsViewModel.GetStartupRegistryValue();
                 if (settings.StartAtLogin && costats.App.ViewModels.SettingsViewModel.IsStartupDisabledByTaskManager())
@@ -155,8 +158,10 @@ namespace costats.App
 
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    ThemeManager.Apply(settings.Palette, ThemeManager.ResolveIsDark(settings.Theme));
-                    costats.App.Localization.Loc.SetLanguage(settings.Language);
+                    ThemeManager.ApplyPreference(settings.Palette, settings.Theme);
+                    // 계약: 명암이 "system" 인 동안 Windows 의 밝게/어둡게 전환을 따라간다
+                    ThemeManager.FollowSystem();
+                    Loc.SetLanguage(settings.Language);
                     var tray = InitializeHost(settingsStore, settings);
                     LogFireAndForget(StartListenerAsync(tray), "SingleInstanceListener");
                     tray.ShowWidget();
@@ -177,7 +182,7 @@ namespace costats.App
                 Log.Fatal(ex, "Startup failed");
                 System.Windows.MessageBox.Show(
                     $"Startup error: {ex.Message}\n\n{ex.StackTrace}",
-                    "AI Usage Monitor",
+                    "JHJ AI Usage Monitor",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 Shutdown(1);
@@ -218,29 +223,20 @@ namespace costats.App
             return true;
         }
 
-        private static void ApplyTheme()
-        {
-            ThemeManager.Apply(ThemeManager.ResolveIsDark(ThemeManager.SystemMode));
-        }
+        // 계약: 묻고 알리는 것은 앱 몫이다 — Core 의 SelfInstaller 는 WPF 를 모른다
+        private static bool ConfirmInstall(string installDir) =>
+            System.Windows.MessageBox.Show(
+                $"{Loc.T("Install to this PC and run?")}\n\n{installDir}\n\n{Loc.T("Choosing No runs it from here without installing.")}",
+                JhjApp.Current.DisplayName,
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question) == MessageBoxResult.Yes;
 
-        private static void BootstrapEarlyLogger()
-        {
-            var logDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "JHJ_AI-Usage-Monitor", "logs");
-            Directory.CreateDirectory(logDir);
-
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Information()
-                .WriteTo.Debug()
-                .WriteTo.File(
-                    Path.Combine(logDir, "JHJ_AI-Usage-Monitor-.log"),
-                    rollingInterval: RollingInterval.Day,
-                    retainedFileCountLimit: 14,
-                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}")
-                .Enrich.FromLogContext()
-                .CreateLogger();
-        }
+        private static void WarnInstallFailed(string message) =>
+            System.Windows.MessageBox.Show(
+                $"{Loc.T("Could not install. Running from this location instead.")}\n\n{message}",
+                JhjApp.Current.DisplayName,
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
 
         private void RegisterExceptionHandlers()
         {
@@ -300,6 +296,8 @@ namespace costats.App
                 {
                     services.AddSingleton<ISettingsStore>(settingsStore);
                     services.AddSingleton(settings);
+                    // 계약: 예약 업데이트는 같은 AppSettings 를 계약 모양으로 본다
+                    services.AddSingleton<IScheduledUpdateSettings>(settings);
 
                     if (_updateCoordinator is not null)
                     {
@@ -340,7 +338,8 @@ namespace costats.App
                         ClaudeProgramRouter.Configure(
                             "claude:" + AccountProfileStore.DefaultName,
                             settings.ProgramAccounts,
-                            discovery.Profiles);
+                            discovery.Profiles,
+                            settings.ProgramAccountPins);
                         if (settings.MulticcSelectedProfile is not null)
                         {
                             // Single-profile mode: register one source for the selected profile
@@ -409,13 +408,9 @@ namespace costats.App
                 return;
             }
 
-            await _singleInstance.StartListenerAsync(async message =>
-            {
-                if (message == ActivationMessage.ShowWidget)
-                {
-                    await Dispatcher.InvokeAsync(() => tray.ShowWidget());
-                }
-            }, CancellationToken.None).ConfigureAwait(false);
+            await _singleInstance.StartListenerAsync(
+                _ => Dispatcher.InvokeAsync(() => tray.ShowWidget()).Task,
+                CancellationToken.None).ConfigureAwait(false);
         }
     }
 }

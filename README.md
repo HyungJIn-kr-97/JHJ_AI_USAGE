@@ -64,6 +64,8 @@ winget install HyungJin.JHJ_AI-Usage-Monitor
 
 **팝업이 보여 주는 값을 파일로도 남깁니다** — `%LOCALAPPDATA%\JHJ_AI-Usage-Monitor\data\`. 다른 도구가 읽어 쓸 수 있게 만든 것이고, 구조·칸의 뜻은 [300.Docs/표시-데이터-저장소.md](300.Docs/표시-데이터-저장소.md) 가 정본입니다. 전송은 하지 않습니다.
 
+**한 PC 에서 계정을 바꿔 쓰면 기록이 저절로 따라갑니다** — VS Code·터미널 CLI·데스크톱 앱이 「지금 로그인한 계정」으로 세이고, 바뀐 시각은 `program-links.json` 에 쌓여 **지난 기록은 그때 연동돼 있던 계정에 남습니다.** 판정 순서와 자동/고정 규칙은 [300.Docs/프로그램-연동-규칙.md](300.Docs/프로그램-연동-규칙.md) 가 정본입니다.
+
 **아이콘은 한 곳에서 나옵니다** — 트레이·exe·설치 관리자가 모두 `TrayIconRenderer.DefaultStyle`(기본 `ai`)로 그린 같은 그림입니다.
 모양이나 팔레트를 바꾸면 `pwsh -File 800.Deploy\make-icons.ps1` 로 `.ico` 를 다시 뽑고 빌드하십시오 — `.ico` 에는 다른 출처가 없습니다.
 

@@ -11,7 +11,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock Text="AI Usage Monitor" FontSize="16" FontWeight="SemiBold" Foreground="#222222" />
+            <TextBlock Text="JHJ AI Usage Monitor" FontSize="16" FontWeight="SemiBold" Foreground="#222222" />
 
             <ItemsControl Grid.Row="1" Margin="0,12,0,12" ItemsSource="{Binding Providers}">
                 <ItemsControl.ItemTemplate>

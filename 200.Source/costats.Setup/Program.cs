@@ -23,7 +23,7 @@ namespace costats.Setup
             Application.Run(new SetupForm(Installer.FindArg(args, "--version"), silent, Installer.FindArg(args, "--state")));
         }
 
-        private const string Title = "AI 통합 사용량 모니터";
+        private const string Title = "JHJ AI 통합 사용량 모니터";
 
         private static int Uninstall(bool silent, bool purge)
         {

@@ -1,69 +1,17 @@
-using System.Text.Json;
 using costats.Application.Settings;
+using CoreStore = Jhj.Core.Settings.JsonSettingsStore<costats.Application.Settings.AppSettings>;
 
 namespace costats.Infrastructure.Settings;
 
+/// <summary>
+/// 설정 한 벌을 %LOCALAPPDATA%\JHJ_AI-Usage-Monitor\settings.json 에 둔다.
+/// 계약: 형식·원자적 쓰기·깨짐 복구(settings.bad.json)는 JHJ_CS_CORE 가 한다 — 여기는 인터페이스만 잇는다.
+/// </summary>
 public sealed class JsonSettingsStore : ISettingsStore
 {
-    private readonly JsonSerializerOptions _serializerOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true
-    };
+    private readonly CoreStore _store = new();
 
-    public async Task<AppSettings> LoadAsync(CancellationToken cancellationToken)
-    {
-        var path = GetSettingsPath();
-        if (!File.Exists(path))
-        {
-            return new AppSettings();
-        }
+    public Task<AppSettings> LoadAsync(CancellationToken cancellationToken) => _store.LoadAsync(cancellationToken);
 
-        await using var stream = File.OpenRead(path);
-        try
-        {
-            var settings = await JsonSerializer.DeserializeAsync<AppSettings>(stream, _serializerOptions, cancellationToken)
-                .ConfigureAwait(false);
-            return settings ?? new AppSettings();
-        }
-        catch (JsonException)
-        {
-            BackupCorruptSettings(path);
-            return new AppSettings();
-        }
-    }
-
-    public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
-    {
-        var path = GetSettingsPath();
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-
-        await using var stream = File.Create(path);
-        await JsonSerializer.SerializeAsync(stream, settings, _serializerOptions, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    private static string GetSettingsPath()
-    {
-        var basePath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(basePath, "JHJ_AI-Usage-Monitor", "settings.json");
-    }
-
-    private static void BackupCorruptSettings(string path)
-    {
-        try
-        {
-            var directory = Path.GetDirectoryName(path);
-            if (string.IsNullOrEmpty(directory))
-            {
-                return;
-            }
-
-            var backupPath = Path.Combine(directory, "settings.bad.json");
-            File.Copy(path, backupPath, true);
-        }
-        catch
-        {
-            // Ignore backup failures.
-        }
-    }
+    public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken) => _store.SaveAsync(settings, cancellationToken);
 }

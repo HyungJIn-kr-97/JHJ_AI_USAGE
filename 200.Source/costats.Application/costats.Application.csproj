@@ -11,9 +11,13 @@
   </ItemGroup>
 
   <PropertyGroup>
+    <!-- 계약: 이 층은 Windows 도 화면도 모른다 — Core 도 플랫폼 중립 한 겹만 당긴다 -->
+    <JhjCoreProjects>base</JhjCoreProjects>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <Import Project="..\..\..\JHJ_CS_CORE\200.Source\100.Core\cs\Jhj.Core.props" />
 
 </Project>

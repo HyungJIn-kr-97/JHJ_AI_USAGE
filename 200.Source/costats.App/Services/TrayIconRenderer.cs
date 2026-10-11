@@ -20,15 +20,16 @@ public static class TrayIconRenderer
     // 계약: 앱의 기본 아이콘 모양 — 트레이·exe·설치 관리자가 모두 이것 하나를 쓴다.
     //       바꾸면 800.Deploy\make-icons.ps1 을 다시 돌려 .ico 를 새로 뽑는다.
     // 계약: AppSettings.TrayIconStyle 의 기본값과 같은 값이어야 한다 — 층이 반대라 상수를 공유하지 못한다
-    public const string DefaultStyle = "ai";
+    // 왜: 「AI」 두 글자만으로는 남의 앱과 헷갈린다 — 기본은 JHJ + AI 표지이고 「AI」는 고르는 선택지로 남긴다(080.CS앱-화면-공통 §2)
+    public const string DefaultStyle = "jhj-ai";
 
     // 계약: 기본 아이콘의 팔레트 — ThemeManager 의 기본 팔레트와 같다
     public const string DefaultPalette = "bull";
 
-    public static readonly string[] Presets = [DefaultStyle, "j", "bars", "ring", "spark"];
+    public static readonly string[] Presets = [DefaultStyle, "ai", "j", "bars", "ring", "spark"];
 
-    // 계약: Windows 가 자리마다 고르는 크기들 — 트레이 16, 작업 표시줄 24·32, 탐색기 48·256
-    private static readonly int[] IcoSizes = [16, 24, 32, 48, 64, 128, 256];
+    // 계약: 070.아이콘-규격의 아홉 크기다 — 20·40 은 화면 배율 125%·250% 의 트레이·작업 표시줄이 고른다
+    private static readonly int[] IcoSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
 
     /// <summary>기본 아이콘을 여러 크기로 그려 .ico 한 파일로 쓴다 — 리소스 아이콘의 유일한 출처다.</summary>
     // 왜: 그리는 코드가 두 벌이면 트레이와 exe 아이콘이 조용히 어긋난다 — 같은 Render() 에서 뽑는다
@@ -37,6 +38,12 @@ public static class TrayIconRenderer
         var frames = IcoSizes.Select(size =>
         {
             using var bitmap = Render(style ?? DefaultStyle, palette ?? DefaultPalette, size);
+            // 함정: 작은 판을 PNG 로 넣으면 Windows 의 작은 아이콘 경로(작업 표시줄 · Alt+Tab)가 못 읽어 기본 아이콘이 뜬다 — 256 만 PNG 다
+            if (size < 256)
+            {
+                return (Size: size, Bytes: ToDib(bitmap));
+            }
+
             using var buffer = new MemoryStream();
             bitmap.Save(buffer, ImageFormat.Png);
             return (Size: size, Bytes: buffer.ToArray());
@@ -70,6 +77,36 @@ public static class TrayIconRenderer
         {
             w.Write(bytes);
         }
+    }
+
+    /// 계약: ICO 안의 32bpp BGRA 한 판 — 머리의 높이는 두 배(색 판 + AND 마스크), 줄은 아래부터 적는다
+    private static byte[] ToDib(Bitmap bitmap)
+    {
+        int w = bitmap.Width, h = bitmap.Height;
+        using var buffer = new MemoryStream();
+        using var writer = new BinaryWriter(buffer);
+        writer.Write(40);
+        writer.Write(w);
+        writer.Write(h * 2);
+        writer.Write((ushort)1);
+        writer.Write((ushort)32);
+        writer.Write(new byte[24]);
+
+        for (var y = h - 1; y >= 0; y--)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                var c = bitmap.GetPixel(x, y);
+                writer.Write(c.B);
+                writer.Write(c.G);
+                writer.Write(c.R);
+                writer.Write(c.A);
+            }
+        }
+
+        writer.Write(new byte[((w + 31) / 32) * 4 * h]);
+        writer.Flush();
+        return buffer.ToArray();
     }
 
     public static string IconDir { get; } = Path.Combine(
@@ -139,6 +176,18 @@ public static class TrayIconRenderer
         {
             case TileStyle:
                 break;
+            case DefaultStyle:
+                // 계약: 32px 이하는 「J + 표지」로 줄여 그린다 — 070.아이콘-규격 §1 「작은 판」
+                if (s <= 32)
+                {
+                    DrawJAi(g, s, c[2], c[3]);
+                }
+                else
+                {
+                    DrawJhjAi(g, s, c[2], c[3]);
+                }
+
+                break;
             case "ai":
                 DrawAI(g, s, c[2]);
                 break;
@@ -172,6 +221,96 @@ public static class TrayIconRenderer
         using var brush = new LinearGradientBrush(new Rectangle(0, 0, s, s + 1), top, bottom, LinearGradientMode.Vertical);
         g.FillPath(brush, path);
     }
+
+    // 계약: 256 좌표로 그린다 — 070.아이콘 생성기(make_jhj_icon.py)의 monogram() · feat_ai() 와 같은 숫자다
+    private static void DrawJhjAi(Graphics g, int s, Color ink, Color mark)
+    {
+        var state = g.Save();
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.ScaleTransform(s / 256f, s / 256f);
+
+        const float wj = 52, wh = 58, gap = 14, top = 46, h = 90, w = 24;
+        var x = (256 - (wj * 2 + wh + gap * 2)) / 2;
+        using var pen = new Pen(ink, w) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+        using var letters = new GraphicsPath();
+        AddLetterJ(letters, x, top, wj, h, w);
+        AddLetterH(letters, x + wj + gap, top, wh, h, w);
+        AddLetterJ(letters, x + wj + gap + wh + gap, top, wj, h, w);
+        g.DrawPath(pen, letters);
+
+        using var gold = new SolidBrush(mark);
+        using var soft = new SolidBrush(Color.FromArgb(215, ink));
+        g.FillPolygon(gold, Sparkle(120, 197, 34, 10));
+        g.FillPolygon(soft, Sparkle(172, 178, 15, 5));
+        g.Restore(state);
+    }
+
+    // 계약: 070.아이콘 생성기(make_jhj_icon.py)의 duo_j() · duo_ai() 와 같은 숫자다
+    private static void DrawJAi(Graphics g, int s, Color ink, Color mark)
+    {
+        var t = Math.Max(2, (int)Math.Round(s * 0.17));
+        int left = (int)Math.Round(s * 0.10), right = (int)Math.Round(s * 0.47);
+        int top = (int)Math.Round(s * 0.16), bottom = s - (int)Math.Round(s * 0.16);
+        if ((right - left) % 2 == 1)
+        {
+            right += 1; // 함정: 폭이 홀수면 갈고리 중심이 반 픽셀에 걸려 세로획과 사이에 틈이 생긴다
+        }
+
+        var radius = (right - left) / 2;
+        var cy = bottom - radius;
+        var head = left + (int)Math.Round((right - left) * 0.25);
+        using var inkBrush = new SolidBrush(ink);
+        g.SmoothingMode = SmoothingMode.None;
+        g.FillRectangle(inkBrush, head, top, right - head, t);
+        g.FillRectangle(inkBrush, right - t, top, t, cy + 1 - top);
+        g.FillRectangle(inkBrush, left, cy - 1, t, 2);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        var r = radius - t / 2f;
+        var cx = (left + right) / 2f;
+        using var pen = new Pen(ink, t);
+        g.DrawArc(pen, cx - r, cy - r, r * 2, r * 2, 0, 180);
+
+        static float Snap(double v) => (float)(Math.Round(v * 2) / 2);
+        using var gold = new SolidBrush(mark);
+        g.FillPolygon(gold, Sparkle(Snap(s * 0.73), Snap(s * 0.54), s * 0.21f, s * 0.06f));
+        if (s >= 24)
+        {
+            using var soft = new SolidBrush(Color.FromArgb(230, ink));
+            g.FillPolygon(soft, Sparkle(Snap(s * 0.88), Snap(s * 0.28), s * 0.09f, s * 0.03f));
+        }
+    }
+
+    private static void AddLetterJ(GraphicsPath path, float x, float top, float width, float height, float w)
+    {
+        var i = w / 2;
+        float stem = x + width - i, ty = top + i, by = top + height - i;
+        var r = (width - w) / 2;
+        float cx = x + i + r, cy = by - r;
+        path.StartFigure();
+        path.AddLine(x + width * 0.30f, ty, stem, ty);
+        path.AddLine(stem, ty, stem, cy);
+        path.AddArc(cx - r, cy - r, r * 2, r * 2, 0, 180);
+    }
+
+    private static void AddLetterH(GraphicsPath path, float x, float top, float width, float height, float w)
+    {
+        var i = w / 2;
+        path.StartFigure();
+        path.AddLine(x + i, top + i, x + i, top + height - i);
+        path.StartFigure();
+        path.AddLine(x + width - i, top + i, x + width - i, top + height - i);
+        path.StartFigure();
+        path.AddLine(x + i, top + height / 2, x + width - i, top + height / 2);
+    }
+
+    /// 네 갈래 반짝임 — AI 를 뜻하는 표지. outer 는 뾰족한 끝, inner 는 사이 골의 반지름이다
+    private static PointF[] Sparkle(float cx, float cy, float outer, float inner) =>
+        Enumerable.Range(0, 8).Select(k =>
+        {
+            var angle = (-90 + k * 45) * Math.PI / 180;
+            var radius = k % 2 == 0 ? outer : inner;
+            return new PointF((float)(cx + radius * Math.Cos(angle)), (float)(cy + radius * Math.Sin(angle)));
+        }).ToArray();
 
     // 왜: 획을 정수 픽셀에 맞춰야 16px 에서 경계가 번지지 않는다 — 직선 획은 안티앨리어싱을 끈다
     // 왜: 16px 에서 두 글자가 읽히려면 획을 정수 픽셀에 맞춰야 한다 — 안티앨리어싱 없이 사각형으로만 그린다

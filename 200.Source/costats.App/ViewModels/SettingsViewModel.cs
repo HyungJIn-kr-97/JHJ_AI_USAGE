@@ -31,8 +31,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly HashSet<string> _startupClaudeSlots;
     private const string ClaudeMainId = "claude:" + AccountProfileStore.DefaultName;
     private const string CodexMainId = "codex";
-    private const string StartupRegistryKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-    private const string AppName = "JHJ_AI-Usage-Monitor";
 
     public SettingsViewModel(
         ISettingsStore settingsStore,
@@ -157,7 +155,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         ClaudeAccounts = InOrder(claudeRows);
-        ProgramLinks = BuildProgramLinks(ClaudeAccounts);
+        // 왜: 설정을 여는 순간이 연동을 다시 재는 때다 — 그사이 계정을 바꿔 로그인했으면 여기서 이력에 한 줄 남는다
+        ClaudeProgramRouter.SyncLinks();
+        RefreshProgramLinks();
 
         var codexRows = new List<ExtraAccountRow> { NewRow(CodexMainId, string.Empty, AccountIdentityReader.ReadCodex(), null) };
         codexRows.AddRange(CodexAccountStore.List()
@@ -185,38 +185,102 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<ProgramLinkRow> programLinks = [];
 
-    private IReadOnlyList<ProgramLinkRow> BuildProgramLinks(IReadOnlyList<ExtraAccountRow> rows)
+    // 계약: 「연동 이력」 — 최근 것이 위다. 한 번도 바뀐 적이 없으면 비어 있고 그때는 칸을 그리지 않는다
+    [ObservableProperty]
+    private IReadOnlyList<ProgramLinkHistoryRow> programLinkHistory = [];
+
+    public bool HasProgramLinkHistory => ProgramLinkHistory.Count > 0;
+
+    partial void OnProgramLinkHistoryChanged(IReadOnlyList<ProgramLinkHistoryRow> value) =>
+        OnPropertyChanged(nameof(HasProgramLinkHistory));
+
+    // 왜: 줄을 다 그리면 설정 칸이 밀린다 — 최근 다섯 줄만 보이고 나머지는 숫자로만 알린다
+    private const int LinkHistoryRows = 5;
+
+    [ObservableProperty]
+    private string programLinkHistoryMore = string.Empty;
+
+    // 계약: 배지·이력에 쓰는 짧은 이름 — 키는 ClaudePrograms 와 같다
+    private static readonly Dictionary<string, string> ShortProgramLabels = new(StringComparer.OrdinalIgnoreCase)
     {
-        var options = rows.Select(row =>
+        ["claude-desktop"] = "Desktop",
+        ["claude-vscode"] = "VS Code",
+        ["cli"] = "CLI",
+    };
+
+    private IReadOnlyList<ProgramLinkHistoryRow> BuildProgramLinkHistory(IReadOnlyList<ProgramAccountOption> options)
+    {
+        var all = ClaudeProgramLinks.All();
+        ProgramLinkHistoryMore = all.Count > LinkHistoryRows ? Loc.T("+{0} more", all.Count - LinkHistoryRows) : string.Empty;
+
+        return all.Reverse().Take(LinkHistoryRows).Select(entry =>
+        {
+            var id = ClaudeProgramRouter.SlotOfAccount(entry.Account);
+            var label = options.FirstOrDefault(o => o.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Label;
+            // 함정: 이 PC 에서 지운 자리의 계정은 이름이 없다 — UUID 앞 8자로 두어야 어느 계정이었는지는 남는다
+            var account = label ?? entry.Account[..Math.Min(8, entry.Account.Length)];
+            return new ProgramLinkHistoryRow(
+                entry.From.ToLocalTime().ToString("MM-dd HH:mm"),
+                Loc.T(ShortProgramLabels.GetValueOrDefault(entry.Program, entry.Program)),
+                account.Split(" · ")[0],
+                $"{entry.From.ToLocalTime():yyyy-MM-dd HH:mm} · {account}");
+        }).ToList();
+    }
+
+    private List<ProgramAccountOption> BuildAccountOptions(IReadOnlyList<ExtraAccountRow> rows) =>
+        rows.Select(row =>
         {
             var email = row.AccountText.Split(" · ")[0];
             var name = AccountMeta.DisplayNameOf(_settings, row.Id);
             return new ProgramAccountOption(row.Id, email.Contains('@') && !name.Equals(email, StringComparison.OrdinalIgnoreCase) ? $"{name} · {email}" : name);
         }).ToList();
 
-        return ClaudePrograms
-            .Select(p => new ProgramLinkRow(p.Program, Loc.T(p.Label), options,
-                _settings.ProgramAccounts.GetValueOrDefault(p.Program, ClaudeMainId), OnProgramLinkChanged))
-            .ToList();
+    // 계약: 「프로그램 연동」 표와 「연동 이력」을 같은 계정 목록으로 한 번에 다시 그린다
+    private void RefreshProgramLinks()
+    {
+        var options = BuildAccountOptions(ClaudeAccounts);
+        ProgramLinks = BuildProgramLinks(options);
+        ProgramLinkHistory = BuildProgramLinkHistory(options);
+    }
+
+    // 계약: 첫 칸은 늘 「자동」이다 — 지금 이 PC 에 로그인한 계정을 따라가고, 아래 계정을 고르면 그 줄만 고정된다
+    private IReadOnlyList<ProgramLinkRow> BuildProgramLinks(IReadOnlyList<ProgramAccountOption> options)
+    {
+        var current = ClaudeProgramRouter.CurrentLinks();
+
+        return ClaudePrograms.Select(p =>
+        {
+            var now = current.GetValueOrDefault(p.Program);
+            var nowLabel = options.FirstOrDefault(o => o.Id.Equals(now, StringComparison.OrdinalIgnoreCase))?.Label;
+            List<ProgramAccountOption> rowOptions =
+            [
+                new(ProgramLinkRow.AutoId, nowLabel is null ? Loc.T("Auto · current login") : Loc.T("Auto · {0}", nowLabel)),
+                .. options
+            ];
+            return new ProgramLinkRow(p.Program, Loc.T(p.Label), rowOptions,
+                _settings.ProgramAccountPins.GetValueOrDefault(p.Program, ProgramLinkRow.AutoId), OnProgramLinkChanged);
+        }).ToList();
     }
 
     private void OnProgramLinkChanged(ProgramLinkRow row)
     {
-        if (row.SelectedAccount.Id.Equals(ClaudeMainId, StringComparison.OrdinalIgnoreCase))
+        if (row.SelectedAccount.Id.Equals(ProgramLinkRow.AutoId, StringComparison.OrdinalIgnoreCase))
         {
-            _settings.ProgramAccounts.Remove(row.Program);
+            _settings.ProgramAccountPins.Remove(row.Program);
         }
         else
         {
-            _settings.ProgramAccounts[row.Program] = row.SelectedAccount.Id;
+            _settings.ProgramAccountPins[row.Program] = row.SelectedAccount.Id;
         }
 
-        // 왜: 소스는 갱신마다 연동표를 다시 읽는다 — 재시작 없이 다음 갱신부터 기록의 주인이 바뀐다
+        // 왜: Configure 가 바뀐 연동을 이력에 한 줄로 남긴다 — 재시작 없이 다음 갱신부터 새 줄의 주인이 바뀌고, 지난 줄은 그때의 주인에 남는다
         if (ClaudeProgramRouter.IsActive && _multiccDiscovery is { } discovery)
         {
-            ClaudeProgramRouter.Configure(ClaudeMainId, _settings.ProgramAccounts, discovery.Profiles);
+            ClaudeProgramRouter.Configure(ClaudeMainId, _settings.ProgramAccounts, discovery.Profiles, _settings.ProgramAccountPins);
         }
 
+        // 함정: 여기서 ProgramLinks 를 다시 만들면 방금 고른 ComboBox 가 통째로 갈려 선택이 튄다 — 이력만 다시 그린다
+        ProgramLinkHistory = BuildProgramLinkHistory(BuildAccountOptions(ClaudeAccounts));
         _ = SaveSettingsAsync();
         _ = _pulseOrchestrator.RefreshOnceAsync(RefreshTrigger.Manual, CancellationToken.None);
     }
@@ -267,7 +331,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         else
         {
             ClaudeAccounts = InOrder(reordered);
-            ProgramLinks = BuildProgramLinks(ClaudeAccounts);
+            RefreshProgramLinks();
         }
 
         _ = _settingsStore.SaveAsync(_settings, CancellationToken.None);
@@ -373,7 +437,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         if (isMain && MessageBox.Show(
                 Loc.T("Sign out of \"{0}\" on this PC? The {0} CLI in your terminal will be signed out too.", tool),
-                "AI Usage Monitor", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                "JHJ AI Usage Monitor", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
         {
             return;
         }
@@ -773,7 +837,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             _startupClaudeSlots.UnionWith(missing.Select(p => SlotKey(p.ConfigDir)));
         }
 
-        ClaudeProgramRouter.Configure(ClaudeMainId, _settings.ProgramAccounts, discovery.Profiles);
+        ClaudeProgramRouter.Configure(ClaudeMainId, _settings.ProgramAccounts, discovery.Profiles, _settings.ProgramAccountPins);
         var slot = discovery.Profiles.FirstOrDefault(p => SlotKey(p.ConfigDir).Equals(key, StringComparison.OrdinalIgnoreCase));
         return "claude:" + (slot?.Name ?? Path.GetFileName(key));
     }
@@ -1163,6 +1227,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     // 계약: 모양 id 「j」는 기본값이고 화면 이름은 JHJ 다
     private static string PresetLabelOf(string style) => style switch
     {
+        TrayIconRenderer.DefaultStyle => "JHJ AI",
         "ai" => "AI",
         "bars" => "Bars",
         "ring" => "Ring",
@@ -1183,7 +1248,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 return;
         }
 
-        _settings.TrayIconStyle = string.IsNullOrEmpty(style) ? "ai" : style;
+        _settings.TrayIconStyle = string.IsNullOrEmpty(style) ? TrayIconRenderer.DefaultStyle : style;
         _ = SaveSettingsAsync();
         RebuildIconOptions();
         TrayIconRenderer.NotifyChanged();
@@ -1209,7 +1274,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         if (style == _settings.TrayIconStyle)
         {
-            SelectTrayIcon("ai");
+            SelectTrayIcon(TrayIconRenderer.DefaultStyle);
             return;
         }
 
@@ -1346,13 +1411,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void CancelIconEditor() => IsIconEditorOpen = false;
 
-    public string LanguageLabel =>costats.App.Localization.Loc.IsKorean ? "한국어" : "English";
+    public string LanguageLabel =>Loc.IsKorean ? "한국어" : "English";
 
     [RelayCommand]
     private void SetLanguage(string? language)
     {
-        costats.App.Localization.Loc.SetLanguage(language);
-        _settings.Language = costats.App.Localization.Loc.Language;
+        Loc.SetLanguage(language);
+        _settings.Language = Loc.Language;
         _ = SaveSettingsAsync();
         OnPropertyChanged(nameof(LanguageLabel));
         foreach (var option in RefreshOptions)
@@ -1778,7 +1843,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _ = SaveSettingsAsync();
     }
 
-    public string ReleasesUrl => _updateCoordinator?.ReleasesPageUrl ?? "https://github.com/" + costats.App.Services.Updates.UpdateOptions.DefaultRepository + "/releases";
+    public string ReleasesUrl => _updateCoordinator?.ReleasesPageUrl ?? "https://github.com/" + UpdateOptions.DefaultRepository + "/releases";
 
     /// <returns>읽기에 성공했으면 true</returns>
     private async Task<bool> LoadReleasesAsync(CancellationToken ct)
@@ -1833,13 +1898,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         Process.Start(new ProcessStartInfo(SelectedRelease?.HtmlUrl ?? ReleasesUrl) { UseShellExecute = true });
 
     // 계약: 개선 제안·버그 신고는 저장소의 GitHub Issues 로 받는다 — 양식은 .github/ISSUE_TEMPLATE
-    public string FeedbackUrl => "https://github.com/" + costats.App.Services.Updates.UpdateOptions.DefaultRepository + "/issues/new/choose";
+    public string FeedbackUrl => "https://github.com/" + UpdateOptions.DefaultRepository + "/issues/new/choose";
 
     [RelayCommand]
     private void OpenFeedback() =>
         Process.Start(new ProcessStartInfo(FeedbackUrl) { UseShellExecute = true });
 
-    public string RepositoryUrl => "https://github.com/" + costats.App.Services.Updates.UpdateOptions.DefaultRepository;
+    public string RepositoryUrl => "https://github.com/" + UpdateOptions.DefaultRepository;
 
     [RelayCommand]
     private void OpenRepository() =>
@@ -2065,66 +2130,14 @@ public sealed partial class SettingsViewModel : ObservableObject
         await _settingsStore.SaveAsync(_settings, CancellationToken.None);
     }
 
-    // 계약: 작업 관리자 「시작 앱」의 켬/끔은 StartupApproved\Run 의 첫 바이트다(02=켬 · 03=끔) — Run 값만 보면 작업 관리자에서 끈 것을 켜진 것으로 읽는다
-    private const string StartupApprovedKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+    // 계약: 자동 실행 등록은 JHJ_CS_CORE 가 갖는다 — 켬/끔 규칙(꺼도 줄은 남긴다)도 거기 있다
+    internal static bool GetStartupRegistryValue() => StartupRegistry.IsEnabled();
 
-    internal static bool GetStartupRegistryValue() => IsStartupRegistered() && !IsStartupDisabledByTaskManager();
+    internal static bool IsStartupRegistered() => StartupRegistry.IsRegistered();
 
-    internal static bool IsStartupRegistered()
-    {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, false);
-            return key?.GetValue(AppName) is not null;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    internal static bool IsStartupDisabledByTaskManager() => StartupRegistry.IsDisabledByTaskManager();
 
-    internal static bool IsStartupDisabledByTaskManager()
-    {
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(StartupApprovedKey, false);
-            return key?.GetValue(AppName) is byte[] { Length: > 0 } flags && flags[0] == 0x03;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    // 계약: 켜면 「지금 실행 중인 exe」 경로로 HKCU Run 에 등록하고 작업 관리자 쪽도 「사용」으로 맞춘다 — App 시작 때도 불러 낡은 경로를 바로잡는다
-    // 계약: 꺼도 Run 값은 남기고 작업 관리자 쪽만 「사용 안 함」으로 둔다 — 줄이 남아야 거기서 다시 켤 수 있고, 켜면 설정 창도 따라간다
-    // 왜: 한 번도 켠 적이 없으면 Run 값이 없어 「시작 앱」 목록에 줄 자체가 없었다 — 꺼진 상태에서도 등록해 둔다
-    internal static void SetStartupRegistryValue(bool enable)
-    {
-        try
-        {
-            using var run = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, true);
-            using var approved = Registry.CurrentUser.CreateSubKey(StartupApprovedKey);
-            if (run is null) return;
-
-            // 함정: 경로는 켤 때든 끌 때든 지금 exe 로 다시 쓴다 — 설치·업데이트로 폴더가 바뀌면 옛 경로가 남는다
-            var exePath = Environment.ProcessPath;
-            if (!string.IsNullOrEmpty(exePath))
-            {
-                run.SetValue(AppName, $"\"{exePath}\"");
-            }
-
-            // 계약: 첫 바이트가 0x02 면 「사용」, 0x03 이면 「사용 안 함」이다 — 나머지 11바이트는 끈 시각이라 0 으로 둔다
-            approved?.SetValue(
-                AppName,
-                new byte[] { enable ? (byte)0x02 : (byte)0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                RegistryValueKind.Binary);
-        }
-        catch
-        {
-            // Silently ignore registry errors
-        }
-    }
+    internal static void SetStartupRegistryValue(bool enable) => StartupRegistry.Set(enable);
 }
 
 // 계약: Percent 0 은 「자동」이다 — 창이 화면 작업영역 높이로 배율을 정한다(GlassWidgetWindow.AutoScale)
@@ -2133,7 +2146,7 @@ public sealed class PopupScaleOption(int percent) : ObservableObject
     public int Percent { get; } = percent;
 
     public string Label => Percent == 0
-        ? costats.App.Localization.Loc.T("Auto")
+        ? Loc.T("Auto")
         : $"{Percent}%";
 
     public void NotifyLanguageChanged() => OnPropertyChanged(nameof(Label));
@@ -2143,7 +2156,7 @@ public sealed class RefreshOption(int minutes) : ObservableObject
 {
     public int Minutes { get; } = minutes;
 
-    public string Label => costats.App.Localization.Loc.IsKorean
+    public string Label => Loc.IsKorean
         ? $"{Minutes}분"
         : Minutes == 1 ? "1 minute" : $"{Minutes} minutes";
 

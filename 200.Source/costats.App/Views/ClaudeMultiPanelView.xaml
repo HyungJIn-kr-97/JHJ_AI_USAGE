@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:costats.App"
              xmlns:views="clr-namespace:costats.App.Views"
-        xmlns:loc="clr-namespace:costats.App.Localization">
+        xmlns:loc="clr-namespace:Jhj.Core.Wpf.Localization;assembly=Jhj.Core.Wpf">
 
     <UserControl.Resources>
         <!-- 색 브러시는 App 리소스(Themes/Bull.*.xaml)에서 온다 -->
@@ -86,8 +86,17 @@
                                     <!-- 계약: 요금제 왼쪽에 계정 상태 — 연동이 필요하면 「연동」 버튼 -->
                                     <Border DockPanel.Dock="Right" CornerRadius="4" Padding="6,2" Margin="0,0,6,0" VerticalAlignment="Center"
                                             BorderThickness="1" BorderBrush="{Binding AccountStateBrush}"
+                                            ToolTip="{loc:Tr 'Programs counted for this account right now'}"
                                             Visibility="{Binding AccountStateText, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
-                                        <TextBlock Text="{Binding AccountStateText}" FontSize="9.5" FontWeight="SemiBold" Foreground="{Binding AccountStateBrush}" />
+                                        <!-- 계약: 배지 안에 지금 이 계정에 붙어 있는 프로그램을 잇는다 — 연동이 옮겨 가면 여기서 사라지고 새 계정 카드에 붙는다 -->
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding AccountStateText}" FontSize="9.5" FontWeight="SemiBold" Foreground="{Binding AccountStateBrush}" />
+                                            <!-- 함정: 머리글은 이름·유형·요금제와 폭을 다툰다 — 셋이 다 붙으면 「…」로 줄이고 전체는 손가락 설명으로 보인다 -->
+                                            <TextBlock Text="{Binding LinkedProgramsText, StringFormat=' · {0}'}" FontSize="9.5" MaxWidth="104"
+                                                       Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding LinkedProgramsText}"
+                                                       Visibility="{Binding HasLinkedPrograms, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        </StackPanel>
                                     </Border>
                                     <Button DockPanel.Dock="Right" Content="{loc:Tr 'Link'}" Margin="0,0,6,0" VerticalAlignment="Center" Cursor="Hand"
                                             FocusVisualStyle="{x:Null}" Tag="{Binding ProviderId}" Click="OnLinkAccountClick"

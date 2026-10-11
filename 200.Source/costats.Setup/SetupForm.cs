@@ -75,7 +75,7 @@ namespace costats.Setup
             _silent = silent;
             _testState = testState?.Trim().ToLowerInvariant();
 
-            Text = "AI 통합 사용량 모니터 설치";
+            Text = "JHJ AI 통합 사용량 모니터 설치";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.CenterScreen;
@@ -92,7 +92,7 @@ namespace costats.Setup
             Controls.Add(BuildTitleBar());
 
             var body = new FlowLayoutPanel { Location = new Point(Px(24), Px(56)), Size = new Size(Px(400), Px(358)), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Bg };
-            var title = new Label { Text = "AI 통합 사용량 모니터", Font = new Font(Font.FontFamily, 17f, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 0, 0, Px(2)) };
+            var title = new Label { Text = "JHJ AI 통합 사용량 모니터", Font = new Font(Font.FontFamily, 17f, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 0, 0, Px(2)) };
 
             // 설치 위치 — 직접 입력(Enter · 포커스 이탈)하거나 「변경」으로 고른다
             var pathLabel = new Label { Text = "설치 위치", ForeColor = Text2, AutoSize = true, Margin = new Padding(0, 0, 0, Px(6)) };
@@ -209,7 +209,7 @@ namespace costats.Setup
 
         private void ChoosePath()
         {
-            var picked = ModernFolderPicker.Pick(this, "AI 통합 사용량 모니터를 설치할 폴더", Installer.InstallDir);
+            var picked = ModernFolderPicker.Pick(this, "JHJ AI 통합 사용량 모니터를 설치할 폴더", Installer.InstallDir);
             if (picked == null)
             {
                 return;
@@ -229,7 +229,7 @@ namespace costats.Setup
         {
             var bar = new System.Windows.Forms.Panel { Dock = DockStyle.Top, Height = Px(44), BackColor = Bg };
             var icon = new PictureBox { Image = Icon.ToBitmap(), SizeMode = PictureBoxSizeMode.Zoom, Size = new Size(Px(20), Px(20)), Location = new Point(Px(16), Px(12)) };
-            var caption = new Label { Text = "AI 통합 사용량 모니터  ·  설치", ForeColor = Text2, AutoSize = true, Location = new Point(Px(44), Px(14)), Font = new Font(Font, FontStyle.Bold) };
+            var caption = new Label { Text = "JHJ AI 통합 사용량 모니터  ·  설치", ForeColor = Text2, AutoSize = true, Location = new Point(Px(44), Px(14)), Font = new Font(Font, FontStyle.Bold) };
             var close = new AccentButton { Text = "✕", Size = new Size(Px(36), Px(28)), Location = new Point(Px(404), Px(8)), Font = new Font("Segoe UI Symbol", 10f), TabStop = false };
             close.Click += (s, e) => Close();
             bar.Controls.Add(icon);

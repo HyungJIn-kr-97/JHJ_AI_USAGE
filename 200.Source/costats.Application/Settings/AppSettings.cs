@@ -1,10 +1,16 @@
+using Jhj.Core.Settings;
+
 namespace costats.Application.Settings;
 
-public sealed class AppSettings
+// 계약: 예약 업데이트가 읽는 세 칸(AutoUpdate*)은 JHJ_CS_CORE 의 IScheduledUpdateSettings 다
+public sealed class AppSettings : IScheduledUpdateSettings
 {
     public int RefreshMinutes { get; set; } = 5;
-    // 계약: costats.App 의 HotkeyRules.Default 와 같은 값이어야 한다 — 참조 방향이 반대라 상수를 공유하지 못한다
-    public string Hotkey { get; set; } = "Ctrl+Alt+A";
+    /// 계약: 전역 단축키 자리표는 JHJ_DEV/000.AGENTS_MD/060.단축키/060.단축키-대장.md 다 — AI Usage 는 2번이다.
+    // 왜: App 이 부팅 때 이 값을 HotkeyRules.Default 에도 넣는다 — 참조 방향이 반대라 Core 가 이 상수를 못 읽는다
+    public const string DefaultHotkey = "Ctrl+Alt+2";
+
+    public string Hotkey { get; set; } = DefaultHotkey;
 
     // 계약: 「팝업 단축키 2」부터 — 기본은 비어 있어 단축키가 하나다
     public List<string> ExtraHotkeys { get; set; } = [];
@@ -29,9 +35,29 @@ public sealed class AppSettings
     /// </summary>
     public string Palette { get; set; } = "bull";
 
-    // 계약: 트레이 아이콘 모양 — "ai"(기본) · "j"(화면 이름 JHJ) · "bars" · "ring" · "spark"(팔레트 색으로 그림) · "custom:<파일 이름>"(사용자 아이콘)
+    // 계약: 트레이 아이콘 모양 — "jhj-ai"(기본 · JHJ + AI 표지) · "ai"(두 글자) · "j"(화면 이름 JHJ) · "bars" · "ring" · "spark"(팔레트 색으로 그림) · "custom:<파일 이름>"(사용자 아이콘)
     // 계약: costats.App 의 TrayIconRenderer.DefaultStyle 과 같은 값이어야 한다 — 참조 방향이 반대라 상수를 공유하지 못한다
-    public string TrayIconStyle { get; set; } = "ai";
+    public string TrayIconStyle { get; set; } = "jhj-ai";
+
+    // 계약: 옛 기본값 "ai" 를 새 기본으로 옮겼다는 표시 — 켜진 뒤에 고른 "ai" 는 사용자의 선택이라 건드리지 않는다
+    public bool TrayIconDefaultMoved { get; set; }
+
+    /// <summary>옛 기본 모양("ai")이 저장된 설정을 새 기본으로 한 번만 옮긴다. 바뀐 것이 있으면 true — 부른 쪽이 저장한다.</summary>
+    public bool MoveLegacyTrayIconDefault()
+    {
+        if (TrayIconDefaultMoved)
+        {
+            return false;
+        }
+
+        if (TrayIconStyle == "ai")
+        {
+            TrayIconStyle = new AppSettings().TrayIconStyle;
+        }
+
+        TrayIconDefaultMoved = true;
+        return true;
+    }
 
     /// <summary>
     /// "ko" | "en". 화면 문구의 언어.
@@ -65,8 +91,12 @@ public sealed class AppSettings
     // 계약: 키는 providerId("claude:default" · "claude:<이름>" · "codex" · "codex:<이름>") — 사용자가 정한 계정 명칭·유형
     public Dictionary<string, AccountInfo> Accounts { get; set; } = [];
 
-    // 계약: Claude 기본 폴더 기록의 주인 — 키는 프로그램(entrypoint: "claude-desktop" · "claude-vscode" · "cli"), 값은 providerId. 없으면 기본 계정(claude:default)이다
+    // 계약: 연동 이력(ClaudeProgramLinks)이 시작되기 전 줄의 주인 — 키는 프로그램(entrypoint: "claude-desktop" · "claude-vscode" · "cli"), 값은 providerId
+    // 함정: 화면은 더 이상 이 칸을 쓰지 않는다 — 옛 기록의 주인이 바뀌지 않게 그대로 둔다. 지금의 연동은 ProgramAccountPins 와 연동 이력이 정한다
     public Dictionary<string, string> ProgramAccounts { get; set; } = [];
+
+    // 계약: 「프로그램 연동」에서 손으로 고정한 줄 — 키는 프로그램, 값은 providerId. 없는 프로그램은 자동(지금 이 PC 에 로그인한 계정)이다
+    public Dictionary<string, string> ProgramAccountPins { get; set; } = [];
 
     // 계약: 설정 「계정」에서 정한 계정 순서(providerId) — 팝업 칩·카드도 이 순서다. 목록에 없는 계정은 뒤에 이름순으로 붙는다
     public List<string> AccountOrder { get; set; } = [];

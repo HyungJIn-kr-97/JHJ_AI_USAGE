@@ -41,6 +41,8 @@ public sealed class ExpenseAnalyzer
     // 계약: 폴더마다 주인을 달아 읽는다 — ClaudeLogRoot 참조
     public async Task<ConsumptionDigest> AnalyzeClaudeAsync(IReadOnlyList<ClaudeLogRoot> roots, CancellationToken cancellationToken = default)
     {
+        // 왜: 줄의 주인을 가르기 전에 지금 로그인한 계정을 다시 읽는다 — 갱신 주기마다 연동이 따라간다(ClaudeProgramLinks)
+        costats.Infrastructure.Providers.ClaudeProgramRouter.SyncLinksIfDue();
         var today = DateOnly.FromDateTime(DateTime.Now);
         var windowStart = today.AddDays(-(DefaultWindowDays - 1));
 

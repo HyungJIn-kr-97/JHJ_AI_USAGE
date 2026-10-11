@@ -2,9 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:costats.App"
-        xmlns:loc="clr-namespace:costats.App.Localization"
+        xmlns:loc="clr-namespace:Jhj.Core.Wpf.Localization;assembly=Jhj.Core.Wpf"
         xmlns:views="clr-namespace:costats.App.Views"
-        Title="AI Usage Monitor"
+        Title="JHJ AI Usage Monitor"
         Width="360"
         Height="816"
         FontFamily="Pretendard Variable, Pretendard, Malgun Gothic, Segoe UI"
@@ -243,7 +243,7 @@
                 <!-- 계약: TitleSuffix 는 설정 화면일 때만 " · 설정" 이 된다 — 지금 어느 화면인지는 제목이 말한다 -->
                 <TextBlock FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}">
-                    <Run Text="{loc:Tr 'AI Usage Monitor'}" /><Run x:Name="TitleSuffix" FontWeight="Normal" Foreground="{DynamicResource TextMutedBrush}" />
+                    <Run Text="{loc:Tr 'JHJ AI Usage Monitor'}" /><Run x:Name="TitleSuffix" FontWeight="Normal" Foreground="{DynamicResource TextMutedBrush}" />
                 </TextBlock>
             </DockPanel>
             <Grid Margin="20,46,20,20">
@@ -417,6 +417,7 @@
             </StackPanel>
 
             <!-- 왜: 창은 작업 영역 높이로 고정이다 — 본문이 넘치면 창이 아니라 본문이 스크롤된다 -->
+            <!-- 계약: 이 창의 세로 스크롤은 이것 하나다 — 안쪽에 또 두거나 MaxHeight 를 걸지 않는다(300.Docs/화면-스크롤-규칙.md) -->
             <ScrollViewer x:Name="BodyScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" Focusable="False"
                           Style="{StaticResource GutterScrollViewer}">
             <StackPanel>
@@ -448,8 +449,16 @@
                             ToolTip="{loc:Tr 'Link an account to this slot — sign in in the browser.'}" />
                     <Border CornerRadius="4" Padding="6,2" Margin="0,0,6,0" VerticalAlignment="Center" BorderThickness="1"
                             BorderBrush="{Binding AccountStateBrush}"
+                            ToolTip="{loc:Tr 'Programs counted for this account right now'}"
                             Visibility="{Binding AccountStateText, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
-                        <TextBlock Text="{Binding AccountStateText}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding AccountStateBrush}" />
+                        <!-- 계약: 배지 안에 지금 이 계정에 붙어 있는 프로그램을 잇는다 — ProviderPulseViewModel.LinkedProgramsText -->
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding AccountStateText}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding AccountStateBrush}" />
+                            <TextBlock Text="{Binding LinkedProgramsText, StringFormat=' · {0}'}" FontSize="10" MaxWidth="132"
+                                       Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding LinkedProgramsText}"
+                                       Visibility="{Binding HasLinkedPrograms, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                        </StackPanel>
                     </Border>
                     <!-- Plan chip badge (only visible when PlanText is not empty) -->
                     <Border x:Name="PlanChip" HorizontalAlignment="Right" VerticalAlignment="Top"
@@ -939,8 +948,8 @@
             </StackPanel>
             </ScrollViewer>
 
-
             <!-- 계약: 설정은 같은 창 안에서 도구 탭 + 본문 자리를 덮는다 — 별도 창이 아니라서 어디를 눌러도 화면이 어긋나지 않는다 -->
+            <!-- 계약: ClipToBounds 는 미끄러지는 동안만 참이다 — 켜 둔 채로 두면 설정 본문의 스크롤 막대가 잘려 사라진다(SetSettingsOpen) -->
             <Grid x:Name="SettingsHost" Grid.Row="0" Grid.RowSpan="3" ClipToBounds="True" Visibility="Collapsed">
                 <Border Background="{DynamicResource BgBrush}">
                     <Border.RenderTransform>

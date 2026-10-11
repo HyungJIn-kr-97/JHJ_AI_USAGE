@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Jhj.Core.Wpf.Localization;
 
 namespace costats.App.Localization;
 
@@ -20,7 +21,7 @@ internal static class LocStrings
     public static readonly Dictionary<string, string> Korean = new()
     {
         // 팝업
-        ["AI Usage Monitor"] = "AI 통합 사용량 모니터",
+        ["JHJ AI Usage Monitor"] = "JHJ AI 통합 사용량 모니터",
         ["FooterCodex"] = " - OpenAI 의 AI 코딩 도구",
         ["FooterClaude"] = " - Anthropic 의 Claude Code CLI",
         ["FooterCopilot"] = " - GitHub 의 AI 코딩 도구",
@@ -251,7 +252,16 @@ internal static class LocStrings
         ["The account you pick in the browser is added. Its email and token are checked afterwards."] = "브라우저에서 고른 계정 연동 · 연동 후 메일·토큰 확인",
         ["Program links"] = "프로그램 연동",
         ["Usage from each program on this PC is counted for the account you pick here. Past logs follow the change too."] = "프로그램별 기록을 셀 계정 · 지난 기록 포함",
+        ["Each program is counted for the account signed in on this PC at that time. Pick an account to pin that row instead."] = "프로그램마다 당시 로그인한 계정으로 셉니다 · 계정을 고르면 그 줄만 고정됩니다",
+        ["Changing a link does not move past records — they stay with the account that was linked then."] = "연동을 바꿔도 지난 기록은 옮겨 가지 않습니다 — 그때 연동돼 있던 계정에 남습니다",
+        ["Auto · current login"] = "자동 · 지금 로그인 계정",
+        ["Programs counted for this account right now"] = "지금 이 계정으로 세는 프로그램",
+        ["Auto · {0}"] = "자동 · {0}",
+        ["Link history"] = "연동 이력",
+        ["+{0} more"] = "그 밖에 {0}줄",
         ["Desktop app"] = "데스크톱 앱",
+        ["Desktop"] = "데스크톱",
+        ["CLI"] = "CLI",
         ["VS Code"] = "VS Code",
         ["Terminal CLI"] = "터미널 CLI",
         ["Link"] = "연동",
@@ -313,7 +323,7 @@ internal static class LocStrings
         ["Refresh interval"] = "새로고침 주기",
         ["Popup size"] = "팝업 크기",
         ["New version downloaded. Press the Install button below to apply."] = "새 버전을 받아 두었습니다 — 아래 「이 버전 설치」를 누르면 적용됩니다.",
-        ["Recommended — the default (A for AI)."] = "권장 — 기본 단축키입니다(A = AI).",
+        ["Recommended — Ctrl+Alt+1–9 are the JHJ app slots."] = "권장 — Ctrl+Alt+1~9 는 JHJ 앱 자리입니다(이 앱은 2).",
         ["Restore defaults"] = "기본값으로",
         ["Restores only this tab"] = "이 탭의 설정만 되돌립니다",
         ["Restored to defaults."] = "기본값으로 되돌렸습니다.",
@@ -328,7 +338,7 @@ internal static class LocStrings
         ["+ Add shortcut"] = "단축키 추가",
         ["Already set as another popup shortcut."] = "다른 팝업 단축키와 중복",
         ["Click the box, then press the keys together."] = "입력란 클릭 → 키 조합 누르기",
-        ["Ctrl+Alt+F1–F12 is recommended. Blocked: one-modifier keys (Ctrl+C, Alt+F4), Win combinations, and Esc·Tab·Delete·arrow keys."] = "권장: Ctrl+Alt+A · Ctrl+Alt+F1~F12\n차단: 수정키 하나(Ctrl+C) · Win 조합 · Esc·Tab·방향키",
+        ["Ctrl+Alt+1–9 and Ctrl+Alt+F1–F12 are recommended. Blocked: one-modifier keys (Ctrl+C, Alt+F4), Win combinations, and Esc·Tab·Delete·arrow keys."] = "권장: Ctrl+Alt+1~9 · Ctrl+Alt+F1~F12\n차단: 수정키 하나(Ctrl+C) · Win 조합 · Esc·Tab·방향키",
         ["Press a letter, number or F1–F12 together with Ctrl and Alt."] = "Ctrl+Alt + 글자·숫자·F1~F12",
         ["Win key combinations are reserved by Windows."] = "Win 조합 — Windows 예약",
         ["Esc, Tab, Space, Enter, Delete, arrows and other editing keys are used by Windows and apps."] = "Esc·Tab·Space·Enter·Delete·방향키 — 편집 키라 불가",
@@ -449,4 +459,20 @@ internal static class LocStrings
             _ => part
         };
     }
+
+    // 함정: 표 셋보다 **뒤**에 둔다 — 앞에 두면 정적 초기화 순서 때문에 빈 사전이 넘어간다
+    // 계약: 이 앱은 **영어가 키**다(JHJ_GIT_CENTER 는 한국어가 키다) — 한 앱 안에서 방향을 섞지 않는다
+    public static LocCatalog Catalog { get; } = new()
+    {
+        KeyLanguage = Loc.English,
+        Tables = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal)
+        {
+            [Loc.Korean] = Korean,
+            [Loc.English] = EnglishOverrides,
+        },
+        Patterns = new Dictionary<string, IReadOnlyList<(Regex Pattern, Func<Match, string> Replace)>>(StringComparer.Ordinal)
+        {
+            [Loc.Korean] = KoreanPatterns,
+        },
+    };
 }

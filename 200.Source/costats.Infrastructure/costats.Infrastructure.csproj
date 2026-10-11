@@ -10,9 +10,13 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- 왜: 자격 증명 관리자·Win32 배경 효과를 쓰는 층이라 Windows 대상이다(Jhj.Core.Windows 도 그렇다) -->
+    <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- 계약: 이 층은 화면을 모른다 — Core 도 Jhj.Core + Jhj.Core.Windows 까지만 당긴다 -->
+    <JhjCoreProjects>windows</JhjCoreProjects>
   </PropertyGroup>
+  <Import Project="..\..\..\JHJ_CS_CORE\200.Source\100.Core\cs\Jhj.Core.props" />
 
 </Project>

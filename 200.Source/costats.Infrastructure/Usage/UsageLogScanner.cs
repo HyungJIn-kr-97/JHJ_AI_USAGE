@@ -30,9 +30,14 @@ internal sealed class UsageLogScanner
     public Task<UsageLogResult> ScanClaudeAsync(IReadOnlyList<ClaudeLogRoot> roots, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.Run(() => ScanClaudeCore(
-            cutoff => roots.SelectMany(root => EnumerateClaudeFiles(root.ProjectsDir, cutoff).Select(file => (file, root.Owner))),
-            cancellationToken), cancellationToken);
+        return Task.Run(() =>
+        {
+            // 왜: 줄의 주인을 가르기 전에 지금 로그인한 계정을 다시 읽는다 — 갱신 주기마다 연동이 따라간다(ClaudeProgramLinks)
+            ClaudeProgramRouter.SyncLinksIfDue();
+            return ScanClaudeCore(
+                cutoff => roots.SelectMany(root => EnumerateClaudeFiles(root.ProjectsDir, cutoff).Select(file => (file, root.Owner))),
+                cancellationToken);
+        }, cancellationToken);
     }
 
     private UsageLogResult ScanCodexCore(CancellationToken cancellationToken, string? codexHome)

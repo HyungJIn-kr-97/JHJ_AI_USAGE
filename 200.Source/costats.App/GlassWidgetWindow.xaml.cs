@@ -6,7 +6,6 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using System.Windows.Navigation;
 using costats.App.ViewModels;
-using costats.Application.Shell;
 
 namespace costats.App
 {
@@ -221,9 +220,9 @@ namespace costats.App
 
         private async void OnThemeToggleClick(object sender, RoutedEventArgs e)
         {
-            var dark = !costats.App.Services.ThemeManager.IsDark;
-            costats.App.Services.ThemeManager.Apply(dark);
-            _settings.Theme = dark ? costats.App.Services.ThemeManager.Dark : costats.App.Services.ThemeManager.Light;
+            var dark = !ThemeManager.IsDark;
+            ThemeManager.Apply(dark);
+            _settings.Theme = dark ? ThemeManager.Dark : ThemeManager.Light;
             try
             {
                 await _settingsStore.SaveAsync(_settings, CancellationToken.None);
@@ -258,20 +257,36 @@ namespace costats.App
             // 왜: 설정 화면에서는 계정 전환이 쓸모없다 — 제목에 " · 설정" 을 잇고 그 자리에는 돌아가기만 둔다
             SettingsTitleChip.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
             AccountToggle.Visibility = open ? Visibility.Collapsed : Visibility.Visible;
-            TitleSuffix.Text = open ? " · " + costats.App.Localization.Loc.T("Settings") : string.Empty;
+            TitleSuffix.Text = open ? " · " + Loc.T("Settings") : string.Empty;
 
             var width = Math.Max(1, ActualWidth);
+            // 함정: SettingsHost 를 늘 클립해 두면 설정 본문 막대가 통째로 잘린다 — 막대는 바깥 여백 위에 겹쳐 그려진다(App.xaml GutterScrollViewer)
+            SettingsHost.ClipToBounds = true;
             if (open)
             {
                 _settingsViewModel.RefreshAccounts();
                 SettingsHost.Visibility = Visibility.Visible;
-                SettingsSlide.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty,
-                    new System.Windows.Media.Animation.DoubleAnimation(width, 0, TimeSpan.FromMilliseconds(220))
+                var slideIn = new System.Windows.Media.Animation.DoubleAnimation(width, 0, TimeSpan.FromMilliseconds(220))
+                {
+                    EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+                };
+                slideIn.Completed += (_, _) =>
+                {
+                    if (!_settingsOpen)
                     {
-                        EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
-                    });
+                        return;
+                    }
+
+                    SettingsHost.ClipToBounds = false;
+                    // 왜: 본문 막대는 SettingsHost 바깥에 그려져 설정 위에 남는다 — 설정과 무관한 자리를 가리켜 혼동을 준다
+                    // 계약: Hidden 이라 본문 스크롤 위치는 그대로 보존된다
+                    BodyScroll.Visibility = Visibility.Hidden;
+                };
+                SettingsSlide.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, slideIn);
                 return;
             }
+
+            BodyScroll.Visibility = Visibility.Visible;
 
             var slideOut = new System.Windows.Media.Animation.DoubleAnimation(0, width, TimeSpan.FromMilliseconds(180))
             {
