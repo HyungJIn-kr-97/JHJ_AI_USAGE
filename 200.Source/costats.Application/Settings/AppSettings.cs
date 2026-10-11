@@ -107,6 +107,12 @@ public sealed class AppSettings : IScheduledUpdateSettings
     // 계약: 로컬 이벤트 기록(갱신·오류·연동)을 남길지 — DiagnosticsLog. 어디로도 보내지 않는다
     public bool DiagnosticsEnabled { get; set; } = true;
 
+    // 계약: 이 설치의 장비 ID(GUID) — 처음 실행 때 한 번 만들고 「기본값으로」로도 지우지 않는다(여러 장비의 기록을 합칠 때의 키다)
+    public string DeviceId { get; set; } = string.Empty;
+
+    // 계약: 사용자가 붙인 장비 명칭 — 비어 있으면 PC 이름을 쓴다. 「기본값으로」로 지우지 않는다
+    public string DeviceLabel { get; set; } = string.Empty;
+
     // 계약: 끄면 시작할 때의 자동 적용·받아 두기와 예약 적용이 모두 멈춘다 — 「업데이트 확인」·「이 버전 설치」는 그대로 된다
     // 계약: 팝업의 확대 비율(%) — 폭과 글자가 함께 커진다. 0 은 「자동」(화면 작업영역 높이로 정한다)
     // 왜: 기본값은 100 이다 — 「자동」은 큰 화면에서 1.5배까지 키워 처음 보는 사람에게 너무 크다(2026-10-09)

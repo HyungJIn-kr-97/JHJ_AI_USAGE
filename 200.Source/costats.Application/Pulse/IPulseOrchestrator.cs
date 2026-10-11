@@ -10,8 +10,9 @@ public interface IPulseOrchestrator
 
     /// <summary>
     /// Silently refresh a specific provider (no loading indicator).
+    /// 계약: waitForTurn 이 false 면 다른 갱신이 도는 중일 때 건너뛰고, true 면 그 갱신이 끝나기를 기다렸다가 읽는다.
     /// </summary>
-    Task RefreshProviderAsync(string providerId, CancellationToken cancellationToken);
+    Task RefreshProviderAsync(string providerId, CancellationToken cancellationToken, bool waitForTurn = false);
 
     void UpdateRefreshInterval(TimeSpan interval);
 

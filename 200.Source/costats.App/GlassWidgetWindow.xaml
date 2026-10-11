@@ -72,7 +72,6 @@
         <Geometry x:Key="RefreshIconPath">M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z</Geometry>
 
         <!-- Lucide Loader icon (8 radiating lines) -->
-        <Geometry x:Key="LoaderIconPath">M12,2 L12,6 M16.2,7.8 L19.1,4.9 M18,12 L22,12 M16.2,16.2 L19.1,19.1 M12,18 L12,22 M4.9,19.1 L7.8,16.2 M2,12 L6,12 M4.9,4.9 L7.8,7.8</Geometry>
 
         <!-- Settings icon (gear) -->
         <Geometry x:Key="SettingsIconPath">M19.14,12.94a7.14,7.14,0,0,0,.05-.94,7.14,7.14,0,0,0-.05-.94l2.11-1.65a.5.5,0,0,0,.12-.63l-2-3.46a.5.5,0,0,0-.6-.22l-2.49,1a7.28,7.28,0,0,0-1.63-.94l-.38-2.65A.5.5,0,0,0,13.78,2H10.22a.5.5,0,0,0-.5.42L9.34,5.07a7.28,7.28,0,0,0-1.63.94l-2.49-1a.5.5,0,0,0-.6.22l-2,3.46a.5.5,0,0,0,.12.63L4.85,11.06a7.14,7.14,0,0,0-.05.94,7.14,7.14,0,0,0,.05.94L2.74,14.59a.5.5,0,0,0-.12.63l2,3.46a.5.5,0,0,0,.6.22l2.49-1a7.28,7.28,0,0,0,1.63.94l.38,2.65a.5.5,0,0,0,.5.42h3.56a.5.5,0,0,0,.5-.42l.38-2.65a7.28,7.28,0,0,0,1.63-.94l2.49,1a.5.5,0,0,0,.6-.22l2-3.46a.5.5,0,0,0-.12-.63Zm-7.14,2.6A3.54,3.54,0,1,1,15.54,12,3.54,3.54,0,0,1,12,15.54Z</Geometry>
@@ -942,6 +941,31 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
+
+                    <!-- 계약: 어느 장비가 썼나 — 줄 모양은 프로그램 줄과 같고, 장비 이름이 길어 이름 칸만 넓다 -->
+                    <StackPanel Margin="0,10,0,0" Visibility="{Binding HasDeviceUsages, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <ToggleButton Style="{StaticResource SectionToggle}" Content="{Binding DevicesHeaderText}" HorizontalAlignment="Left" Margin="0,0,0,8"
+                                      IsChecked="{Binding DataContext.IsDevicesExpanded, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
+                        <ItemsControl ItemsSource="{Binding DeviceUsages}"
+                                      Visibility="{Binding DataContext.IsDevicesExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Tooltip}" Background="Transparent">
+                                        <TextBlock Text="{Binding Name}" FontSize="11" Width="112" DockPanel.Dock="Left" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding ShareText}" FontSize="11" Width="32" DockPanel.Dock="Right" TextAlignment="Right"
+                                                   Foreground="{DynamicResource TextFaintBrush}" />
+                                        <TextBlock Text="{Binding TokensText}" FontSize="11" Width="52" DockPanel.Dock="Right" TextAlignment="Right"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding CostText}" FontSize="11" FontWeight="SemiBold" Width="50" DockPanel.Dock="Right"
+                                                   TextAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding Share, Mode=OneWay}" Maximum="1"
+                                                     Height="6" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{Binding Color}" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </StackPanel>
 
             </StackPanel>
@@ -1053,8 +1077,9 @@
                                                 <Trigger Property="IsPressed" Value="True">
                                                     <Setter TargetName="border" Property="Background" Value="{DynamicResource PressedOverlayBrush}" />
                                                 </Trigger>
+                                                <!-- 왜: 갱신 중에는 흐리게 죽이지 않는다 — 강조색 테두리와 도는 표시로 「돌고 있다」를 이 버튼 자리에서 보인다 -->
                                                 <Trigger Property="IsEnabled" Value="False">
-                                                    <Setter TargetName="border" Property="Opacity" Value="0.5" />
+                                                    <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -1062,8 +1087,17 @@
                                 </Setter>
                             </Style>
                         </Button.Style>
-                        <Path Data="{StaticResource RefreshIconPath}" Fill="{DynamicResource TextSecondaryBrush}"
-                              Stretch="Uniform" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Grid>
+                            <Path Data="{StaticResource RefreshIconPath}" Fill="{DynamicResource TextSecondaryBrush}"
+                                  Stretch="Uniform" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Visibility="{Binding IsRefreshing, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}" />
+                            <Path Style="{StaticResource SpinnerPath}" Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Visibility="{Binding IsRefreshing, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                                <Path.RenderTransform>
+                                    <RotateTransform Angle="0" />
+                                </Path.RenderTransform>
+                            </Path>
+                        </Grid>
                     </Button>
                     </Grid>
                     <!-- Description text fills remaining space -->
@@ -1080,43 +1114,6 @@
             </StackPanel>
             </Grid>
 
-            <!-- Loading spinner (top-right corner, non-blocking) -->
-            <Path x:Name="LoadingSpinner"
-                  Data="{StaticResource LoaderIconPath}"
-                  Stroke="{DynamicResource TextMutedBrush}"
-                  StrokeThickness="1.5"
-                  StrokeStartLineCap="Round"
-                  StrokeEndLineCap="Round"
-                  Stretch="Uniform"
-                  Width="14" Height="14"
-                  Visibility="{Binding IsRefreshing, Converter={StaticResource BoolToVisibilityConverter}}"
-                  IsHitTestVisible="False"
-                  HorizontalAlignment="Right" VerticalAlignment="Top"
-                  Margin="0,6,6,0"
-                  RenderTransformOrigin="0.5,0.5">
-                <Path.RenderTransform>
-                    <RotateTransform Angle="0" />
-                </Path.RenderTransform>
-                <Path.Style>
-                    <Style TargetType="Path">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsRefreshing}" Value="True">
-                                <DataTrigger.EnterActions>
-                                    <BeginStoryboard x:Name="SpinStoryboard">
-                                        <Storyboard RepeatBehavior="Forever">
-                                            <DoubleAnimation Storyboard.TargetProperty="(Path.RenderTransform).(RotateTransform.Angle)"
-                                                             From="0" To="360" Duration="0:0:1" />
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </DataTrigger.EnterActions>
-                                <DataTrigger.ExitActions>
-                                    <StopStoryboard BeginStoryboardName="SpinStoryboard" />
-                                </DataTrigger.ExitActions>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Path.Style>
-            </Path>
         </Grid>
     </Border>
         </Window>

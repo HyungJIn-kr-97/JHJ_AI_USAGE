@@ -14,6 +14,28 @@ namespace costats.App.Views
         public SettingsPanel()
         {
             InitializeComponent();
+
+            // 왜: 파일 두 곳만 읽는 판정이라 열 때마다 다시 본다 — gh 로그인을 바꾼 뒤 앱을 다시 띄우지 않아도 된다
+            Loaded += (_, _) => ShareDeployButton.Visibility = _deploy.CanDeploy ? Visibility.Visible : Visibility.Collapsed;
+
+            // 계약: AppLinks 가 빈 문자열을 주는 단추는 숨긴다 — 비공개 앱·winget 미등록 앱이 같은 화면을 쓸 수 있게(030 규격 §4-1)
+            Loaded += (_, _) =>
+            {
+                ShareWingetButton.Visibility = Jhj.Core.App.AppLinks.WingetCommand.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+                ShareLinkButton.Visibility = Jhj.Core.App.AppLinks.SetupFileUrl.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+                ShareDownloadButton.Visibility = ShareLinkButton.Visibility;
+            };
+        }
+
+        private readonly Jhj.Core.App.AppDeploy _deploy = new(UpdateOptions.DefaultRepository);
+
+        // 계약: 계정 확인 → 이력 시작 기록 → 배포 콘솔 순서는 Core 가 지킨다 — 여기서는 결과만 알린다
+        private async void OnShareDeployClick(object sender, RoutedEventArgs e)
+        {
+            ShareDeployButton.IsEnabled = false;
+            var (outcome, detail) = await _deploy.StartAsync();
+            ShareDeployButton.IsEnabled = true;
+            Flash(ShareDeployButton, Jhj.Core.Wpf.Localization.AppDeployText.Describe(outcome, detail));
         }
 
         // 왜: 상태 줄이 없는 머리줄·바닥줄 버튼이라 복사 결과는 툴팁을 잠깐 열어 알린다
@@ -46,16 +68,21 @@ namespace costats.App.Views
         }
 
         private void OnShareLinkClick(object sender, RoutedEventArgs e) =>
-            Flash(ShareLinkButton, CopyText(UpdateOptions.SetupFileUrl, Loc.T("Copied the setup file link")));
+            Flash(ShareLinkButton, CopyText(Jhj.Core.App.AppLinks.SetupFileUrl, Loc.T("Copied the setup file link")));
 
         private void OnShareWingetClick(object sender, RoutedEventArgs e) =>
-            Flash(ShareWingetButton, CopyText(UpdateOptions.WingetCommand, Loc.T("Copied the winget command")));
+            Flash(ShareWingetButton, CopyText(Jhj.Core.App.AppLinks.WingetCommand, Loc.T("Copied the winget command")));
 
-        private void OnShareDownloadClick(object sender, RoutedEventArgs e) =>
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(UpdateOptions.SetupFileUrl) { UseShellExecute = true });
+        private void OnShareDownloadClick(object sender, RoutedEventArgs e)
+        {
+            if (!Jhj.Core.Windows.Shell.ShellOpener.OpenUrl(Jhj.Core.App.AppLinks.SetupFileUrl))
+            {
+                Flash(ShareDownloadButton, Loc.T("Could not open the link."));
+            }
+        }
 
         private void OnAuthorMailClick(object sender, RoutedEventArgs e) =>
-            Flash(AuthorMailText, CopyText("gudwls9730@gmail.com", Loc.T("Copied the author's email address")));
+            Flash(AuthorMailText, CopyText(Jhj.Core.App.JhjApp.Current.AuthorEmail, Loc.T("Copied the author's email address")));
 
         private void OnLinkNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
         {

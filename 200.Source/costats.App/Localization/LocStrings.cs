@@ -135,6 +135,9 @@ internal static class LocStrings
         ["Emails masked · no tokens · attach the file to the issue"] = "메일은 가림 · 토큰 없음 · 저장한 파일을 이슈에 첨부",
         ["Programs · {0} days"] = "프로그램 · {0}일",
         ["Programs · 1 year"] = "프로그램 · 1년",
+        ["Devices · {0} days"] = "장비 · {0}일",
+        ["Devices · 1 year"] = "장비 · 1년",
+        ["Only this PC's records are counted for now."] = "현재 이 PC 기록만 집계",
         ["Agent mode"] = "에이전트 모드",
         ["Unknown program"] = "프로그램 미상",
         ["History without program info (older or extra-account folder)"] = "프로그램 정보 없는 이력 (옛 이력 · 추가 계정 폴더)",
@@ -266,6 +269,11 @@ internal static class LocStrings
         ["Terminal CLI"] = "터미널 CLI",
         ["Link"] = "연동",
         ["Linked"] = "연동됨",
+        ["Device name"] = "장비 명칭",
+        ["Name for this PC in records and statistics. Blank = PC name."] = "기록·통계에 보일 이 PC 의 이름 · 비우면 PC 이름",
+        ["Linking…"] = "연동 중…",
+        ["Loading usage…"] = "사용량 불러오는 중…",
+        ["Refreshing…"] = "새로 고치는 중…",
         ["GitHub personal access token"] = "GitHub 개인 액세스 토큰",
         ["The token is managed in Accounts › Copilot."] = "토큰 관리: 「계정 › Copilot」",
         ["The sign-in is shown in Accounts › Gemini."] = "로그인 상태: 「계정 › Gemini」",
@@ -415,6 +423,19 @@ internal static class LocStrings
     /// <summary>
     /// 코어·인프라 층이 만든 가변 문장 — 원문 형식은 costats.Core/Pulse/UsageFormatter.cs 가 정한다.
     /// </summary>
+    // 계약: ClaudeOAuthUsageFetcher.LastError 의 까닭을 「무엇이 · 어떻게 하면」으로 옮긴다 — 모르는 값은 원문 그대로 보인다
+    private static string LookupReason(string reason) => reason switch
+    {
+        "token expired, Claude CLI not found" => "토큰 만료 · Claude CLI 없음",
+        "token expired, CLI refresh timed out" => "토큰 만료 · CLI 갱신 시간 초과",
+        "token expired, CLI refresh could not start" => "토큰 만료 · CLI 갱신 실행 실패",
+        "token expired, CLI refresh did not renew it" => "토큰 만료 · CLI 갱신 실패(다시 연동 필요)",
+        "HTTP 401" => "HTTP 401 · 토큰 거부(다시 연동 필요)",
+        "HTTP 403" => "HTTP 403 · 권한 없음(다시 연동 필요)",
+        "HTTP 429" => "HTTP 429 · 요청 과다(자동 재시도)",
+        _ => reason.Replace("token expired", "토큰 만료"),
+    };
+
     public static readonly (Regex Pattern, Func<Match, string> Replace)[] KoreanPatterns =
     [
         (new Regex(@"^Resets now$"), _ => "곧 초기화"),
@@ -427,6 +448,8 @@ internal static class LocStrings
         (new Regex(@"^Updated less than a minute ago$"), _ => "1분 이내 갱신"),
         (new Regex(@"^Updated (\d+[mhd]) ago$"), m => $"{Loc.Duration(m.Groups[1].Value)} 전 갱신"),
         (new Regex(@"^No data for (.+)$"), m => $"{m.Groups[1].Value} 데이터 없음"),
+        (new Regex(@"^Usage lookup failed \((.+)\)$"), m => $"사용량 조회 실패 — {LookupReason(m.Groups[1].Value)}"),
+        (new Regex(@"^Cached values, lookup failing \((.+)\)$"), m => $"옛 값 표시 중 — {LookupReason(m.Groups[1].Value)}"),
         (new Regex(@"^Overage: (.+) / (.+)$"), m => $"초과 사용: {m.Groups[1].Value} / {m.Groups[2].Value}"),
         (new Regex(@"^Balance: (.+) remaining$"), m => $"잔액: {m.Groups[1].Value}"),
         (new Regex(@"^(.+) today  ·  (.+) / 30d$"), m => $"오늘 {m.Groups[1].Value}  ·  30일 {m.Groups[2].Value}"),

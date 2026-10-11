@@ -37,7 +37,8 @@ namespace costats.App
             // 왜: 카드는 갱신 때마다 새로 만들어진다 — 연동 상태가 바뀌거나 카드가 바뀔 때마다 진행 칸을 펼칠 카드를 다시 고른다
             settingsViewModel.PropertyChanged += (_, e) =>
             {
-                if (e.PropertyName is nameof(SettingsViewModel.LinkingId) or nameof(SettingsViewModel.ShowLinkStrip))
+                if (e.PropertyName is nameof(SettingsViewModel.LinkingId) or nameof(SettingsViewModel.ShowLinkStrip)
+                    or nameof(SettingsViewModel.LoginInProgress) or nameof(SettingsViewModel.LinkLoadingUsage))
                 {
                     ApplyLinking();
                 }
@@ -85,6 +86,7 @@ namespace costats.App
             foreach (var card in cards)
             {
                 card.IsLinking = _settingsViewModel.IsLinkingFor(card.ProviderId);
+                card.LinkBusyText = _settingsViewModel.LinkBusyTextFor(card.ProviderId);
             }
         }
 
@@ -140,7 +142,8 @@ namespace costats.App
                 nameof(PulseViewModel.IsChartExpanded) or
                 nameof(PulseViewModel.IsModelsExpanded) or
                 nameof(PulseViewModel.IsTokenTypesExpanded) or
-                nameof(PulseViewModel.IsProgramsExpanded))
+                nameof(PulseViewModel.IsProgramsExpanded) or
+                nameof(PulseViewModel.IsDevicesExpanded))
             {
                 UpdateWindowHeight();
             }

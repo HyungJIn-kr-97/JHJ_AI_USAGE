@@ -56,6 +56,12 @@ namespace costats.App
                 Name = "JHJ_AI-Usage-Monitor",
                 DisplayName = "JHJ AI 통합 사용량 모니터",
                 DefaultPalette = JhjPalettes.Bull,
+                // 계약: 공개 좌표는 UpdateOptions 상수 한 곳에서 온다 — 「앱 공유하기」·바닥 링크는 Core AppLinks 가 여기서 주소를 짓는다(030 규격 §4-1)
+                Repository = UpdateOptions.DefaultRepository,
+                SetupAssetName = UpdateOptions.SetupAssetName,
+                WingetId = UpdateOptions.WingetId,
+                PackagePrefix = UpdateOptions.PackagePrefix,
+                AuthorEmail = "gudwls9730@gmail.com",
                 // 계약: 오래된 것부터 — 두 세대 전에 머문 PC 도 한 번에 지금 이름까지 온다
                 LegacyNames = ["costats-jhj", "AiUsageMonitor", "AI-Usage-Monitor_JHJ"],
                 LegacyExecutableNames = ["AI-Usage-Monitor_JHJ.exe", "AiUsageMonitor.exe"],

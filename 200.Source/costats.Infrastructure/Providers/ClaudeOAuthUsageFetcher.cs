@@ -34,6 +34,9 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
     private DateTimeOffset _memoryCacheWrittenAt = DateTimeOffset.MinValue;
     private DateTimeOffset _refreshBlockedUntil = DateTimeOffset.MinValue;
 
+    // 계약: 마지막 위임 갱신이 왜 토큰을 못 살렸나(「CLI refresh timed out」 등) — 정상 종료했으면 null
+    private string? _refreshNote;
+
     public ClaudeOAuthUsageFetcher()
     {
         _httpClient = new HttpClient
@@ -58,6 +61,12 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
     // 계약: 마지막 조회가 실패한 까닭(「HTTP 403」 등, 토큰 값은 담지 않는다) — 화면 상태 줄에 그대로 보인다
     public string? LastError { get; private set; }
 
+    // 계약: 마지막 FetchAsync 가 조회에 실패해 옛 캐시 값을 냈나 — 화면은 값 옆에 「캐시 값」과 LastError 를 함께 보인다
+    public bool ServedFromCache { get; private set; }
+
+    /// <summary>캐시 값을 내는 중이면 그 사실과 까닭을 한 문장으로 — 방금 받은 값이면 null.</summary>
+    public string? StaleSummary => ServedFromCache && LastError is { } error ? $"Cached values, lookup failing ({error})" : null;
+
     public async Task<ClaudeOAuthUsageResult?> FetchAsync(CancellationToken cancellationToken)
     {
         // 1. Load credentials & detect changes
@@ -69,6 +78,7 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
         HasToken = credentials?.AccessToken is not null;
         if (!HasToken)
         {
+            ServedFromCache = false;
             _memoryCache = null;
             return null;
         }
@@ -93,12 +103,18 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
                 _consecutiveFailures = 0;
                 _blockedUntil = DateTimeOffset.MinValue;
             }
+
+            // 왜: 만료된 토큰으로는 HTTP 를 보내지 않는다 — 까닭을 여기서 남기지 않으면 화면이 이유 없는 「연동 필요」가 된다
+            if (credentials is not null && IsTokenExpired(credentials))
+            {
+                LastError = $"token expired, {_refreshNote ?? "CLI refresh did not renew it"}";
+            }
         }
 
         // 3. Check failure gate
         if (DateTimeOffset.UtcNow < _blockedUntil)
         {
-            return GetCachedResult(account);
+            return ServeCache(account);
         }
 
         // 4. Attempt fresh fetch
@@ -110,6 +126,7 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
             _blockedUntil = DateTimeOffset.MinValue;
             SetMemoryCache(fresh);
             _ = WriteDiskCacheAsync(fresh);
+            ServedFromCache = false;
             return fresh;
         }
 
@@ -117,7 +134,14 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
         _consecutiveFailures++;
         _blockedUntil = DateTimeOffset.UtcNow + ComputeBackoff(_consecutiveFailures);
 
-        return GetCachedResult(account);
+        return ServeCache(account);
+    }
+
+    private ClaudeOAuthUsageResult? ServeCache(string? account)
+    {
+        var cached = GetCachedResult(account);
+        ServedFromCache = cached is not null;
+        return cached;
     }
 
     //  HTTP
@@ -177,6 +201,7 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
             var claudePath = FindClaudeCli();
             if (claudePath is null)
             {
+                _refreshNote = "Claude CLI not found";
                 _refreshBlockedUntil = DateTimeOffset.UtcNow + RefreshCooldownFailure;
                 return;
             }
@@ -212,10 +237,12 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
             try
             {
                 await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+                _refreshNote = process.ExitCode == 0 ? null : $"CLI exit {process.ExitCode}";
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 // Timed out — kill the process but don't propagate
+                _refreshNote = "CLI refresh timed out";
                 try { process.Kill(); } catch { /* best effort */ }
             }
 
@@ -227,6 +254,7 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
         }
         catch
         {
+            _refreshNote = "CLI refresh could not start";
             _refreshBlockedUntil = DateTimeOffset.UtcNow + RefreshCooldownFailure;
         }
     }

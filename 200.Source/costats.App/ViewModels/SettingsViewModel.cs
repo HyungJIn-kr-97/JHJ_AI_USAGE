@@ -68,6 +68,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         valueGradeBoundsText = string.Join(", ", settings.ValueGradeBounds.Select(b => b.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)));
         diagnosticsEnabled = settings.DiagnosticsEnabled;
         DiagnosticsLog.Enabled = settings.DiagnosticsEnabled;
+        costats.App.Services.DeviceInfo.Configure(settings);
+        deviceLabel = settings.DeviceLabel;
+        if (costats.App.Services.DeviceInfo.TakeCreated())
+        {
+            _ = SaveSettingsAsync();
+        }
+
+        ApplyDeviceToRecords();
+        var device = costats.App.Services.DeviceInfo.Current;
+        DiagnosticsLog.Record("device", $"{device.Id} · {device.Name} · 명칭 {device.Label ?? "-"} · {device.Os} · {device.Arch} · 앱 v{costats.App.Services.DisplayDataStore.Version}");
         // 왜: 이 VM 이 HotkeyService 보다 먼저 만들어진다 — 설정값으로 줄을 세운다
         RebuildHotkeySlots();
         pinTrayIcon = settings.PinTrayIcon;
@@ -223,7 +233,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 entry.From.ToLocalTime().ToString("MM-dd HH:mm"),
                 Loc.T(ShortProgramLabels.GetValueOrDefault(entry.Program, entry.Program)),
                 account.Split(" · ")[0],
-                $"{entry.From.ToLocalTime():yyyy-MM-dd HH:mm} · {account}");
+                $"{entry.From.ToLocalTime():yyyy-MM-dd HH:mm} · {account}" + (entry.DeviceName is { Length: > 0 } where ? $" · {where}" : string.Empty));
         }).ToList();
     }
 
@@ -356,8 +366,13 @@ public sealed partial class SettingsViewModel : ObservableObject
             AccountMeta.DisplayNameOf(_settings, id), AccountMeta.TypeOf(_settings, id), OnRowEdited, AccountMeta.FeeOf(_settings, id));
     }
 
-    private static bool HasClaudeToken(string? configDir) => File.Exists(Path.Combine(
-        configDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude"), ".credentials.json"));
+    private static bool HasClaudeToken(string? configDir) => File.Exists(ClaudeTokenFile(configDir));
+
+    private static string ClaudeTokenFile(string? configDir) => Path.Combine(
+        configDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude"), ".credentials.json");
+
+    // 계약: 토큰 파일이 다시 쓰였는지 가리는 표식 — 값은 읽지 않고 수정 시각만 본다(파일이 없으면 0)
+    private static long TokenStamp(string path) => File.Exists(path) ? File.GetLastWriteTimeUtc(path).Ticks : 0;
 
     // 계약: AccountIdentityReader 의 두 실패 문구 말고는 로그인된 것으로 본다
     private static bool IsSignedIn(string account) => account is not ("Not signed in" or "Unable to read account");
@@ -493,11 +508,24 @@ public sealed partial class SettingsViewModel : ObservableObject
     private string linkingId = string.Empty;
 
     /// <summary>카드의 providerId 가 지금 연동 중인 자리인가 — "claude" 와 "claude:default" 는 같은 자리다.</summary>
-    public bool IsLinkingFor(string providerId)
+    public bool IsLinkingFor(string providerId) => ShowLinkStrip && IsLinkSlot(providerId);
+
+    private bool IsLinkSlot(string providerId)
     {
         static string Norm(string id) => id.Equals("claude", StringComparison.OrdinalIgnoreCase) ? ClaudeMainId : id;
-        return ShowLinkStrip && LinkingId.Length > 0 && Norm(providerId).Equals(Norm(LinkingId), StringComparison.OrdinalIgnoreCase);
+        return LinkingId.Length > 0 && Norm(providerId).Equals(Norm(LinkingId), StringComparison.OrdinalIgnoreCase);
     }
+
+    // 계약: 연동 로그인은 끝났고 그 계정의 사용량을 읽는 중 — 값이 뜰 때까지 카드를 「불러오는 중」으로 덮는다
+    [ObservableProperty]
+    private bool linkLoadingUsage;
+
+    /// <summary>이 카드를 덮을 진행 문구 — 로그인 중이면 「연동 중」, 연동 뒤 첫 조회 중이면 「불러오는 중」, 아니면 빈 값.</summary>
+    public string LinkBusyTextFor(string providerId) =>
+        !IsLinkSlot(providerId) ? string.Empty
+        : LoginInProgress ? Loc.T("Linking…")
+        : LinkLoadingUsage ? Loc.T("Loading usage…")
+        : string.Empty;
 
     public void LinkAccount(string providerId)
     {
@@ -522,24 +550,33 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         LinkingId = id;
         var before = AccountMeta.MailOf(id);
+        var tokenFile = codex ? CodexTokenFile(dir) : ClaudeTokenFile(dir);
+        var stampBefore = TokenStamp(tokenFile);
         _ = RunLoginAsync(label, exe, codex ? "login" : "auth login",
             dir is null ? null : (codex ? "CODEX_HOME" : "CLAUDE_CONFIG_DIR", dir),
             () => codex ? AccountIdentityReader.ReadCodex(dir) : AccountIdentityReader.ReadClaude(dir),
             acceptsCode: !codex,
-            verify: account => VerifyLink(id, label, account, codex ? HasCodexToken(dir) : HasClaudeToken(dir), before));
+            verify: account => VerifyLink(id, label, account, File.Exists(tokenFile), TokenStamp(tokenFile) != stampBefore, before));
     }
 
-    private static bool HasCodexToken(string? codexHome) => File.Exists(Path.Combine(
+    private static string CodexTokenFile(string? codexHome) => Path.Combine(
         codexHome ?? Environment.GetEnvironmentVariable("CODEX_HOME")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex"), "auth.json"));
+        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex"), "auth.json");
 
-    // 계약: 연동 확인 세 가지 — 실제 연동된 메일 · 토큰 저장 · 다른 자리와 같은 메일인가. 통과하면 true(자리는 실패해도 지우지 않는다)
-    private bool VerifyLink(string id, string label, string account, bool hasToken, string? before)
+    // 계약: 연동 확인 네 가지 — 실제 연동된 메일 · 토큰 저장 · 이번 로그인이 토큰을 새로 썼나 · 다른 자리와 같은 메일인가. 통과하면 true(자리는 실패해도 지우지 않는다)
+    private bool VerifyLink(string id, string label, string account, bool hasToken, bool tokenRenewed, string? before)
     {
         var mail = account.Split(" · ")[0];
         if (!hasToken)
         {
             AccountsMessage = Loc.T("Signed in as {0}, but no token was saved. Link again.", mail);
+            return false;
+        }
+
+        // 함정: 이미 연동돼 있던 자리는 옛 토큰 파일과 옛 메일이 남아 있다 — 취소·실패한 로그인도 「파일이 있다」만 보면 성공으로 읽힌다
+        if (!tokenRenewed)
+        {
+            AccountsMessage = Loc.T("Linking \"{0}\" was not completed. Press Link to try again.", label);
             return false;
         }
 
@@ -798,7 +835,16 @@ public sealed partial class SettingsViewModel : ObservableObject
     // 계약: 연동한 계정 하나를 먼저 읽어 한도를 띄우고, 이어서 전체를 갱신한다(다른 갱신이 도는 중이면 앞 단계는 건너뛴다)
     private async Task RefreshAfterLinkAsync(string providerId)
     {
-        await _pulseOrchestrator.RefreshProviderAsync(providerId, CancellationToken.None);
+        LinkLoadingUsage = true;
+        try
+        {
+            await _pulseOrchestrator.RefreshProviderAsync(providerId, CancellationToken.None, waitForTurn: true);
+        }
+        finally
+        {
+            LinkLoadingUsage = false;
+        }
+
         await _pulseOrchestrator.RefreshOnceAsync(RefreshTrigger.Manual, CancellationToken.None);
     }
 
@@ -1101,6 +1147,27 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private int popupScalePercent;
+
+    // 계약: 사용자가 붙이는 이 장비의 명칭 — 기록·통계에서 PC 이름 대신 보인다. 비우면 PC 이름
+    [ObservableProperty]
+    private string deviceLabel = string.Empty;
+
+    /// <summary>명칭 칸 옆에 보일 안내 — 비웠을 때 쓰일 PC 이름.</summary>
+    public string DeviceNameHint => Environment.MachineName;
+
+    partial void OnDeviceLabelChanged(string value)
+    {
+        _settings.DeviceLabel = value.Trim();
+        ApplyDeviceToRecords();
+        _ = SaveSettingsAsync();
+    }
+
+    // 계약: 연동 이력은 인프라 층이 쓴다 — 거기서는 설정을 못 보므로 장비 ID·이름을 여기서 꽂아 준다
+    private static void ApplyDeviceToRecords()
+    {
+        ClaudeProgramLinks.DeviceId = costats.App.Services.DeviceInfo.Current.Id;
+        ClaudeProgramLinks.DeviceName = costats.App.Services.DeviceInfo.DisplayName;
+    }
 
     partial void OnPopupScalePercentChanged(int value)
     {
@@ -1843,7 +1910,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _ = SaveSettingsAsync();
     }
 
-    public string ReleasesUrl => _updateCoordinator?.ReleasesPageUrl ?? "https://github.com/" + UpdateOptions.DefaultRepository + "/releases";
+    public string ReleasesUrl => _updateCoordinator?.ReleasesPageUrl ?? Jhj.Core.App.AppLinks.ReleasesUrl;
 
     /// <returns>읽기에 성공했으면 true</returns>
     private async Task<bool> LoadReleasesAsync(CancellationToken ct)
@@ -1898,13 +1965,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         Process.Start(new ProcessStartInfo(SelectedRelease?.HtmlUrl ?? ReleasesUrl) { UseShellExecute = true });
 
     // 계약: 개선 제안·버그 신고는 저장소의 GitHub Issues 로 받는다 — 양식은 .github/ISSUE_TEMPLATE
-    public string FeedbackUrl => "https://github.com/" + UpdateOptions.DefaultRepository + "/issues/new/choose";
+    public string FeedbackUrl => Jhj.Core.App.AppLinks.NewIssueUrl;
 
     [RelayCommand]
     private void OpenFeedback() =>
         Process.Start(new ProcessStartInfo(FeedbackUrl) { UseShellExecute = true });
 
-    public string RepositoryUrl => "https://github.com/" + UpdateOptions.DefaultRepository;
+    public string RepositoryUrl => Jhj.Core.App.AppLinks.RepositoryUrl;
 
     [RelayCommand]
     private void OpenRepository() =>

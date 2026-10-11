@@ -66,7 +66,8 @@ public static class DisplayDataStore
                     DateTimeOffset.Now,
                     refreshedAt,
                     nextRefreshAt,
-                    accounts);
+                    accounts,
+                    DeviceInfo.Current);
 
                 Directory.CreateDirectory(RootDir);
                 WriteAtomic(SnapshotPath, JsonSerializer.Serialize(snapshot, Json));
@@ -193,7 +194,8 @@ public static class DisplayDataStore
         var dir = Path.Combine(TimelineDir, account.Key);
         Directory.CreateDirectory(dir);
         var line = JsonSerializer.Serialize(
-            new TimelinePoint(SchemaVersion, account.Key, account.ProviderId, account.Point), Line);
+            new TimelinePoint(SchemaVersion, account.Key, account.ProviderId, account.Point,
+                DeviceInfo.Current.Id is { Length: > 0 } deviceId ? deviceId : null), Line);
         File.AppendAllText(Path.Combine(dir, $"{account.Point.CapturedAt.ToLocalTime():yyyy-MM}.jsonl"), line + Environment.NewLine);
         Prune(dir);
     }
@@ -223,7 +225,7 @@ public static class DisplayDataStore
 
     // 함정: AssemblyVersion 은 날짜 자리를 담지 못한다(각 자리 상한 65534) — 빌드 날짜는 InformationalVersion 에만 있다
     // 함정: InformationalVersion 끝에는 '+<git 해시>' 가 붙는다 — 버전만 남긴다
-    private static string Version =>
+    internal static string Version =>
         Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
             ?.Split('+')[0]
         ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0.0";
@@ -233,7 +235,7 @@ public static class DisplayDataStore
 
 public sealed record DisplaySnapshot(
     int SchemaVersion, string App, DateTimeOffset GeneratedAt, DateTimeOffset RefreshedAt,
-    DateTimeOffset? NextRefreshAt, IReadOnlyList<DisplayAccount> Accounts);
+    DateTimeOffset? NextRefreshAt, IReadOnlyList<DisplayAccount> Accounts, DeviceFacts? Device = null);
 
 public sealed record DisplayAccount(
     string Key, string ProviderId, string ProviderKind, AccountFacts Account, PointFacts Point, UsageFacts Usage);
@@ -273,4 +275,5 @@ public sealed record DayModelFacts(
 
 public sealed record ProgramFacts(string Program, decimal CostUsd, long Tokens);
 
-public sealed record TimelinePoint(int SchemaVersion, string Key, string ProviderId, PointFacts Point);
+// 계약: 줄마다 장비 전체를 싣지 않고 ID 만 둔다 — 이름·OS 는 snapshot.json 의 device 가 갖는다
+public sealed record TimelinePoint(int SchemaVersion, string Key, string ProviderId, PointFacts Point, string? DeviceId = null);

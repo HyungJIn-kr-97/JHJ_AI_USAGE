@@ -44,6 +44,11 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
 
     partial void OnIsProgramsExpandedChanged(bool value) => SaveSection("programs", value);
 
+    [ObservableProperty]
+    private bool isDevicesExpanded;
+
+    partial void OnIsDevicesExpandedChanged(bool value) => SaveSection("devices", value);
+
     private void SaveSection(string name, bool expanded)
     {
         _settings.CollapsedSections.Remove(name);
@@ -60,10 +65,13 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
         _orchestrator = orchestrator;
         _settings = settings;
         _settingsStore = settingsStore;
+        // 왜: 첫 갱신이 설정 창보다 먼저 표시 데이터를 쓴다 — 그 전에 장비 ID 가 서 있어야 첫 줄부터 장비가 남는다
+        costats.App.Services.DeviceInfo.Configure(settings);
         isChartExpanded = !settings.CollapsedSections.Contains("chart");
         isModelsExpanded = !settings.CollapsedSections.Contains("models");
         isTokenTypesExpanded = !settings.CollapsedSections.Contains("tokenTypes");
         isProgramsExpanded = !settings.CollapsedSections.Contains("programs");
+        isDevicesExpanded = !settings.CollapsedSections.Contains("devices");
         if (settings.ValueGradeBounds is { Count: 4 } bounds)
         {
             ProviderPulseViewModel.ValueGradeBounds = bounds;
@@ -608,6 +616,10 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                 {
                     DiagnosticsLog.Record("refresh",
                         $"{value.Trigger} · {value.Providers.Count}곳 · " + string.Join(" · ", value.Providers.Select(p => $"{p.Key}={p.Value.Confidence}/{p.Value.Source}")) +
+                        // 왜: 신뢰도·출처만으로는 왜 한도를 못 받았는지 안 남는다 — 실패한 계정의 까닭을 같은 줄에 잇는다
+                        string.Concat(value.Providers
+                            .Where(p => p.Value.StatusSummary is { } s && (s.StartsWith("Usage lookup failed", StringComparison.Ordinal) || s.StartsWith("No Claude token", StringComparison.Ordinal) || s.StartsWith("Cached values", StringComparison.Ordinal)))
+                            .Select(p => $" · {p.Key} 사유 「{p.Value.StatusSummary}」")) +
                         (value.Errors.Count > 0 ? " · 오류 " + string.Join(" / ", value.Errors) : string.Empty));
                 }
 

@@ -232,6 +232,17 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private string programsHeaderText = "Programs";
 
+    // 계약: 장비별 사용량 — 줄 모양은 프로그램 줄과 같다
+    // 함정: 이력에 장비 칸이 없다 — 지금은 기간 합계가 곧 이 PC 한 줄이고, 여러 장비의 기록을 모아야 줄이 는다
+    [ObservableProperty]
+    private IReadOnlyList<ProgramUsageRow> deviceUsages = [];
+
+    [ObservableProperty]
+    private bool hasDeviceUsages;
+
+    [ObservableProperty]
+    private string devicesHeaderText = "Devices";
+
     // 계약: 차트 아래 눈금 — 칸마다 그 구간이 시작하는 날짜(또는 달)를 왼쪽 정렬로 적는다
     [ObservableProperty]
     private IReadOnlyList<string> axisLabels = [];
@@ -283,6 +294,21 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private bool isLinking;
 
+    // 계약: 비어 있지 않으면 카드의 한도 칸을 흐리고 이 문구와 회전 표시로 덮는다 — 「연동」 버튼도 그동안 눌리지 않는다(팝업 창이 넣는다)
+    [ObservableProperty]
+    private string linkBusyText = string.Empty;
+
+    public bool IsLinkBusy => LinkBusyText.Length > 0;
+
+    // 계약: 「연동 필요」인 까닭(토큰 없음·만료·HTTP 오류) — 비어 있으면 카드가 이 줄을 접는다
+    [ObservableProperty]
+    private string linkIssueText = string.Empty;
+
+    [ObservableProperty]
+    private System.Windows.Media.Brush linkIssueBrush = System.Windows.Media.Brushes.Transparent;
+
+    partial void OnLinkBusyTextChanged(string value) => OnPropertyChanged(nameof(IsLinkBusy));
+
     // 계약: 설정 「계정」에서 정한 유형(회사·개인 등)과 연동된 메일 — 카드 이름 옆·아래에 보인다
     [ObservableProperty]
     private string accountType = string.Empty;
@@ -310,6 +336,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
 
     private static readonly System.Windows.Media.Brush LinkedBrush = FrozenBrush("#10B981");
     private static readonly System.Windows.Media.Brush NeedsLinkBrush = FrozenBrush("#EF4444");
+    private static readonly System.Windows.Media.Brush StaleBrush = FrozenBrush("#F59E0B");
 
     private static System.Windows.Media.Brush FrozenBrush(string hex)
     {
@@ -400,10 +427,15 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
 
         // 왜: 아래 문장들은 코어·인프라 층이 영어로 만들어 준다 — 화면에 나가기 직전에 한 번에 옮긴다
         // 왜: 「방금 갱신」은 읽은 순간의 말이라 열어 둔 사이 낡는다 — 갱신 시각을 함께 적어 언제 값인지 알게 한다
-        var updatedAt = vm.StatusSummary.StartsWith("Updated ", StringComparison.Ordinal)
+        // 함정: 조회가 실패해도 캐시가 최대 6시간 값을 낸다 — 그동안은 「연동됨」으로 보이므로 옛 값이라는 것과 그 값의 시각을 따로 알린다
+        var stale = vm.StatusSummary.StartsWith("Cached values", StringComparison.Ordinal);
+        var updatedAt = stale || vm.StatusSummary.StartsWith("Updated ", StringComparison.Ordinal)
             ? $" · {LocalStamp(reading.CapturedAt)}"
             : string.Empty;
         vm.StatusSummary = Loc.Tr(vm.StatusSummary) + updatedAt;
+        // 계약: 「연동 필요」 카드는 끊긴 까닭을, 옛 값을 보이는 카드는 그 사실을 한 줄로 보인다 — 「… 갱신」 꼴은 까닭이 아니라 뺀다
+        vm.LinkIssueText = stale || (vm.NeedsLink && updatedAt.Length == 0) ? vm.StatusSummary : string.Empty;
+        vm.LinkIssueBrush = stale ? StaleBrush : NeedsLinkBrush;
         vm.SessionUsageLabel = Loc.Tr(vm.SessionUsageLabel);
         vm.WeekUsageLabel = Loc.Tr(vm.WeekUsageLabel);
         vm.SessionResetText = Loc.Tr(vm.SessionResetText);
@@ -650,10 +682,24 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         // 계약: 요약 두 줄(최근 N일 · 일 평균)은 차트·모델·토큰 유형과 같은 기간·같은 이력으로 센다
         vm.WindowLabelText = RangeDays == 365 ? Loc.T("Last 1 year:") : Loc.T("Last {0} days:", RangeDays);
         vm.HasSubscription = false;
+        vm.DevicesHeaderText = RangeDays == 365 ? Loc.T("Devices · 1 year") : Loc.T("Devices · {0} days", RangeDays);
+        vm.HasDeviceUsages = vm.HasCostData;
         if (vm.HasCostData)
         {
             var rangeCost = entries.Sum(e => e.Cost);
             var rangeTokens = entries.Sum(e => e.Tokens);
+            var device = costats.App.Services.DeviceInfo.Current;
+            vm.DeviceUsages =
+            [
+                new ProgramUsageRow(
+                    device.Label ?? device.Name,
+                    rangeCost > 0 ? UsageFormatter.FormatCurrency(rangeCost) : "--",
+                    rangeTokens > 0 ? UsageFormatter.FormatTokenCount(rangeTokens) : "--",
+                    rangeCost > 0 ? "100%" : string.Empty,
+                    rangeCost > 0 ? 1 : 0,
+                    ProgramColors[0],
+                    $"{device.Name} · {device.Os}\n{Loc.T("Only this PC's records are counted for now.")}")
+            ];
             vm.MonthCostText = UsageFormatter.FormatCurrency(rangeCost);
             vm.MonthTokensText = UsageFormatter.FormatTokenCount(rangeTokens);
             vm.AvgCostText = UsageFormatter.FormatCurrency(rangeCost / RangeDays);

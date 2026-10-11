@@ -13,7 +13,14 @@ namespace costats.Infrastructure.Providers;
 public static class ClaudeProgramLinks
 {
     /// <param name="From">이 계정으로 바뀐 시각(UTC) — 다음 줄이 나올 때까지 유효하다.</param>
-    public sealed record Entry(string Program, string Account, DateTimeOffset From);
+    /// <param name="DeviceId">이 줄을 남긴 장비의 ID — 장비 정보가 생기기 전의 옛 줄은 null.</param>
+    /// <param name="DeviceName">그때의 장비 명칭(사용자 지정, 없으면 PC 이름).</param>
+    public sealed record Entry(string Program, string Account, DateTimeOffset From, string? DeviceId = null, string? DeviceName = null);
+
+    // 계약: 앱 층이 시작할 때 꽂는다 — 비어 있으면 줄에 장비를 남기지 않는다
+    public static string? DeviceId { get; set; }
+
+    public static string? DeviceName { get; set; }
 
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JHJ_AI-Usage-Monitor", "program-links.json");
@@ -70,7 +77,8 @@ public static class ClaudeProgramLinks
                 return;
             }
 
-            _entries!.Add(new Entry(program, account, at.ToUniversalTime()));
+            _entries!.Add(new Entry(program, account, at.ToUniversalTime(),
+                string.IsNullOrEmpty(DeviceId) ? null : DeviceId, string.IsNullOrEmpty(DeviceName) ? null : DeviceName));
             if (_entries.Count > MaxEntries)
             {
                 _entries.RemoveRange(0, _entries.Count - MaxEntries);

@@ -39,6 +39,7 @@ public static class DiagnosticsReport
         sb.AppendLine();
         sb.AppendLine($"- 생성: {DateTime.Now:yyyy-MM-dd HH:mm:ss} · 앱 v{version}");
         sb.AppendLine($"- OS: {Environment.OSVersion.VersionString} · {RuntimeInformation.OSArchitecture} · .NET {Environment.Version} · {System.Globalization.CultureInfo.CurrentUICulture.Name}");
+        sb.AppendLine($"- 장비: {DeviceInfo.Current.Name} · 명칭 {DeviceInfo.Current.Label ?? "-"} · ID {DeviceInfo.Current.Id}");
         sb.AppendLine($"- 실행 위치: {Mask(Environment.ProcessPath ?? "?")}");
         sb.AppendLine($"- 동의: {DiagnosticsConsent.GivenText ?? "없음"}");
         sb.AppendLine();

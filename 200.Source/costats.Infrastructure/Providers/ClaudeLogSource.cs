@@ -106,7 +106,7 @@ public sealed class ClaudeLogSource : ISignalSource
 
         var planText = FormatPlanText(oauthResult?.SubscriptionType);
         var statusSummary = oauthResult is not null
-            ? $"Updated {FormatRelativeTime(oauthResult.FetchedAt, now)}"
+            ? _oauthFetcher.StaleSummary ?? $"Updated {FormatRelativeTime(oauthResult.FetchedAt, now)}"
             : !_oauthFetcher.HasToken
                 ? "No Claude token on this PC — sign in from Settings › Accounts"
                 : _oauthFetcher.LastError is { } error

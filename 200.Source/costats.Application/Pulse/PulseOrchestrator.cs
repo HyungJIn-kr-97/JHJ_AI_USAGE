@@ -128,10 +128,11 @@ public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
         }
     }
 
-    public async Task RefreshProviderAsync(string providerId, CancellationToken cancellationToken)
+    public async Task RefreshProviderAsync(string providerId, CancellationToken cancellationToken, bool waitForTurn = false)
     {
         // Silent refresh - don't wait if another refresh is in progress
-        if (!await _refreshGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        // 왜: 연동 직후에는 기다린다 — 건너뛰면 로그인 전에 읽힌 옛 상태가 카드에 수십 초 남는다
+        if (!await _refreshGate.WaitAsync(waitForTurn ? Timeout.Infinite : 0, cancellationToken).ConfigureAwait(false))
         {
             _logger.LogDebug("Skipping silent refresh for {ProviderId} - refresh already in progress", providerId);
             return;

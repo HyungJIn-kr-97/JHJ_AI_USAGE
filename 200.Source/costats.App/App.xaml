@@ -14,6 +14,34 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Geometry x:Key="LoaderIconPath">M12,2 L12,6 M16.2,7.8 L19.1,4.9 M18,12 L22,12 M16.2,16.2 L19.1,19.1 M12,18 L12,22 M4.9,19.1 L7.8,16.2 M2,12 L6,12 M4.9,4.9 L7.8,7.8</Geometry>
+        <!-- 계약: 보이는 동안 도는 로딩 표시 — 새로 고침 버튼·요약 띠·계정 카드가 함께 쓴다 -->
+        <!-- 함정: 스타일로 넣은 변환은 얼어 있어 못 돌린다 — 쓰는 쪽이 RenderTransform 에 RotateTransform 을 직접 둔다 -->
+        <Style x:Key="SpinnerPath" TargetType="Path">
+            <Setter Property="Data" Value="{StaticResource LoaderIconPath}" />
+            <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="StrokeThickness" Value="2" />
+            <Setter Property="StrokeStartLineCap" Value="Round" />
+            <Setter Property="StrokeEndLineCap" Value="Round" />
+            <Setter Property="Stretch" Value="Uniform" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Style.Triggers>
+                <Trigger Property="IsVisible" Value="True">
+                    <Trigger.EnterActions>
+                        <BeginStoryboard x:Name="SpinnerSpin">
+                            <Storyboard RepeatBehavior="Forever">
+                                <DoubleAnimation Storyboard.TargetProperty="(Path.RenderTransform).(RotateTransform.Angle)"
+                                                 From="0" To="360" Duration="0:0:1" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.EnterActions>
+                    <Trigger.ExitActions>
+                        <StopStoryboard BeginStoryboardName="SpinnerSpin" />
+                    </Trigger.ExitActions>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         <!-- 계약: 팝업·전체 카드의 「연동」 버튼 — 강조색 테두리의 작은 알약 -->
         <ControlTemplate x:Key="LinkPillButton" TargetType="Button">
             <Border x:Name="pill" CornerRadius="4" Padding="8,2" BorderThickness="1" BorderBrush="{DynamicResource AccentBrush}"
