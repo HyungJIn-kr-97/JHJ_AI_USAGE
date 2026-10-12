@@ -25,6 +25,8 @@ namespace costats.App.Services
         private readonly TaskbarPositionService _taskbarPosition;
         private readonly AppSettings _settings;
 
+        public Views.UsageMiniWidgetWindow? MiniWidget { get; set; }
+
         public TrayHost(
             PulseViewModel viewModel,
             GlassWidgetWindow widgetWindow,
@@ -89,6 +91,12 @@ namespace costats.App.Services
             var settingsItem = new MenuItem { Header = Loc.T("Settings...") };
             settingsItem.Click += (_, _) => ShowSettings();
 
+            // 계약: 미니 위젯 켬/끔 — 창은 DI 싱글턴이라 App 에서 받아 둔 것을 쓴다
+            var miniItem = new MenuItem { Header = Loc.T("Mini widget") };
+            miniItem.Click += (_, _) => ToggleMiniWidget();
+            miniItem.IsChecked = MiniWidget?.IsVisible ?? false;
+            miniItem.IsCheckable = true;
+
             // 왜: 창을 끌다 보면 화면 밖이나 다른 모니터로 가 버린다 — 띄우지 않고도 트레이에서 되돌린다
             var resetPositionItem = new MenuItem { Header = Loc.T("Move to default position") };
             resetPositionItem.Click += (_, _) => ShowWidget();
@@ -103,6 +111,7 @@ namespace costats.App.Services
             menu.Items.Add(refreshItem);
             menu.Items.Add(new Separator());
             menu.Items.Add(resetPositionItem);
+            menu.Items.Add(miniItem);
             menu.Items.Add(settingsItem);
             menu.Items.Add(resetSettingsItem);
             menu.Items.Add(new Separator());
@@ -129,6 +138,13 @@ namespace costats.App.Services
             _taskbarIcon.ContextMenu = BuildContextMenu();
             TrayPinService.ApplyAfterIconShown(_settings.PinTrayIcon);
             ShowWidget();
+        }
+
+        /// <summary>미니 위젯 켬/끔 — 트레이 메뉴와 전역 단축키(Ctrl+Alt+Shift+2)가 부른다. 메뉴의 체크 표시를 함께 맞춘다.</summary>
+        public void ToggleMiniWidget()
+        {
+            MiniWidget?.Toggle();
+            _taskbarIcon.ContextMenu = BuildContextMenu();
         }
 
         /// <summary>트레이 풍선 알림 — 실패해도 앱 동작에는 영향이 없다.</summary>

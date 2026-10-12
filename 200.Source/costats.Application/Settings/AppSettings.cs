@@ -19,6 +19,9 @@ public sealed class AppSettings : IScheduledUpdateSettings
     // 왜: 백그라운드가 주기적으로 갱신하므로 팝업을 열 때마다 다시 조회하는 것은 기본으로 끈다
     public bool RefreshOnOpen { get; set; } = false;
 
+    // 계약: 팝업 고정 — 켜면 바깥을 눌러도·포커스를 잃어도 닫히지 않는다. 기본은 꺼짐
+    public bool PopupPinned { get; set; }
+
     // 계약: 켜면 트레이 아이콘을 숨겨진 아이콘(^) 밖 작업 표시줄에 늘 둔다 — 한 번 클릭으로 팝업을 열 수 있게
     public bool PinTrayIcon { get; set; } = true;
 
@@ -110,6 +113,43 @@ public sealed class AppSettings : IScheduledUpdateSettings
     // 계약: 켜면 적용 1분 전에 트레이 알림을 낸다 — 그 1분 안에 자동 업데이트를 끄면 적용하지 않는다
     public bool AutoUpdateNotify { get; set; } = true;
 
+    // 계약: 사용률 임계 알림 묶음 — 설정 「사용률 알림」 탭. 판정 규칙은 Alerts/UsageAlertEvaluator.cs
+    public bool UsageAlertEnabled { get; set; } = true;
+
+    // 계약: 알림 단계(%) 오름차순 — 사용률이 한 단계를 처음 넘을 때 한 번만 알린다. 창이 초기화되면 다시 센다
+    public List<int> UsageAlertSteps { get; set; } = [80, 85, 90, 95, 98, 99, 100];
+
+    /// <summary>"toast" | "balloon" | "both". toast 는 화면 우측 작은 창, balloon 은 Windows 알림 센터다.</summary>
+    public string UsageAlertStyle { get; set; } = "toast";
+
+    // 계약: 토스트가 떠 있는 시간(초) — 마우스를 올리면 멈춘다. 기본 3초는 2026-10-12 사용자 지정
+    public int UsageAlertToastSeconds { get; set; } = 3;
+
+    /// <summary>"bottom-right" | "top-right" | "bottom-left" | "top-left" — 토스트가 뜨는 작업 영역의 모서리. 기본은 작업 표시줄 쪽 우측 아래.</summary>
+    public string UsageAlertPosition { get; set; } = "bottom-right";
+
+    // 계약: 미니 위젯 — 사용률 막대만 작게 띄워 두는 창. Account 는 providerId, null 은 전체 계정. 위치는 끌어 놓은 자리(null 은 화면 우측 위)
+    public bool MiniWidgetVisible { get; set; }
+    public bool MiniWidgetPinned { get; set; } = true;
+    public string? MiniWidgetAccount { get; set; }
+    public double? MiniWidgetLeft { get; set; }
+    public double? MiniWidgetTop { get; set; }
+
+    // 계약: 미니 위젯 켬/끔 전역 단축키 — 팝업 단축키(Ctrl+Alt+2)에 Shift 를 더한 것. 비우면 등록하지 않는다
+    public const string DefaultMiniWidgetHotkey = "Ctrl+Alt+Shift+2";
+    public string MiniWidgetHotkey { get; set; } = DefaultMiniWidgetHotkey;
+
+    // 계약: 유형별 켜고 끄기 — 세션(5시간) · 주간 · 모델별 주간(Fable 등)
+    public bool UsageAlertSession { get; set; } = true;
+    public bool UsageAlertWeekly { get; set; } = true;
+    public bool UsageAlertModelWeek { get; set; } = true;
+
+    // 계약: 켜면 알림에 소진 예상·권장 모델 한 줄을 붙인다
+    public bool UsageAlertRecommend { get; set; } = true;
+
+    // 계약: 세션 초기화까지 이 분 이하로 남았으면 사용률이 높아도 고토큰 모델을 말리지 않는다
+    public int UsageAlertRelaxMinutes { get; set; } = 30;
+
     /// <summary>이 묶음의 설정만 기본값으로 되돌린다. 계정 관련 값은 건드리지 않는다.</summary>
     // 함정: 새 설정을 더하면 여기에도 적어야 한다 — 빠뜨리면 「기본값으로」가 그 칸만 조용히 남긴다
     public void ResetToDefaults(SettingsGroup group)
@@ -124,6 +164,7 @@ public sealed class AppSettings : IScheduledUpdateSettings
             StartAtLogin = d.StartAtLogin;
             RefreshOnOpen = d.RefreshOnOpen;
             PinTrayIcon = d.PinTrayIcon;
+            PopupPinned = d.PopupPinned;
             MulticcEnabled = d.MulticcEnabled;
             PopupScalePercent = d.PopupScalePercent;
             ValueGradeBounds = [.. d.ValueGradeBounds];
@@ -146,6 +187,25 @@ public sealed class AppSettings : IScheduledUpdateSettings
             TrayIconStyle = d.TrayIconStyle;
         }
 
+        if (group is SettingsGroup.Alerts or SettingsGroup.All)
+        {
+            UsageAlertEnabled = d.UsageAlertEnabled;
+            UsageAlertSteps = [.. d.UsageAlertSteps];
+            UsageAlertStyle = d.UsageAlertStyle;
+            UsageAlertToastSeconds = d.UsageAlertToastSeconds;
+            UsageAlertPosition = d.UsageAlertPosition;
+            UsageAlertSession = d.UsageAlertSession;
+            UsageAlertWeekly = d.UsageAlertWeekly;
+            UsageAlertModelWeek = d.UsageAlertModelWeek;
+            UsageAlertRecommend = d.UsageAlertRecommend;
+            UsageAlertRelaxMinutes = d.UsageAlertRelaxMinutes;
+            MiniWidgetPinned = d.MiniWidgetPinned;
+            MiniWidgetAccount = d.MiniWidgetAccount;
+            MiniWidgetLeft = d.MiniWidgetLeft;
+            MiniWidgetTop = d.MiniWidgetTop;
+            MiniWidgetHotkey = d.MiniWidgetHotkey;
+        }
+
         if (group is SettingsGroup.All)
         {
             CopilotEnabled = d.CopilotEnabled;
@@ -163,6 +223,7 @@ public enum SettingsGroup
     General,
     Display,
     Icon,
+    Alerts,
     All
 }
 

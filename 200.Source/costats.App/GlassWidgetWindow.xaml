@@ -133,6 +133,9 @@
                 </Button>
 
                 <!-- 계약: 설정이 본문에 끼워져 있는 동안 계정 자리 대신 보인다 — 누르면 설정이 닫힌다 -->
+                <!-- 계약: 팝업 고정 — 켜면 바깥 클릭·포커스 상실로 닫히지 않는다(AppSettings.PopupPinned). 모양은 App.xaml PinToggle -->
+                <ToggleButton x:Name="PinToggle" Style="{StaticResource PinToggle}" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="6,0,0,0"
+                              Click="OnPinToggleClick" ToolTip="{loc:Tr 'Pin — stays open when you click elsewhere'}" />
                 <Button x:Name="SettingsTitleChip" DockPanel.Dock="Right" VerticalAlignment="Center" Cursor="Hand" Visibility="Collapsed"
                         Click="OnSettingsClick" FocusVisualStyle="{x:Null}" ToolTip="{loc:Tr 'Close settings'}">
                     <!-- 왜: 테두리 알약은 계정 드롭다운·창 닫기 ✕ 와 겹쳐 보여 이질적이었다 — 링크처럼 글자만 두고 올렸을 때만 바탕을 준다 -->
@@ -610,7 +613,9 @@
                 <!-- Session section -->
                 <!-- 왜: 한도가 없는 도구(Gemini 개인 계정)도 구역을 비워 둔 채 그린다 — 탭마다 창 높이가 같아야 한다 -->
                 <StackPanel Margin="0,0,0,16">
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <Path Style="{StaticResource QuotaIcon}" Width="14" Height="14" Data="{StaticResource SessionIconPath}" Fill="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Text" Value="{loc:Tr 'Session'}" />
@@ -625,6 +630,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
+                    </StackPanel>
                     <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding SessionProgress}" Maximum="1" Foreground="{DynamicResource SessionAccent}" />
                     <DockPanel Margin="0,8,0,0">
                         <TextBlock Text="{Binding SessionUsageLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" DockPanel.Dock="Left" />
@@ -639,6 +645,7 @@
                     <TextBlock Text="{Binding WeekPaceText}" FontSize="11" Foreground="{DynamicResource TextFaintBrush}"
                                DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center"
                                Visibility="{Binding WeekPaceText, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+                    <Path Style="{StaticResource QuotaIcon}" Width="14" Height="14" DockPanel.Dock="Left" Data="{StaticResource WeeklyIconPath}" Fill="{DynamicResource TextPrimaryBrush}" />
                     <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
@@ -668,8 +675,10 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Margin="0,0,0,16">
-                                <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Path Style="{StaticResource QuotaIcon}" Width="14" Height="14" Data="{StaticResource ModelWeekIconPath}" Fill="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                </StackPanel>
                                 <ProgressBar Style="{StaticResource UsageProgressBar}" Value="{Binding Progress, Mode=OneWay}" Maximum="1"
                                              Foreground="{DynamicResource WeeklyAccent}" />
                                 <DockPanel Margin="0,8,0,0">

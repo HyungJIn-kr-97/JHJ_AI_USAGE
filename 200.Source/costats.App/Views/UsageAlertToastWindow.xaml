@@ -1,0 +1,59 @@
+<Window x:Class="costats.App.Views.UsageAlertToastWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:costats.App"
+        Title="JHJ AI Usage Monitor"
+        Width="312"
+        SizeToContent="Height"
+        FontFamily="Pretendard Variable, Pretendard, Malgun Gothic, Segoe UI"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        AllowsTransparency="True"
+        Background="Transparent">
+    <!-- 계약: 사용률 임계 알림 토스트 — 화면 우측 아래(팝업이 떠 있으면 그 왼쪽)에 쌓이고 시간이 지나면 하나씩 사라진다. 올리는 쪽은 Services/UsageAlertService -->
+    <ItemsControl ItemsSource="{Binding Items, RelativeSource={RelativeSource AncestorType=Window}}" Margin="0">
+        <ItemsControl.ItemTemplate>
+            <DataTemplate>
+                <Border Margin="0,0,0,8" Padding="12,10,10,10" CornerRadius="10" BorderThickness="1" Cursor="Hand"
+                        Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource WindowBorderBrush}"
+                        MouseLeftButtonUp="OnItemClick" MouseEnter="OnItemEnter" MouseLeave="OnItemLeave">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.35" />
+                    </Border.Effect>
+                    <StackPanel>
+                        <DockPanel>
+                            <Button Content="✕" DockPanel.Dock="Right" Width="18" Height="18" Padding="0" FontSize="9" Cursor="Hand"
+                                    Click="OnDismissClick" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Text="{Binding Percent, StringFormat='{}{0}%'}" DockPanel.Dock="Right" Margin="8,0,6,0" FontSize="15" FontWeight="Bold"
+                                       VerticalAlignment="Center" Foreground="{Binding BarColor, Converter={x:Static local:HexToBrushConverter.Instance}}" />
+                            <Path Style="{StaticResource QuotaIcon}" DockPanel.Dock="Left" Fill="{DynamicResource TextPrimaryBrush}"
+                                  Data="{Binding Kind, Converter={x:Static local:QuotaKindIconConverter.Instance}}" />
+                            <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </DockPanel>
+                        <Grid Height="5" Margin="0,6,0,6">
+                            <Rectangle RadiusX="2.5" RadiusY="2.5" Fill="{DynamicResource DividerBrush}" />
+                            <Rectangle x:Name="Bar" RadiusX="2.5" RadiusY="2.5" HorizontalAlignment="Left"
+                                       Fill="{Binding BarColor, Converter={x:Static local:HexToBrushConverter.Instance}}">
+                                <Rectangle.Width>
+                                    <MultiBinding Converter="{x:Static local:ProgressWidthConverter.Instance}">
+                                        <Binding Path="Percent" />
+                                        <Binding Path="Maximum" />
+                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" />
+                                    </MultiBinding>
+                                </Rectangle.Width>
+                            </Rectangle>
+                        </Grid>
+                        <TextBlock Text="{Binding Body}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+                        <TextBlock Text="{Binding Advice}" FontSize="11" FontWeight="SemiBold" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   Visibility="{Binding Advice, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</Window>

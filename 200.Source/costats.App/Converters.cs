@@ -5,6 +5,17 @@ using System.Windows.Media;
 
 namespace costats.App;
 
+/// <summary>한도 창 유형(UsageWindowKind) → App.xaml 의 아이콘 Geometry. 자원 키는 Session/Weekly/ModelWeek + IconPath.</summary>
+public sealed class QuotaKindIconConverter : IValueConverter
+{
+    public static QuotaKindIconConverter Instance { get; } = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is null ? null : System.Windows.Application.Current?.TryFindResource($"{value}IconPath");
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
 /// <summary>
 /// Converts progress bar value, maximum, and actual width to the indicator width.
 /// </summary>
@@ -14,13 +25,16 @@ public sealed class ProgressWidthConverter : IMultiValueConverter
 
     public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
     {
+        // 함정: 토스트의 Percent 는 int 다 — double 패턴만 받으면 막대가 조용히 0 이 된다(2026-10-12 실측)
         if (values.Length < 3 ||
-            values[0] is not double value ||
-            values[1] is not double maximum ||
-            values[2] is not double actualWidth)
+            values[0] is not IConvertible v0 || values[1] is not IConvertible v1 || values[2] is not IConvertible v2)
         {
             return 0.0;
         }
+
+        var value = v0.ToDouble(culture);
+        var maximum = v1.ToDouble(culture);
+        var actualWidth = v2.ToDouble(culture);
 
         if (maximum <= 0 || actualWidth <= 0)
         {

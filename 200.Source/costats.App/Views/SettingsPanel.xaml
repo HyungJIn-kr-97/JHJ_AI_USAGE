@@ -14,73 +14,7 @@
         <!-- Light color palette with WCAG AA contrast -->
         <!-- 색 브러시는 App 리소스(Themes/Bull.*.xaml)에서 온다 -->
 
-        <!-- ComboBox Style -->
-        <!-- 함정: 기본 ComboBox 템플릿은 배경이 밝은 색으로 고정이라 Background 만 바꿔서는 다크가 안 된다 — 템플릿을 통째로 갈아야 한다 -->
-        <Style x:Key="SettingsComboItem" TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBoxItem">
-                        <Border x:Name="Row" Background="Transparent" Padding="10,6" CornerRadius="4">
-                            <ContentPresenter />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="SettingsComboBox" TargetType="ComboBox">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="ItemContainerStyle" Value="{StaticResource SettingsComboItem}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid>
-                            <ToggleButton Focusable="False" ClickMode="Press"
-                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="Box" Background="{DynamicResource SubtleOverlayBrush}"
-                                                BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="6">
-                                            <Path Data="M0,0 L4,4 L8,0" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.5"
-                                                  HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Box" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
-                            </ToggleButton>
-                            <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" IsHitTestVisible="False"
-                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              Margin="12,7,26,7" VerticalAlignment="Center" />
-                            <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True"
-                                   Focusable="False" PopupAnimation="Fade" VerticalOffset="4">
-                                <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource DividerBrush}"
-                                        BorderThickness="1" CornerRadius="6" Padding="4"
-                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
-                                    <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
-                                        <ItemsPresenter />
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
+        <!-- 계약: SettingsComboItem · SettingsComboBox 는 App.xaml 로 올렸다 — 미니 위젯도 같은 콤보를 쓴다 -->
         <!-- 계약: 입력도 되고 추천 목록도 고를 수 있는 콤보 — PART_EditableTextBox 가 있어야 IsEditable 이 동작한다 -->
         <Style x:Key="SettingsEditableCombo" TargetType="ComboBox" BasedOn="{StaticResource SettingsComboBox}">
             <Setter Property="IsEditable" Value="True" />
@@ -1108,6 +1042,164 @@
                     </StackPanel>
                 </TabItem>
                 </TabControl>
+                </TabItem>
+                <!-- 계약: 사용률 알림 — 값은 SettingsViewModel.Alerts.cs, 판정은 Application/Alerts/UsageAlertEvaluator.cs -->
+                <TabItem Header="{loc:Tr 'Usage alerts'}">
+                    <StackPanel>
+                        <CheckBox IsChecked="{Binding UsageAlertEnabled}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
+                                  ToolTip="{loc:Tr 'Notifies once each time an account crosses a step, and suggests which model to use from the pace.'}">
+                            <TextBlock Text="{loc:Tr 'Alert when usage crosses a step'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </CheckBox>
+                        <StackPanel IsEnabled="{Binding UsageAlertEnabled}">
+                            <DockPanel Margin="0,0,0,2" ToolTip="{loc:Tr 'Percent steps in ascending order. Each step alerts once per window; a reset starts over.'}">
+                                <TextBox DockPanel.Dock="Right" Width="186" FontSize="12" Padding="6,4" VerticalContentAlignment="Center"
+                                         Text="{Binding UsageAlertStepsText, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox">
+                                            <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding UsageAlertStepsInvalid}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="#E5484D" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                                <TextBlock Text="{loc:Tr 'Alert steps (%)'}" Style="{StaticResource RowLabel}" />
+                            </DockPanel>
+                            <TextBlock Text="{loc:Tr 'Default 80, 85, 90, 95, 98, 99, 100'}" FontSize="10" Margin="0,0,0,10"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextFaintBrush}" />
+                            <DockPanel Margin="0,0,0,10" ToolTip="{loc:Tr 'Toast: a small card in a corner of the screen (pick the corner below). Windows notification: the Action Center.'}">
+                                <ComboBox ItemsSource="{Binding UsageAlertStyleOptions}" SelectedItem="{Binding SelectedUsageAlertStyle}"
+                                          Style="{StaticResource SettingsComboBox}" DockPanel.Dock="Right" HorizontalAlignment="Right" Width="150">
+                                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{loc:Tr 'How to notify'}" Style="{StaticResource RowLabel}" />
+                            </DockPanel>
+                            <DockPanel Margin="0,0,0,10" ToolTip="{loc:Tr 'How long a toast stays. Hovering pauses it.'}">
+                                <ComboBox ItemsSource="{Binding UsageAlertToastSecondsOptions}" SelectedItem="{Binding SelectedUsageAlertToastSeconds}"
+                                          Style="{StaticResource SettingsComboBox}" DockPanel.Dock="Right" HorizontalAlignment="Right" Width="96">
+                                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{loc:Tr 'Toast duration'}" Style="{StaticResource RowLabel}" />
+                            </DockPanel>
+                            <DockPanel Margin="0,0,0,10" ToolTip="{loc:Tr 'Which corner of the work area the toast appears in. Bottom right follows the taskbar and moves beside the popup when it is open.'}">
+                                <ComboBox ItemsSource="{Binding UsageAlertPositionOptions}" SelectedItem="{Binding SelectedUsageAlertPosition}"
+                                          Style="{StaticResource SettingsComboBox}" DockPanel.Dock="Right" HorizontalAlignment="Right" Width="150">
+                                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{loc:Tr 'Toast position'}" Style="{StaticResource RowLabel}" />
+                            </DockPanel>
+                            <TextBlock Text="{loc:Tr 'Windows to watch'}" FontSize="11" FontWeight="SemiBold" Margin="0,2,0,6" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <WrapPanel Margin="0,0,0,8">
+                                <CheckBox IsChecked="{Binding UsageAlertSession}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,14,4">
+                                    <TextBlock Text="{loc:Tr 'Session'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding UsageAlertWeekly}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,14,4">
+                                    <TextBlock Text="{loc:Tr 'Weekly'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding UsageAlertModelWeek}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,4"
+                                          ToolTip="{loc:Tr 'Per-model weekly limits such as Fable.'}">
+                                    <TextBlock Text="{loc:Tr 'Per-model weekly'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                </CheckBox>
+                            </WrapPanel>
+                            <CheckBox IsChecked="{Binding UsageAlertRecommend}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,10"
+                                      ToolTip="{loc:Tr 'Projects the usage at reset from the average pace so far, then suggests a model tier.'}">
+                                <TextBlock Text="{loc:Tr 'Suggest a model from the pace'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </CheckBox>
+                            <DockPanel Margin="0,0,0,2" IsEnabled="{Binding UsageAlertRecommend}"
+                                       ToolTip="{loc:Tr 'If the session resets within this time, a heavy model is fine even at high usage.'}">
+                                <ComboBox ItemsSource="{Binding UsageAlertRelaxOptions}" SelectedItem="{Binding SelectedUsageAlertRelax}"
+                                          Style="{StaticResource SettingsComboBox}" DockPanel.Dock="Right" HorizontalAlignment="Right" Width="96">
+                                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{loc:Tr 'Any model when the reset is within'}" Style="{StaticResource RowLabel}" TextWrapping="Wrap" />
+                            </DockPanel>
+                            <TextBlock Text="{loc:Tr 'Beyond that, the pace decides: runs out before the reset → a lighter tier; lasts → keep the model.'}"
+                                       FontSize="10" Margin="0,0,0,10" TextWrapping="Wrap" Foreground="{DynamicResource TextFaintBrush}" />
+                        </StackPanel>
+                        <!-- 계약: 미니 위젯 — 창 자체는 Views/UsageMiniWidgetWindow. 여기 두 칸과 창의 📌·✕ 는 같은 설정을 본다 -->
+                        <TextBlock Text="{loc:Tr 'Mini widget'}" FontSize="11" FontWeight="SemiBold" Margin="0,2,0,6" Foreground="{DynamicResource TextSecondaryBrush}" />
+                        <WrapPanel Margin="0,0,0,2">
+                            <CheckBox IsChecked="{Binding MiniWidgetVisible}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,14,4"
+                                      ToolTip="{loc:Tr 'A small always-visible card with the usage bars. Pick an account in its header and drag it anywhere.'}">
+                                <TextBlock Text="{loc:Tr 'Show mini widget'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </CheckBox>
+                            <CheckBox IsChecked="{Binding MiniWidgetPinned}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,4"
+                                      ToolTip="{loc:Tr 'Pinned: stays above every window like picture-in-picture. Unpinned: behaves like a normal window.'}">
+                                <TextBlock Text="{loc:Tr 'Pin (always on top)'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </CheckBox>
+                        </WrapPanel>
+                        <DockPanel Margin="0,4,0,2" ToolTip="{loc:Tr 'Toggles the mini widget. Type a combination like Ctrl+Alt+Shift+2, or clear it to turn the shortcut off.'}">
+                            <TextBox DockPanel.Dock="Right" Width="150" FontSize="12" Padding="6,4" VerticalContentAlignment="Center"
+                                     Text="{Binding MiniWidgetHotkeyText, UpdateSourceTrigger=PropertyChanged, Delay=600}"
+                                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}">
+                                <TextBox.Style>
+                                    <Style TargetType="TextBox">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding MiniWidgetHotkeyError, Converter={x:Static local:StringToVisibilityConverter.Instance}}" Value="Visible">
+                                                <Setter Property="BorderBrush" Value="#E5484D" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBox.Style>
+                            </TextBox>
+                            <TextBlock Text="{loc:Tr 'Mini widget shortcut'}" Style="{StaticResource RowLabel}" />
+                        </DockPanel>
+                        <TextBlock Text="{Binding MiniWidgetHotkeyError}" FontSize="10" Margin="0,0,0,2" TextWrapping="Wrap" Foreground="#E5484D"
+                                   Visibility="{Binding MiniWidgetHotkeyError, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+                        <TextBlock Text="{loc:Tr 'Also in the tray menu. Its position is remembered.'}" FontSize="10" Margin="0,0,0,10"
+                                   TextWrapping="Wrap" Foreground="{DynamicResource TextFaintBrush}" />
+                        <DockPanel Margin="0,4,0,6">
+                            <Button DockPanel.Dock="Right" Content="{loc:Tr 'Test alert'}" Padding="10,3" FontSize="11"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding TestUsageAlertCommand}"
+                                    ToolTip="{loc:Tr 'Shows a sample toast (session 85%).'}" />
+                            <TextBlock Text="{loc:Tr 'Current status'}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </DockPanel>
+                        <TextBlock Text="{loc:Tr 'No usage windows yet — appears after the first refresh.'}" FontSize="10" Margin="0,0,0,6"
+                                   TextWrapping="Wrap" Foreground="{DynamicResource TextFaintBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding UsageAlertStatus.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <!-- 계약: 계정 · 창 · 사용률 · 속도 · 권장 한 줄씩 — 갱신마다 UsageAlertService 가 다시 채운다 -->
+                        <ItemsControl ItemsSource="{Binding UsageAlertStatus}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,6" Padding="8,6" CornerRadius="6" Background="{DynamicResource SubtleOverlayBrush}">
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <TextBlock Text="{Binding PercentText}" DockPanel.Dock="Right" FontSize="12" FontWeight="Bold"
+                                                           Foreground="{Binding Color, Converter={x:Static local:HexToBrushConverter.Instance}}" />
+                                                <TextBlock FontSize="11" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}">
+                                                    <Run Text="{Binding Account, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" · " /><Run Text="{Binding Window, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </DockPanel>
+                                            <TextBlock Text="{Binding Pace}" FontSize="10" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}"
+                                                       Visibility="{Binding Pace, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+                                            <TextBlock Text="{Binding Advice}" FontSize="10" TextWrapping="Wrap" Foreground="{DynamicResource AccentBrush}"
+                                                       Visibility="{Binding Advice, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <DockPanel Margin="0,8,0,0">
+                            <Button DockPanel.Dock="Right" Content="{loc:Tr 'Restore defaults'}" Padding="10,3" FontSize="11"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding ResetGroupCommand}" CommandParameter="Alerts"
+                                    ToolTip="{loc:Tr 'Restores only this tab'}" />
+                            <TextBlock Text="{Binding ResetMessage}" FontSize="11" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                    </StackPanel>
                 </TabItem>
                 </TabControl>
             </Grid>

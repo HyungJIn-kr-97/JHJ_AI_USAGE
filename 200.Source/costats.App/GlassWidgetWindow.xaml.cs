@@ -28,6 +28,10 @@ namespace costats.App
             _settings = settings;
             _settingsStore = settingsStore;
             InitializeComponent();
+            PinToggle.IsChecked = settings.PopupPinned;
+            // 왜: 포커스 없이 뜬 팝업(설치·업데이트 뒤 자동 실행)은 Deactivated 가 오지 않는다 — 떠 있는 동안 바깥 클릭을 따로 본다
+            _outsideClick = new costats.App.Services.OutsideClickWatcher(this, () => { if (IsVisible && !_settings.PopupPinned && !settingsViewModel.LoginInProgress) Hide(); });
+            IsVisibleChanged += (_, _) => SyncOutsideWatch();
             DataContext = viewModel;
             _backdropService = backdropService;
             _settingsViewModel = settingsViewModel;
@@ -112,8 +116,28 @@ namespace costats.App
             }
         }
 
+        private readonly costats.App.Services.OutsideClickWatcher _outsideClick;
+
+        private void SyncOutsideWatch()
+        {
+            if (IsVisible && !_settings.PopupPinned) _outsideClick.Start(); else _outsideClick.Stop();
+        }
+
+        // 계약: 고정이 켜지면 바깥 클릭·포커스 상실로 닫히지 않는다 — 끄면 그 자리에서 다시 감시한다
+        private void OnPinToggleClick(object sender, RoutedEventArgs e)
+        {
+            _settings.PopupPinned = PinToggle.IsChecked == true;
+            _ = _settingsStore.SaveAsync(_settings, CancellationToken.None);
+            SyncOutsideWatch();
+        }
+
         private void OnDeactivated(object? sender, EventArgs e)
         {
+            if (_settings.PopupPinned)
+            {
+                return;
+            }
+
             // 왜: 연동 중에는 브라우저로 포커스가 넘어간다 — 그때 닫으면 코드 칸이 사라져 붙여 넣을 곳이 없다
             if (_settingsViewModel.LoginInProgress)
             {

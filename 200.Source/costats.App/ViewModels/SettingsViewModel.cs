@@ -41,9 +41,28 @@ public sealed partial class SettingsViewModel : ObservableObject
         StartupUpdateCoordinator? updateCoordinator = null,
         IMulticcDiscovery? multiccDiscovery = null,
         PulseViewModel? pulseViewModel = null,
-        ScheduledUpdateService? scheduledUpdate = null)
+        ScheduledUpdateService? scheduledUpdate = null,
+        UsageAlertService? usageAlerts = null,
+        Views.UsageMiniWidgetWindow? miniWidget = null)
     {
         _scheduledUpdate = scheduledUpdate;
+        _miniWidget = miniWidget;
+        if (miniWidget is not null) miniWidget.SettingsTouched += SyncMiniWidgetFromSettings;
+        miniWidgetVisible = settings.MiniWidgetVisible;
+        miniWidgetPinned = settings.MiniWidgetPinned;
+        miniWidgetHotkeyText = settings.MiniWidgetHotkey;
+        // 계약: 「사용률 알림」 탭의 값 — 칸은 SettingsViewModel.Alerts.cs. 생성자라서 필드에 바로 넣는다(OnChanged 가 안 돈다)
+        _usageAlerts = usageAlerts;
+        usageAlertEnabled = settings.UsageAlertEnabled;
+        usageAlertStepsText = string.Join(", ", settings.UsageAlertSteps);
+        usageAlertStyle = settings.UsageAlertStyle;
+        usageAlertToastSeconds = settings.UsageAlertToastSeconds;
+        usageAlertPosition = settings.UsageAlertPosition;
+        usageAlertSession = settings.UsageAlertSession;
+        usageAlertWeekly = settings.UsageAlertWeekly;
+        usageAlertModelWeek = settings.UsageAlertModelWeek;
+        usageAlertRecommend = settings.UsageAlertRecommend;
+        usageAlertRelaxMinutes = settings.UsageAlertRelaxMinutes;
         autoUpdateEnabled = settings.AutoUpdateEnabled;
         autoUpdateNotify = settings.AutoUpdateNotify;
         autoUpdateTime = ScheduledUpdateService.NormalizeTime(settings.AutoUpdateTime) ?? ScheduledUpdateService.DefaultTime;
@@ -1232,6 +1251,11 @@ public sealed partial class SettingsViewModel : ObservableObject
             TrayIconRenderer.NotifyChanged();
         }
 
+        if (target is SettingsGroup.Alerts or SettingsGroup.All)
+        {
+            ApplyAlertsResetToView();
+        }
+
         if (target is SettingsGroup.All)
         {
             CopilotEnabled = _settings.CopilotEnabled;
@@ -1496,6 +1520,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             option.NotifyLanguageChanged();
         }
+        NotifyAlertOptionsLanguageChanged();
         _ = LoadCopilotTokenStatusAsync();
         RefreshAccounts();
     }

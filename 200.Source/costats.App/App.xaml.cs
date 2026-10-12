@@ -384,6 +384,8 @@ namespace costats.App
                     services.AddSingleton<IGlassBackdropService, GlassBackdropService>();
 
                     services.AddSingleton<PulseViewModel>();
+                    services.AddSingleton<costats.App.Services.UsageAlertService>();
+                    services.AddSingleton<costats.App.Views.UsageMiniWidgetWindow>();
                     services.AddSingleton<SettingsViewModel>();
                     services.AddSingleton<GlassWidgetWindow>();
                     services.AddSingleton<TaskbarPositionService>();
@@ -402,6 +404,20 @@ namespace costats.App
             if (_host.Services.GetService<ScheduledUpdateService>() is { } scheduledUpdate)
             {
                 scheduledUpdate.Notify = tray.ShowBalloon;
+            }
+
+            // 계약: 사용률 알림은 트레이가 만들어진 뒤에 알림·팝업 열기를 받는다 — 생성자에서 TrayHost 를 받으면 순환이다
+            var usageAlerts = _host.Services.GetRequiredService<costats.App.Services.UsageAlertService>();
+            usageAlerts.Notify = tray.ShowBalloon;
+            usageAlerts.OpenWidget = tray.ShowWidget;
+            usageAlerts.Widget = () => _host.Services.GetRequiredService<GlassWidgetWindow>();
+
+            // 계약: 미니 위젯은 지난번에 켜 두었으면 시작할 때 그 자리에 다시 뜬다
+            var mini = _host.Services.GetRequiredService<costats.App.Views.UsageMiniWidgetWindow>();
+            tray.MiniWidget = mini;
+            if (settings.MiniWidgetVisible)
+            {
+                mini.ShowWidget();
             }
 
             return tray;
