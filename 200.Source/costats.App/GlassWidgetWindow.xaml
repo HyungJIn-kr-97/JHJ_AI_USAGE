@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:costats.App"
         xmlns:loc="clr-namespace:Jhj.Core.Wpf.Localization;assembly=Jhj.Core.Wpf"
+        xmlns:core="clr-namespace:Jhj.Core.App;assembly=Jhj.Core"
         xmlns:views="clr-namespace:costats.App.Views"
         Title="JHJ AI Usage Monitor"
         Width="360"
@@ -1132,6 +1133,9 @@
                                    Visibility="{Binding IsGeminiEnabled, Converter={StaticResource BoolToVisibilityConverter}}" />
                     </StackPanel>
                 </DockPanel>
+                <!-- 계약: 창 우측 하단의 앱 버전 — JHJ_DEV/000.AGENTS_MD/080.CS앱-화면/080.CS앱-화면-공통.md §5 -->
+                <TextBlock Text="{x:Static core:AppVersion.Label}" FontSize="9" HorizontalAlignment="Right" Margin="0,4,0,-6"
+                           Foreground="{DynamicResource TextFaintBrush}" />
             </StackPanel>
             </Grid>
 

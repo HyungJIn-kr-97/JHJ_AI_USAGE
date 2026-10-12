@@ -7,5 +7,6 @@ public enum ReadingSource
     LocalLog = 2,
     Cookie = 3,
     WebProbe = 4,
-    Api = 5
+    Api = 5,
+    DesktopApp = 6
 }

@@ -283,10 +283,16 @@ namespace costats.Setup
             var caption = new Label { Text = "JHJ AI 통합 사용량 모니터  ·  설치", ForeColor = Text2, AutoSize = true, Location = new Point(Px(44), Px(14)), Font = new Font(Font, FontStyle.Bold) };
             var close = new AccentButton { Text = "✕", Size = new Size(Px(36), Px(28)), Location = new Point(Px(404), Px(8)), Font = new Font("Segoe UI Symbol", 10f), TabStop = false };
             close.Click += (s, e) => Close();
+            // 계약: 이 설치 파일 자신의 버전을 작게 찍는다 — JHJ_DEV/000.AGENTS_MD/080.CS앱-화면/080.CS앱-화면-공통.md §5
+            var info = (System.Reflection.AssemblyInformationalVersionAttribute)Attribute.GetCustomAttribute(
+                System.Reflection.Assembly.GetExecutingAssembly(), typeof(System.Reflection.AssemblyInformationalVersionAttribute));
+            var version = new Label { Text = "v" + ExeVersion.Normalize(info?.InformationalVersion), ForeColor = Text2, AutoSize = true, Font = new Font(Font.FontFamily, 8f) };
+            version.Location = new Point(Px(398) - version.PreferredWidth, Px(17));
             bar.Controls.Add(icon);
             bar.Controls.Add(caption);
+            bar.Controls.Add(version);
             bar.Controls.Add(close);
-            foreach (Control c in new Control[] { bar, icon, caption })
+            foreach (Control c in new Control[] { bar, icon, caption, version })
             {
                 c.MouseDown += (s, e) =>
                 {

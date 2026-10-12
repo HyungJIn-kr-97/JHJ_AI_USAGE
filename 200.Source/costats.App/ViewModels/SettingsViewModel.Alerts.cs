@@ -22,14 +22,35 @@ public sealed partial class SettingsViewModel
     public IReadOnlyList<AlertPositionOption> UsageAlertPositionOptions { get; } =
         new[] { "bottom-right", "top-right", "bottom-left", "top-left" }.Select(code => new AlertPositionOption(code)).ToArray();
 
-    // 계약: 미니 위젯 두 칸 — 창 쪽(📌·✕)에서 바꾼 것은 창이 설정에 직접 쓰고, 여기는 탭을 열 때 다시 읽는다
+    // 계약: 미니 위젯 칸 — 창 쪽(📌·✕·Ctrl+휠)에서 바꾼 것은 창이 설정에 직접 쓰고, 여기는 탭을 열 때 다시 읽는다
     [ObservableProperty] private bool miniWidgetVisible;
     [ObservableProperty] private bool miniWidgetPinned;
+    [ObservableProperty] private bool miniWidgetOnDesktop;
+    [ObservableProperty] private double miniWidgetScale = 1.0;
+
+    public IReadOnlyList<ScaleOption> MiniWidgetScaleOptions { get; } =
+        Enumerable.Range(7, 14).Select(i => new ScaleOption(i * 10)).ToArray();
+
+    public ScaleOption? SelectedMiniWidgetScale
+    {
+        get => MiniWidgetScaleOptions.FirstOrDefault(o => Math.Abs(o.Value - MiniWidgetScale) < 0.005);
+        set
+        {
+            if (value is not null && Math.Abs(value.Value - MiniWidgetScale) >= 0.005)
+            {
+                MiniWidgetScale = value.Value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public void SyncMiniWidgetFromSettings()
     {
         MiniWidgetVisible = _settings.MiniWidgetVisible;
         MiniWidgetPinned = _settings.MiniWidgetPinned;
+        MiniWidgetOnDesktop = _settings.MiniWidgetOnDesktop;
+        MiniWidgetScale = _settings.MiniWidgetScale;
+        OnPropertyChanged(nameof(SelectedMiniWidgetScale));
     }
 
     // 계약: 글자로 적는 단축키 — Core NamedHotkeys 가 해석·검사·등록하고 실패 사유를 돌려준다. 실패하면 옛 등록이 남고 칸만 빨갛다
@@ -66,6 +87,19 @@ public sealed partial class SettingsViewModel
         else { _settings.MiniWidgetPinned = value; _ = SaveSettingsAsync(); }
     }
 
+    partial void OnMiniWidgetOnDesktopChanged(bool value)
+    {
+        if (_miniWidget is not null) _miniWidget.SetOnDesktop(value);
+        else { _settings.MiniWidgetOnDesktop = value; _ = SaveSettingsAsync(); }
+    }
+
+    partial void OnMiniWidgetScaleChanged(double value)
+    {
+        if (_miniWidget is not null) _miniWidget.SetScale(value);
+        else { _settings.MiniWidgetScale = value; _ = SaveSettingsAsync(); }
+        OnPropertyChanged(nameof(SelectedMiniWidgetScale));
+    }
+
     public IReadOnlyList<RefreshOption> UsageAlertRelaxOptions { get; } =
         new[] { 15, 30, 45, 60, 90, 120 }.Select(m => new RefreshOption(m)).ToArray();
 
@@ -96,6 +130,8 @@ public sealed partial class SettingsViewModel
         UsageAlertRecommend = _settings.UsageAlertRecommend;
         UsageAlertRelaxMinutes = _settings.UsageAlertRelaxMinutes;
         MiniWidgetPinned = _settings.MiniWidgetPinned;
+        MiniWidgetOnDesktop = _settings.MiniWidgetOnDesktop;
+        MiniWidgetScale = _settings.MiniWidgetScale;
         MiniWidgetHotkeyText = _settings.MiniWidgetHotkey;
         OnPropertyChanged(nameof(SelectedUsageAlertStyle));
         OnPropertyChanged(nameof(SelectedUsageAlertToastSeconds));
@@ -244,6 +280,13 @@ public sealed class AlertPositionOption(string code) : ObservableObject
     };
 
     public void NotifyLanguageChanged() => OnPropertyChanged(nameof(Label));
+}
+
+/// <summary>미니 위젯 배율 콤보 한 줄 — Percent 70~200, Value 는 0.7~2.0.</summary>
+public sealed record ScaleOption(int Percent)
+{
+    public double Value => Percent / 100.0;
+    public string Label => $"{Percent}%";
 }
 
 public sealed class SecondsOption(int seconds) : ObservableObject

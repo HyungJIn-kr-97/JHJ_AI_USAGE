@@ -183,7 +183,7 @@ public sealed class UsageAlertService : IObserver<PulseState>, IDisposable
         _ => Loc.T(w.ProviderKind == "gemini" ? "Flash models · daily" : "Weekly"),
     };
 
-    // 계약: 초기화 시각 한 줄 + 속도 한 줄 — 「{rate}%/h · 2h 10m 후 소진」 꼴
+    // 계약: 초기화 시각 · 속도를 「 · 」로 이은 한 줄 — 「2시간 10분 후 초기화 · 30%/h · 30분 후 소진」 꼴(2026-10-12 사용자: 두 줄로 뜨는 것은 한 줄로)
     private static string BodyOf(UsageWindowStatus w)
     {
         var parts = new List<string>();
@@ -207,7 +207,7 @@ public sealed class UsageAlertService : IObserver<PulseState>, IDisposable
             parts.Add(pace);
         }
 
-        return string.Join(Environment.NewLine, parts);
+        return string.Join(" · ", parts);
     }
 
     private static string AdviceOf(UsageWindowStatus w)

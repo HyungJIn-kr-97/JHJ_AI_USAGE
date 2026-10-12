@@ -3,9 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:costats.App"
         xmlns:loc="clr-namespace:Jhj.Core.Wpf.Localization;assembly=Jhj.Core.Wpf"
+        xmlns:core="clr-namespace:Jhj.Core.App;assembly=Jhj.Core"
         Title="JHJ AI Usage Monitor"
-        Width="312"
-        SizeToContent="Height"
+        SizeToContent="WidthAndHeight"
+        UseLayoutRounding="True"
+        PreviewMouseWheel="OnWheel"
         FontFamily="Pretendard Variable, Pretendard, Malgun Gothic, Segoe UI"
         WindowStyle="None"
         ResizeMode="NoResize"
@@ -48,7 +50,8 @@
     <Window.InputBindings>
         <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
     </Window.InputBindings>
-    <Border CornerRadius="10" BorderThickness="1" Padding="10,6,6,6"
+    <!-- 계약: 폭 312 는 여기(내용) 고정이고 창 크기는 Root.LayoutTransform(배율)이 정한다 — 창의 Width 를 다시 두지 않는다 -->
+    <Border x:Name="Root" Width="312" CornerRadius="10" BorderThickness="1" Padding="10,6,6,6"
             Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource WindowBorderBrush}">
         <StackPanel>
             <!-- 머리: 끌기 자리 · 계정 선택 · 갱신 시각 · 고정 · 닫기 -->
@@ -109,6 +112,9 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <!-- 계약: 창 우측 하단의 앱 버전(높이를 늘리지 않게 8pt · 음수 여백) — 080.CS앱-화면-공통.md §5 -->
+            <TextBlock Text="{x:Static core:AppVersion.Label}" FontSize="8" HorizontalAlignment="Right" Margin="0,-3,4,-2"
+                       Foreground="{DynamicResource TextFaintBrush}" />
         </StackPanel>
     </Border>
 </Window>

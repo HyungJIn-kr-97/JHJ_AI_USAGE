@@ -48,6 +48,9 @@ public sealed partial class ExtraAccountRow : ObservableObject
 
     public bool IsMain => Name.Length == 0;
 
+    // 계약: 이 계정을 찾은 출처마다 표지 하나 — 채우는 곳은 SettingsViewModel.Sources.cs
+    public IReadOnlyList<AccountSourceBadge> Sources { get; init; } = [];
+
     [ObservableProperty]
     private string displayNameText;
 
@@ -97,6 +100,14 @@ public sealed partial class ExtraAccountRow : ObservableObject
         MonthlyFeeText = _savedFee;
         IsEditing = false;
     }
+}
+
+/// <summary>
+/// 계정 줄의 연동 유형 표지 — Code 는 네모 안 글자(CLI · APP · WEB), Info 는 올리면 보이고 누르면 복사되는 출처 정보.
+/// </summary>
+public sealed record AccountSourceBadge(string Code, string Info)
+{
+    public string ToolTipText => Info + Environment.NewLine + Environment.NewLine + Loc.T("Click to copy");
 }
 
 /// <summary>

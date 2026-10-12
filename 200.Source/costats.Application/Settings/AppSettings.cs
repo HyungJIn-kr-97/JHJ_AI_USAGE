@@ -131,9 +131,16 @@ public sealed class AppSettings : IScheduledUpdateSettings
     // 계약: 미니 위젯 — 사용률 막대만 작게 띄워 두는 창. Account 는 providerId, null 은 전체 계정. 위치는 끌어 놓은 자리(null 은 화면 우측 위)
     public bool MiniWidgetVisible { get; set; }
     public bool MiniWidgetPinned { get; set; } = true;
+    // 계약: 바탕화면 모드 — 창의 주인을 Progman 으로 두어 바탕화면 가젯처럼 모든 창 아래에 남는다. 켜져 있으면 Pinned(항상 위)는 무시
+    public bool MiniWidgetOnDesktop { get; set; }
+    /// <summary>미니 위젯 배율 0.7~2.0 — 설정 콤보(10% 단위) 또는 창 위 Ctrl+휠.</summary>
+    public double MiniWidgetScale { get; set; } = 1.0;
     public string? MiniWidgetAccount { get; set; }
     public double? MiniWidgetLeft { get; set; }
     public double? MiniWidgetTop { get; set; }
+    // 계약: 미니 위젯 자리의 정본은 화면 픽셀(Px)이다 — MiniWidgetLeft·Top 은 옛 설정을 한 번 옮길 때만 읽는다
+    public int? MiniWidgetLeftPx { get; set; }
+    public int? MiniWidgetTopPx { get; set; }
 
     // 계약: 미니 위젯 켬/끔 전역 단축키 — 팝업 단축키(Ctrl+Alt+2)에 Shift 를 더한 것. 비우면 등록하지 않는다
     public const string DefaultMiniWidgetHotkey = "Ctrl+Alt+Shift+2";
@@ -200,9 +207,13 @@ public sealed class AppSettings : IScheduledUpdateSettings
             UsageAlertRecommend = d.UsageAlertRecommend;
             UsageAlertRelaxMinutes = d.UsageAlertRelaxMinutes;
             MiniWidgetPinned = d.MiniWidgetPinned;
+            MiniWidgetOnDesktop = d.MiniWidgetOnDesktop;
+            MiniWidgetScale = d.MiniWidgetScale;
             MiniWidgetAccount = d.MiniWidgetAccount;
             MiniWidgetLeft = d.MiniWidgetLeft;
             MiniWidgetTop = d.MiniWidgetTop;
+            MiniWidgetLeftPx = d.MiniWidgetLeftPx;
+            MiniWidgetTopPx = d.MiniWidgetTopPx;
             MiniWidgetHotkey = d.MiniWidgetHotkey;
         }
 

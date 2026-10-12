@@ -14,9 +14,10 @@ namespace costats.Infrastructure.Providers;
 /// </summary>
 public static class ClaudeHomeIdentity
 {
-    public sealed record Identity(string? Email, string? Organization, string? Uuid);
+    /// 계약: OrganizationUuid 는 로그인 파일에 있을 때만 찬다 — 이 칸이 생기기 전에 적어 둔 신원(핀)은 다시 적힐 때까지 비어 있다
+    public sealed record Identity(string? Email, string? Organization, string? Uuid, string? OrganizationUuid = null);
 
-    private sealed record Pin(string? Email, string? Organization, string? Uuid, string? Tier);
+    private sealed record Pin(string? Email, string? Organization, string? Uuid, string? Tier, string? OrganizationUuid = null);
 
     private sealed record Account(Identity Identity, string? OrgTier, string? UserTier, string? OrgType);
 
@@ -54,7 +55,7 @@ public static class ClaudeHomeIdentity
             switch (Matches(live, token))
             {
                 case true:
-                    WritePin(new Pin(live.Identity.Email, live.Identity.Organization, liveUuid, token!.Key));
+                    WritePin(new Pin(live.Identity.Email, live.Identity.Organization, liveUuid, token!.Key, live.Identity.OrganizationUuid));
                     return live.Identity;
                 case null:
                     // 왜: 어느 한쪽에 등급 칸이 없으면 판정할 수 없다 — 핀을 건드리지 않고 홈 값을 그대로 쓴다
@@ -70,7 +71,7 @@ public static class ClaudeHomeIdentity
             if (InnerFor(token, exceptUuid: liveUuid) is { } inner)
             {
                 Trace.WriteLine($"[costats-identity] home .claude.json tier differs from token tier ({Short(liveUuid)}…); using ~/.claude/.claude.json");
-                WritePin(new Pin(inner.Identity.Email, inner.Identity.Organization, inner.Identity.Uuid, token!.Key));
+                WritePin(new Pin(inner.Identity.Email, inner.Identity.Organization, inner.Identity.Uuid, token!.Key, inner.Identity.OrganizationUuid));
                 return inner.Identity;
             }
 
@@ -91,7 +92,7 @@ public static class ClaudeHomeIdentity
         }
 
         return new Account(
-            new Identity(GetString(account, "emailAddress"), GetString(account, "organizationName"), GetString(account, "accountUuid")),
+            new Identity(GetString(account, "emailAddress"), GetString(account, "organizationName"), GetString(account, "accountUuid"), GetString(account, "organizationUuid")),
             GetString(account, "organizationRateLimitTier"),
             GetString(account, "userRateLimitTier"),
             GetString(account, "organizationType"));
@@ -208,5 +209,5 @@ public static class ClaudeHomeIdentity
 
     private static string Short(string uuid) => uuid[..Math.Min(8, uuid.Length)];
 
-    private static Identity ToIdentity(this Pin pin) => new(pin.Email, pin.Organization, pin.Uuid);
+    private static Identity ToIdentity(this Pin pin) => new(pin.Email, pin.Organization, pin.Uuid, pin.OrganizationUuid);
 }

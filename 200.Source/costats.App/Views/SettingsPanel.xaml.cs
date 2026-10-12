@@ -84,6 +84,14 @@ namespace costats.App.Views
         private void OnAuthorMailClick(object sender, RoutedEventArgs e) =>
             Flash(AuthorMailText, CopyText(Jhj.Core.App.JhjApp.Current.AuthorEmail, Loc.T("Copied the author's email address")));
 
+        private void OnSourceBadgeClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { DataContext: AccountSourceBadge badge } target)
+            {
+                Flash(target, CopyText(badge.Info, Loc.T("Copied the link details")));
+            }
+        }
+
         private void OnLinkNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });

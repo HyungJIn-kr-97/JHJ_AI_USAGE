@@ -29,8 +29,10 @@ public sealed class ClaudeLogSource : ISignalSource
         var consumption = await SafeAnalyzeExpenseAsync(cancellationToken).ConfigureAwait(false);
 
         var oauthResult = await oauthTask.ConfigureAwait(false);
+        // 계약: 토큰 조회가 실패했을 때만 데스크톱 앱이 남긴 사용률을 빌린다 — ClaudeDesktopUsage
+        var desktop = oauthResult is null ? ClaudeDesktopUsage.LatestFor(ClaudeProgramRouter.DefaultConfigDir, now) : null;
 
-        if (oauthResult is null && logResult.SessionTokens == 0 && logResult.WeekTokens == 0)
+        if (oauthResult is null && desktop is null && logResult.SessionTokens == 0 && logResult.WeekTokens == 0)
         {
             return new ProviderReading(
                 Usage: null,
@@ -42,8 +44,8 @@ public sealed class ClaudeLogSource : ISignalSource
         }
 
         // Prefer OAuth data for percentages
-        var sessionUsedPercent = oauthResult?.FiveHourUsedPercent;
-        var weeklyUsedPercent = oauthResult?.SevenDayUsedPercent;
+        var sessionUsedPercent = oauthResult?.FiveHourUsedPercent ?? desktop?.FiveHour;
+        var weeklyUsedPercent = oauthResult?.SevenDayUsedPercent ?? desktop?.SevenDay;
 
         var sessionResetsAt = oauthResult?.FiveHourResetsAt ?? CalculateSessionReset(logResult.SessionStart, now);
         var weeklyResetsAt = oauthResult?.SevenDayResetsAt ?? CalculateWeeklyReset(now);
@@ -107,14 +109,16 @@ public sealed class ClaudeLogSource : ISignalSource
         var planText = FormatPlanText(oauthResult?.SubscriptionType);
         var statusSummary = oauthResult is not null
             ? _oauthFetcher.StaleSummary ?? $"Updated {FormatRelativeTime(oauthResult.FetchedAt, now)}"
-            : !_oauthFetcher.HasToken
-                ? "No Claude token on this PC — sign in from Settings › Accounts"
-                : _oauthFetcher.LastError is { } error
-                    ? $"Usage lookup failed ({error})"
-                    : $"Updated {FormatRelativeTime(logResult.LatestTimestamp ?? now, now)}";
+            : desktop is not null
+                ? ClaudeDesktopUsage.Describe(desktop, now)
+                : !_oauthFetcher.HasToken
+                    ? "No Claude token on this PC — sign in from Settings › Accounts"
+                    : _oauthFetcher.LastError is { } error
+                        ? $"Usage lookup failed ({error})"
+                        : $"Updated {FormatRelativeTime(logResult.LatestTimestamp ?? now, now)}";
 
         var confidence = oauthResult is not null ? ReadingConfidence.High : ReadingConfidence.Medium;
-        var source = oauthResult is not null ? ReadingSource.Api : ReadingSource.LocalLog;
+        var source = oauthResult is not null ? ReadingSource.Api : desktop is not null ? ReadingSource.DesktopApp : ReadingSource.LocalLog;
 
         return new ProviderReading(
             Usage: usage,

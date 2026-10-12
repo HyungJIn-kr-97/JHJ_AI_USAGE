@@ -215,6 +215,36 @@
                                 Visibility="{Binding HasType, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
                             <TextBlock Text="{Binding AccountType}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
                         </Border>
+                        <!-- 계약: 연동 유형 표지(CLI · APP · WEB) — 올리면 출처 정보, 누르면 복사한다. 찾은 출처만 그린다(SettingsViewModel.Sources.cs) -->
+                        <ItemsControl DockPanel.Dock="Right" Margin="6,0,0,0" ItemsSource="{Binding Sources}" VerticalAlignment="Center" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Click="OnSourceBadgeClick" ToolTip="{Binding ToolTipText}" Margin="0,0,3,0" Padding="0"
+                                            MinHeight="0" Cursor="Hand" Focusable="False" AutomationProperties.Name="{Binding Code}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Box" MinWidth="26" Height="16" CornerRadius="3" BorderThickness="1"
+                                                        BorderBrush="{DynamicResource AccentBrush}" Background="{DynamicResource SubtleOverlayBrush}">
+                                                    <TextBlock Text="{Binding Code}" FontSize="9" FontWeight="SemiBold" Margin="3,0"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource AccentBrush}" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Box" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <TextBlock Text="{Binding DisplayNameText}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}"
                                    ToolTip="{loc:Tr 'Account name shown in the popup'}" />
@@ -1130,7 +1160,18 @@
                                       ToolTip="{loc:Tr 'Pinned: stays above every window like picture-in-picture. Unpinned: behaves like a normal window.'}">
                                 <TextBlock Text="{loc:Tr 'Pin (always on top)'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
                             </CheckBox>
+                            <CheckBox IsChecked="{Binding MiniWidgetOnDesktop}" Style="{StaticResource SettingsCheckBox}" Margin="0,0,0,4"
+                                      ToolTip="{loc:Tr 'Sits above the wallpaper and below every window like a desktop gadget, and stays when you show the desktop. Always on top is ignored while this is on.'}">
+                                <TextBlock Text="{loc:Tr 'Keep on desktop'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </CheckBox>
                         </WrapPanel>
+                        <DockPanel Margin="0,4,0,6" ToolTip="{loc:Tr 'Ctrl + mouse wheel over the widget also changes the size.'}">
+                            <ComboBox ItemsSource="{Binding MiniWidgetScaleOptions}" SelectedItem="{Binding SelectedMiniWidgetScale}"
+                                      Style="{StaticResource SettingsComboBox}" DockPanel.Dock="Right" HorizontalAlignment="Right" Width="96">
+                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="{loc:Tr 'Mini widget size'}" Style="{StaticResource RowLabel}" />
+                        </DockPanel>
                         <DockPanel Margin="0,4,0,2" ToolTip="{loc:Tr 'Toggles the mini widget. Type a combination like Ctrl+Alt+Shift+2, or clear it to turn the shortcut off.'}">
                             <TextBox DockPanel.Dock="Right" Width="150" FontSize="12" Padding="6,4" VerticalContentAlignment="Center"
                                      Text="{Binding MiniWidgetHotkeyText, UpdateSourceTrigger=PropertyChanged, Delay=600}"

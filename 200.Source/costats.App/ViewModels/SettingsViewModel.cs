@@ -50,6 +50,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (miniWidget is not null) miniWidget.SettingsTouched += SyncMiniWidgetFromSettings;
         miniWidgetVisible = settings.MiniWidgetVisible;
         miniWidgetPinned = settings.MiniWidgetPinned;
+        miniWidgetOnDesktop = settings.MiniWidgetOnDesktop;
+        miniWidgetScale = settings.MiniWidgetScale;
         miniWidgetHotkeyText = settings.MiniWidgetHotkey;
         // 계약: 「사용률 알림」 탭의 값 — 칸은 SettingsViewModel.Alerts.cs. 생성자라서 필드에 바로 넣는다(OnChanged 가 안 돈다)
         _usageAlerts = usageAlerts;
@@ -188,6 +190,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         // 왜: 설정을 여는 순간이 연동을 다시 재는 때다 — 그사이 계정을 바꿔 로그인했으면 여기서 이력에 한 줄 남는다
         ClaudeProgramRouter.SyncLinks();
         RefreshProgramLinks();
+        WatchProgramLinks();
 
         var codexRows = new List<ExtraAccountRow> { NewRow(CodexMainId, string.Empty, AccountIdentityReader.ReadCodex(), null) };
         codexRows.AddRange(CodexAccountStore.List()
@@ -273,10 +276,39 @@ public sealed partial class SettingsViewModel : ObservableObject
         ProgramLinkHistory = BuildProgramLinkHistory(options);
     }
 
+    private System.Windows.Threading.DispatcherTimer? _linkTimer;
+    private string _linkSignature = string.Empty;
+
+    private static string LinkSignature(IReadOnlyDictionary<string, string> links) =>
+        string.Join("|", links.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase).Select(p => $"{p.Key}={p.Value}"));
+
+    // 왜: 설정 창을 연 채 다른 프로그램에서 계정을 바꾸면 「자동 · 계정」 표시가 창을 다시 열 때까지 옛 계정에 머문다
+    private void WatchProgramLinks()
+    {
+        if (_linkTimer is not null)
+        {
+            return;
+        }
+
+        _linkTimer = new System.Windows.Threading.DispatcherTimer(TimeSpan.FromSeconds(30), System.Windows.Threading.DispatcherPriority.Background,
+            async (_, _) =>
+            {
+                // 함정: 세션 메타 수백 개를 읽는 길이다 — 화면 스레드에서 돌리면 창이 멈칫한다
+                await Task.Run(ClaudeProgramRouter.SyncLinksIfDue);
+                // 함정: 바뀌지 않았는데 다시 그리면 열어 둔 ComboBox 가 통째로 갈려 선택이 튄다
+                if (LinkSignature(ClaudeProgramRouter.CurrentLinks()) != _linkSignature)
+                {
+                    RefreshProgramLinks();
+                }
+            }, System.Windows.Application.Current.Dispatcher);
+        _linkTimer.Start();
+    }
+
     // 계약: 첫 칸은 늘 「자동」이다 — 지금 이 PC 에 로그인한 계정을 따라가고, 아래 계정을 고르면 그 줄만 고정된다
     private IReadOnlyList<ProgramLinkRow> BuildProgramLinks(IReadOnlyList<ProgramAccountOption> options)
     {
         var current = ClaudeProgramRouter.CurrentLinks();
+        _linkSignature = LinkSignature(current);
 
         return ClaudePrograms.Select(p =>
         {
@@ -383,7 +415,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         return new(id, name, text, dir, signedIn,
-            AccountMeta.DisplayNameOf(_settings, id), AccountMeta.TypeOf(_settings, id), OnRowEdited, AccountMeta.FeeOf(_settings, id));
+            AccountMeta.DisplayNameOf(_settings, id), AccountMeta.TypeOf(_settings, id), OnRowEdited, AccountMeta.FeeOf(_settings, id))
+        {
+            Sources = SourcesOf(id, dir, account)
+        };
     }
 
     private static bool HasClaudeToken(string? configDir) => File.Exists(ClaudeTokenFile(configDir));

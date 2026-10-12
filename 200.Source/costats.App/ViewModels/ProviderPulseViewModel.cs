@@ -1343,6 +1343,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             ReadingSource.LocalLog => $"Updated {UsageFormatter.FormatRelativeTime(reading.CapturedAt)}",
             ReadingSource.Api => "API",
             ReadingSource.Cli => "CLI",
+            ReadingSource.DesktopApp => "Claude Desktop app",
             _ => "No data"
         };
     }

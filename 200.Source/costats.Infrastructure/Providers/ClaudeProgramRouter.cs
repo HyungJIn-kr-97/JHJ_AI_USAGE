@@ -16,7 +16,7 @@ public static class ClaudeProgramRouter
 
     private static readonly Dictionary<string, string> Empty = new(StringComparer.OrdinalIgnoreCase);
 
-    private static Snapshot _current = new(false, "claude:default", Empty, Empty, Empty, Empty);
+    private static Snapshot _current = new(false, "claude:default", Empty, Empty, Empty, Empty, []);
 
     public static bool IsActive => _current.Active;
 
@@ -30,7 +30,12 @@ public static class ClaudeProgramRouter
     /// <param name="pins">손으로 고정한 연동(AppSettings.ProgramAccountPins) — 없는 프로그램은 지금 로그인한 계정을 따른다</param>
     public static void Configure(string defaultProviderId, IReadOnlyDictionary<string, string>? map, IEnumerable<string> registeredIds,
         IReadOnlyDictionary<string, string>? accounts = null, IReadOnlyDictionary<string, string>? slotAccounts = null,
-        IReadOnlyDictionary<string, string>? pins = null)
+        IReadOnlyDictionary<string, string>? pins = null) =>
+        Apply(defaultProviderId, map, registeredIds, accounts, slotAccounts, pins, []);
+
+    private static void Apply(string defaultProviderId, IReadOnlyDictionary<string, string>? map, IEnumerable<string> registeredIds,
+        IReadOnlyDictionary<string, string>? accounts, IReadOnlyDictionary<string, string>? slotAccounts,
+        IReadOnlyDictionary<string, string>? pins, IReadOnlyList<(string Id, string ConfigDir)> slots)
     {
         var known = new HashSet<string>(registeredIds, StringComparer.OrdinalIgnoreCase);
         var routes = (map ?? Empty)
@@ -44,7 +49,7 @@ public static class ClaudeProgramRouter
             .Where(pair => known.Contains(pair.Value))
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
         // 왜: 소스는 갱신마다 병렬로 읽는다 — 표를 통째로 바꿔 끼워 읽는 쪽이 반쯤 바뀐 표를 보지 않게 한다
-        Volatile.Write(ref _current, new Snapshot(true, defaultProviderId, routes, byAccount, bySlot, pinned));
+        Volatile.Write(ref _current, new Snapshot(true, defaultProviderId, routes, byAccount, bySlot, pinned, slots));
         SyncLinks();
     }
 
@@ -52,16 +57,47 @@ public static class ClaudeProgramRouter
     public static void Configure(string defaultProviderId, IReadOnlyDictionary<string, string>? map,
         IEnumerable<costats.Core.Pulse.MulticcProfile> profiles, IReadOnlyDictionary<string, string>? pins = null)
     {
-        var slots = profiles.Select(p => (Id: "claude:" + p.Name, Account: AccountUuidOf(p.ConfigDir))).ToList();
+        var slots = profiles.Select(p => (Id: "claude:" + p.Name, p.ConfigDir)).ToList();
+        var (accounts, bySlot) = ReadSlotAccounts(slots, Empty);
+        Apply(defaultProviderId, map, slots.Select(s => s.Id), accounts, bySlot, pins, slots);
+    }
+
+    // 함정: 쓰는 중이라 못 읽은 자리는 직전 계정을 그대로 둔다 — 비우면 그 자리의 기록이 한 주기 동안 「등록 안 된 계정」으로 떨어진다
+    private static (Dictionary<string, string> Accounts, Dictionary<string, string> BySlot) ReadSlotAccounts(
+        IReadOnlyList<(string Id, string ConfigDir)> slots, IReadOnlyDictionary<string, string> previous)
+    {
         var accounts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var bySlot = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var slot in slots.Where(s => s.Account is not null))
+        foreach (var slot in slots)
         {
-            accounts.TryAdd(slot.Account!, slot.Id);
-            bySlot[slot.Id] = slot.Account!;
+            if ((AccountUuidOf(slot.ConfigDir) ?? previous.GetValueOrDefault(slot.Id)) is { Length: > 0 } account)
+            {
+                accounts.TryAdd(account, slot.Id);
+                bySlot[slot.Id] = account;
+            }
         }
 
-        Configure(defaultProviderId, map, slots.Select(s => s.Id), accounts, bySlot, pins);
+        return (accounts, bySlot);
+    }
+
+    // 왜: 자리의 로그인 계정은 앱이 떠 있는 동안에도 바뀐다 — 시작 때 읽은 표만 보면 바뀐 계정의 기록과 「자동」 표시가 옛 자리에 남는다
+    private static Snapshot RefreshSlotAccounts(Snapshot snapshot)
+    {
+        if (snapshot.Slots.Count == 0)
+        {
+            return snapshot;
+        }
+
+        var (accounts, bySlot) = ReadSlotAccounts(snapshot.Slots, snapshot.SlotAccounts);
+        if (bySlot.Count == snapshot.SlotAccounts.Count &&
+            bySlot.All(pair => snapshot.SlotAccounts.TryGetValue(pair.Key, out var before) && before.Equals(pair.Value, StringComparison.OrdinalIgnoreCase)))
+        {
+            return snapshot;
+        }
+
+        // 함정: 그사이 Configure 가 표를 갈았으면 덮어쓰지 않는다 — 새 표가 이미 자리를 다시 읽었다
+        var next = snapshot with { Accounts = accounts, SlotAccounts = bySlot };
+        return ReferenceEquals(Interlocked.CompareExchange(ref _current, next, snapshot), snapshot) ? next : Volatile.Read(ref _current);
     }
 
     /// <summary>설정 › 「프로그램 연동」 표에 서는 프로그램 — 세션 메타로 주인을 못 찾는 줄만 이 연동을 따른다.</summary>
@@ -101,6 +137,7 @@ public static class ClaudeProgramRouter
             return;
         }
 
+        snapshot = RefreshSlotAccounts(snapshot);
         var now = DateTimeOffset.UtcNow;
         // 왜: ~/.claude.json 읽기를 프로그램마다 되풀이할 필요가 없다 — 한 번 읽어 셋에 나눠 쓴다
         var home = AccountUuidOf(DefaultConfigDir);
@@ -108,7 +145,7 @@ public static class ClaudeProgramRouter
         {
             var account = snapshot.Pins.TryGetValue(program, out var pinned) && snapshot.SlotAccounts.TryGetValue(pinned, out var pinnedAccount)
                 ? pinnedAccount
-                : program == DesktopProgram ? ClaudeDesktopSessions.NewestAccount() ?? home : home;
+                : program == DesktopProgram ? ClaudeDesktopSessions.CurrentAccount() ?? home : home;
             ClaudeProgramLinks.Record(program, account, now);
         }
     }
@@ -117,20 +154,23 @@ public static class ClaudeProgramRouter
     public static string? SlotOfAccount(string account) =>
         Volatile.Read(ref _current).Accounts.TryGetValue(account, out var id) ? id : null;
 
-    /// <summary>지금의 연동 — 프로그램 → 자리(providerId). 이력이 없으면 옛 표, 그것도 없으면 기본 계정이다.</summary>
+    /// <summary>
+    /// 지금의 연동 — 프로그램 → 자리(providerId). 이력이 없으면 옛 표, 그것도 없으면 기본 계정이다.
+    /// 계약: 지금 로그인한 계정이 이 PC 에 등록되지 않은 계정이면 그 프로그램은 표에 없다 — 옛 표의 계정을 「지금 계정」으로 보여 주지 않는다.
+    /// </summary>
     public static IReadOnlyDictionary<string, string> CurrentLinks()
     {
         var snapshot = Volatile.Read(ref _current);
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var program in LinkedPrograms)
         {
-            if (ClaudeProgramLinks.CurrentAccount(program) is { } account && snapshot.Accounts.TryGetValue(account, out var id))
-            {
-                map[program] = id;
-            }
-            else
+            if (ClaudeProgramLinks.CurrentAccount(program) is not { } account)
             {
                 map[program] = snapshot.Routes.TryGetValue(program, out var legacy) ? legacy : snapshot.DefaultId;
+            }
+            else if (snapshot.Accounts.TryGetValue(account, out var id))
+            {
+                map[program] = id;
             }
         }
 
@@ -208,6 +248,7 @@ public static class ClaudeProgramRouter
             $"- 자리별 로그인(계정 UUID → 자리): {(snapshot.Accounts.Count == 0 ? "없음" : string.Join(" · ", snapshot.Accounts.Select(p => $"{p.Key} → {p.Value}")))}",
             $"- 손으로 고정한 연동: {(snapshot.Pins.Count == 0 ? "없음(전부 자동)" : string.Join(" · ", snapshot.Pins.Select(p => $"{p.Key} → {p.Value}")))}",
             $"- 연동 이력 {ClaudeProgramLinks.All().Count}줄: {string.Join(" · ", ClaudeProgramLinks.All().TakeLast(6).Select(e => $"{e.From:yyyy-MM-dd HH:mm} {e.Program} → {e.Account}"))}",
+            $"- 데스크톱 앱 계정 판정: {ClaudeDesktopSessions.DescribeCurrent()}",
             $"- 에이전트 모드 폴더 {AgentProjectDirs().Count}개"
         };
         return string.Join(Environment.NewLine, lines);
@@ -217,9 +258,10 @@ public static class ClaudeProgramRouter
     /// <param name="Accounts">계정 UUID → 자리(providerId)</param>
     /// <param name="SlotAccounts">자리(providerId) → 계정 UUID</param>
     /// <param name="Pins">손으로 고정한 연동 — 프로그램 → 자리(providerId)</param>
+    /// <param name="Slots">자리(providerId)와 그 설정 폴더 — 갱신마다 로그인 계정을 다시 읽는 데 쓴다</param>
     private sealed record Snapshot(bool Active, string DefaultId, IReadOnlyDictionary<string, string> Routes,
         IReadOnlyDictionary<string, string> Accounts, IReadOnlyDictionary<string, string> SlotAccounts,
-        IReadOnlyDictionary<string, string> Pins);
+        IReadOnlyDictionary<string, string> Pins, IReadOnlyList<(string Id, string ConfigDir)> Slots);
 }
 
 /// <summary>
@@ -242,29 +284,72 @@ internal static class ClaudeDesktopSessions
     }
 
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(1);
-    private static (DateTime BuiltAt, IReadOnlyDictionary<string, string> Map, string? Newest) _cache =
-        (DateTime.MinValue, new Dictionary<string, string>(), null);
+    private static (DateTime BuiltAt, IReadOnlyDictionary<string, string> Map, string? Newest, DateTime NewestAt) _cache =
+        (DateTime.MinValue, new Dictionary<string, string>(), null, DateTime.MinValue);
 
     public static string? AccountOf(string? sessionId) =>
         !string.IsNullOrEmpty(sessionId) && Current().Map.TryGetValue(sessionId, out var account) ? account : null;
 
-    /// <summary>데스크톱 앱이 가장 최근에 세션 메타를 쓴 계정 UUID — 「지금 데스크톱 앱이 쓰는 계정」으로 본다.</summary>
-    public static string? NewestAccount() => Current().Newest;
+    /// <summary>
+    /// 지금 데스크톱 앱에 로그인한 계정 UUID — 앱 설정(config.json)의 lastKnownAccountUuid 와 최근 세션 메타 중 더 늦게 쓰인 쪽을 따른다.
+    /// 왜: 세션 메타는 Code 탭을 써야만 쓰인다 — 채팅만 쓰거나 계정을 막 바꾼 장비는 메타만 보면 옛 계정(또는 CLI 계정)에 머문다.
+    /// </summary>
+    public static string? CurrentAccount()
+    {
+        var cache = Current();
+        var (known, knownAt) = LastKnownAccount();
+        return known is not null && (cache.Newest is null || knownAt >= cache.NewestAt) ? known : cache.Newest ?? known;
+    }
 
-    private static (DateTime BuiltAt, IReadOnlyDictionary<string, string> Map, string? Newest) Current()
+    // 계약: 진단 보고서용 — 두 신호를 시각과 함께 적어 어느 쪽이 계정 전환을 따라가는지 가린다. UUID 가림은 호출자가 한다
+    public static string DescribeCurrent()
+    {
+        var cache = Current();
+        var (known, knownAt) = LastKnownAccount();
+        return $"앱 설정 {known ?? "없음"}({knownAt.ToLocalTime():MM-dd HH:mm}) · 세션 메타 {cache.Newest ?? "없음"}({cache.NewestAt.ToLocalTime():MM-dd HH:mm}) → {CurrentAccount() ?? "없음(홈 계정을 따름)"}";
+    }
+
+    // 함정: 설치본이 둘(일반 · 스토어)이면 config.json 도 둘이다 — 나중에 쓰인 쪽이 지금 쓰는 앱이다
+    private static (string? Account, DateTime At) LastKnownAccount()
+    {
+        (string? Account, DateTime At) best = (null, DateTime.MinValue);
+        foreach (var path in Roots("config.json").Where(File.Exists))
+        {
+            try
+            {
+                var writtenAt = File.GetLastWriteTimeUtc(path);
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var doc = JsonDocument.Parse(stream);
+                if (writtenAt > best.At && doc.RootElement.ValueKind == JsonValueKind.Object &&
+                    doc.RootElement.TryGetProperty("lastKnownAccountUuid", out var id) && id.ValueKind == JsonValueKind.String &&
+                    id.GetString() is { Length: > 0 } account)
+                {
+                    best = (account, writtenAt);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+            {
+                // 쓰는 중이거나 깨진 설정은 건너뛴다 — 세션 메타 쪽 판정으로 떨어진다
+            }
+        }
+
+        return best;
+    }
+
+    private static (DateTime BuiltAt, IReadOnlyDictionary<string, string> Map, string? Newest, DateTime NewestAt) Current()
     {
         var cache = _cache;
         if (DateTime.UtcNow - cache.BuiltAt > Ttl)
         {
-            var (map, newest) = Build();
-            cache = (DateTime.UtcNow, map, newest);
+            var (map, newest, newestAt) = Build();
+            cache = (DateTime.UtcNow, map, newest, newestAt);
             _cache = cache;
         }
 
         return cache;
     }
 
-    private static (IReadOnlyDictionary<string, string> Map, string? Newest) Build()
+    private static (IReadOnlyDictionary<string, string> Map, string? Newest, DateTime NewestAt) Build()
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         string? newest = null;
@@ -282,7 +367,7 @@ internal static class ClaudeDesktopSessions
 
                 try
                 {
-                    // 왜: 메타를 마지막으로 쓴 계정이 지금 데스크톱 앱에 로그인한 계정이다 — 홈 .claude.json 은 CLI 와 섞여 믿을 수 없다
+                    // 왜: 메타를 마지막으로 쓴 계정이 데스크톱 앱 계정의 한 신호다 — 홈 .claude.json 은 CLI 와 섞여 믿을 수 없다
                     var writtenAt = File.GetLastWriteTimeUtc(file);
                     if (writtenAt > newestAt)
                     {
@@ -303,7 +388,7 @@ internal static class ClaudeDesktopSessions
             }
         }
 
-        return (map, newest);
+        return (map, newest, newestAt);
     }
 }
 
