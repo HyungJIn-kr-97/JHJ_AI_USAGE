@@ -116,6 +116,8 @@ internal static class LocStringsZh
         ["Keep usage log"] = "收集使用信息",
         ["Keeps refresh · error · link events on this PC. Nothing is sent anywhere."] = "刷新·错误·关联记录仅保存在本机\n不会自动发送",
         ["Open issue"] = "提交问题",
+        ["Copies the diagnostics to the clipboard"] = "将诊断信息复制到剪贴板",
+        ["Diagnostics copied to the clipboard"] = "已将诊断信息复制到剪贴板",
         ["Save file"] = "保存为文件",
         ["Copy"] = "复制",
         ["Copied — paste it into the issue"] = "已复制 — 请粘贴到问题中",

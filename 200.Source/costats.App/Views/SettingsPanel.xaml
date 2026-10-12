@@ -656,6 +656,9 @@
                                     ToolTip="{loc:Tr 'Copies the diagnostics, then opens a new GitHub issue'}" />
                             <Button Content="{loc:Tr 'Save file'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
                                     Style="{StaticResource SettingsButton}" Command="{Binding SaveDiagnosticsCommand}" />
+                            <Button Content="{loc:Tr 'Copy'}" DockPanel.Dock="Right" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                                    Style="{StaticResource SettingsButton}" Command="{Binding CopyDiagnosticsCommand}"
+                                    ToolTip="{loc:Tr 'Copies the diagnostics to the clipboard'}" />
                             <CheckBox IsChecked="{Binding DiagnosticsEnabled}" Style="{StaticResource SettingsCheckBox}" VerticalAlignment="Center"
                                       ToolTip="{loc:Tr 'Keeps refresh · error · link events on this PC. Nothing is sent anywhere.'}">
                                 <TextBlock Text="{loc:Tr 'Keep usage log'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />

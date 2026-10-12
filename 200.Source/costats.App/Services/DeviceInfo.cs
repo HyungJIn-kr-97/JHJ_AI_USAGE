@@ -10,7 +10,8 @@ namespace costats.App.Services;
 /// 계약: 값은 이 PC 의 파일에만 남는다 — 어디로도 보내지 않는다.
 /// </summary>
 /// <param name="Label">사용자가 붙인 명칭. 안 붙였으면 null.</param>
-public sealed record DeviceFacts(string Id, string Name, string? Label, string Os, string Arch);
+/// <param name="Spec">장비 사양 — Detailed 로 읽을 때만 채운다(Device\DeviceSpec.cs).</param>
+public sealed record DeviceFacts(string Id, string Name, string? Label, string Os, string Arch, DeviceSpec? Spec = null);
 
 public static class DeviceInfo
 {
@@ -42,6 +43,10 @@ public static class DeviceInfo
         string.IsNullOrWhiteSpace(_settings?.DeviceLabel) ? null : _settings!.DeviceLabel.Trim(),
         RuntimeInformation.OSDescription,
         RuntimeInformation.OSArchitecture.ToString());
+
+    /// <summary>사양까지 실은 장비 정보 — 표시 데이터 저장소가 갱신마다 한 번 읽는다.</summary>
+    /// 왜: Current 와 가른다 — 화면이 이름만 필요할 때마다 레지스트리·네트워크를 다시 훑지 않는다
+    public static DeviceFacts Detailed => Current with { Spec = DeviceProbe.Current.Read() };
 
     /// <summary>화면·이력에 보일 이름 — 사용자가 붙인 명칭, 없으면 PC 이름.</summary>
     public static string DisplayName => Current.Label ?? Current.Name;

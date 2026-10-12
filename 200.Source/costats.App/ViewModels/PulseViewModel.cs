@@ -620,7 +620,9 @@ public sealed partial class PulseViewModel : ObservableObject, IObserver<PulseSt
                         string.Concat(value.Providers
                             .Where(p => p.Value.StatusSummary is { } s && (s.StartsWith("Usage lookup failed", StringComparison.Ordinal) || s.StartsWith("No Claude token", StringComparison.Ordinal) || s.StartsWith("Cached values", StringComparison.Ordinal)))
                             .Select(p => $" · {p.Key} 사유 「{p.Value.StatusSummary}」")) +
-                        (value.Errors.Count > 0 ? " · 오류 " + string.Join(" / ", value.Errors) : string.Empty));
+                        (value.Errors.Count > 0 ? " · 오류 " + string.Join(" / ", value.Errors) : string.Empty) +
+                        // 왜: 30초를 안 넘겨도 어디서 시간이 가는지 보여야 한다 — 걸린 시간을 계정별로 같은 줄에 잇는다
+                        (value.Timing is { } timing ? " · " + timing : string.Empty));
                 }
 
                 foreach (var (providerId, reading) in value.Providers)

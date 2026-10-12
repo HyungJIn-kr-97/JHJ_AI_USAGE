@@ -171,7 +171,49 @@ public static class LogDigestor
             !known.Programs.Any(program => IsOwner(program, owner)))
             return;
 
+        var (lines, complete) = ParseClaudeFile(filePath, info, cancellationToken);
         var programsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in lines)
+        {
+            string? program = null;
+            if (owner is not null)
+            {
+                // 왜: 프로그램 판정은 줄을 풀 때마다 다시 한다 — 연동표가 바뀌면 같은 줄의 주인이 바뀐다
+                program = ClaudeProgramRouter.SourceOf(entry.Entrypoint, entry.SessionId, entry.Stamp);
+                programsSeen.Add(program);
+                if (!IsOwner(program, owner))
+                    continue;
+            }
+
+            if (entry.Day is not { } day || day < since || day > until || entry.Model is null)
+                continue;
+
+            // Deduplicate by message ID + request ID (streaming sends duplicates)
+            if (entry.MessageId is not null && entry.RequestId is not null &&
+                !TryAddDedupeKey(dedupeSet, new MessageRequestKey(entry.MessageId, entry.RequestId)))
+                continue;
+
+            if (entry.Ledger.TotalConsumed == 0)
+                continue;
+
+            var cost = TariffRegistry.FindClaudeRate(entry.Model).ComputeCost(entry.Ledger);
+            AddAggregate(aggregates, day, entry.Model, entry.Ledger, cost, program);
+        }
+
+        if (owner is not null && complete)
+            ProgramsByFile[filePath] = new FilePrograms(info.LastWriteTimeUtc, info.Length, programsSeen.ToArray());
+    }
+
+    // 왜: 1년치 로그(실측 840개 2.3GB)를 갱신마다 처음부터 읽으면 한 번에 20~30초가 걸린다 — 바뀌지 않은 파일은 풀어 둔 줄을 다시 쓴다
+    // 계약: 기간·주인으로 거르지 않은 줄을 그대로 둔다 — 같은 파일을 계정마다, 기간마다 다르게 걸러 쓴다
+    private static (IReadOnlyList<ClaudeLine> Lines, bool Complete) ParseClaudeFile(
+        string filePath, FileInfo info, CancellationToken cancellationToken)
+    {
+        if (ParsedByFile.TryGetValue(filePath, out var known) &&
+            known.WriteTimeUtc == info.LastWriteTimeUtc && known.Length == info.Length)
+            return (known.Lines, true);
+
+        var lines = new List<ClaudeLine>();
         try
         {
             foreach (var line in ReadLines(filePath, cancellationToken))
@@ -191,66 +233,44 @@ public static class LogDigestor
                     if (!TryGetString(root, "type", out var type) || type != "assistant")
                         continue;
 
-                    string? program = null;
-                    if (owner is not null)
+                    var timestamp = TryGetString(root, "timestamp", out var at) ? at : null;
+                    string? model = null;
+                    string? messageId = null;
+                    var ledger = default(TokenLedger)!;
+                    if (root.TryGetProperty("message", out var message) &&
+                        TryGetString(message, "model", out var named) &&
+                        message.TryGetProperty("usage", out var usage))
                     {
-                        program = ClaudeProgramRouter.SourceOf(
-                            TryGetString(root, "entrypoint", out var ep) ? ep : null,
-                            TryGetString(root, "sessionId", out var sid) ? sid : null,
-                            TryGetString(root, "timestamp", out var at) && DateTimeOffset.TryParse(at, System.Globalization.CultureInfo.InvariantCulture,
-                                System.Globalization.DateTimeStyles.AssumeUniversal, out var stamped) ? stamped : null);
-                        programsSeen.Add(program);
-                        if (!IsOwner(program, owner))
-                            continue;
+                        model = string.Intern(named);
+                        messageId = TryGetString(message, "id", out var mid) ? mid : null;
+                        ledger = ExtractClaudeLedger(usage);
                     }
 
-                    if (!TryGetString(root, "timestamp", out var timestamp))
-                        continue;
-
-                    var entryDate = ParseDateFromTimestamp(timestamp);
-                    if (entryDate is null || entryDate < since || entryDate > until)
-                        continue;
-
-                    if (!root.TryGetProperty("message", out var message))
-                        continue;
-
-                    if (!TryGetString(message, "model", out var model))
-                        continue;
-
-                    if (!message.TryGetProperty("usage", out var usage))
-                        continue;
-
-                    // Deduplicate by message ID + request ID (streaming sends duplicates)
-                    var messageId = TryGetString(message, "id", out var mid) ? mid : null;
-                    var requestId = TryGetString(root, "requestId", out var rid) ? rid : null;
-                    if (messageId is not null && requestId is not null)
-                    {
-                        if (!TryAddDedupeKey(dedupeSet, new MessageRequestKey(messageId, requestId)))
-                            continue;
-                    }
-
-                    var ledger = ExtractClaudeLedger(usage);
-                    if (ledger.TotalConsumed == 0)
-                        continue;
-
-                    var rate = TariffRegistry.FindClaudeRate(model);
-                    var cost = rate.ComputeCost(ledger);
-
-                    AddAggregate(aggregates, entryDate.Value, model, ledger, cost, program);
+                    lines.Add(new ClaudeLine(
+                        TryGetString(root, "entrypoint", out var ep) ? string.Intern(ep) : null,
+                        TryGetString(root, "sessionId", out var sid) ? string.Intern(sid) : null,
+                        timestamp is not null && DateTimeOffset.TryParse(timestamp, System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.AssumeUniversal, out var stamped) ? stamped : null,
+                        timestamp is null ? null : ParseDateFromTimestamp(timestamp),
+                        model,
+                        messageId,
+                        TryGetString(root, "requestId", out var rid) ? rid : null,
+                        ledger));
                 }
                 catch (JsonException)
                 {
                     // Skip malformed lines
                 }
             }
-
-            if (owner is not null)
-                ProgramsByFile[filePath] = new FilePrograms(info.LastWriteTimeUtc, info.Length, programsSeen.ToArray());
         }
         catch (IOException)
         {
-            // File access error, skip
+            // 함정: 읽다 끊긴 파일은 담아 두지 않는다 — 반쪽을 담으면 다음 갱신이 나머지를 영영 못 본다
+            return (lines, false);
         }
+
+        ParsedByFile[filePath] = new ParsedFile(info.LastWriteTimeUtc, info.Length, lines.ToArray());
+        return (lines, true);
     }
 
     private static bool IsOwner(string program, string owner) =>
@@ -649,6 +669,16 @@ public static class LogDigestor
     private static readonly ConcurrentDictionary<string, FilePrograms> ProgramsByFile = new(StringComparer.OrdinalIgnoreCase);
 
     private sealed record FilePrograms(DateTime WriteTimeUtc, long Length, string[] Programs);
+
+    // 계약: 수정 시각과 크기가 같을 때만 다시 쓴다 — 쓰이고 있는 세션 파일은 매번 새로 읽힌다
+    private static readonly ConcurrentDictionary<string, ParsedFile> ParsedByFile = new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed record ParsedFile(DateTime WriteTimeUtc, long Length, ClaudeLine[] Lines);
+
+    /// 계약: Model 이 null 이면 사용량을 못 읽은 줄이다 — 프로그램 판정에만 쓰이고 합계에는 들어가지 않는다.
+    private readonly record struct ClaudeLine(
+        string? Entrypoint, string? SessionId, DateTimeOffset? Stamp, DateOnly? Day,
+        string? Model, string? MessageId, string? RequestId, TokenLedger Ledger);
 
     private record struct SliceAccumulator
     {

@@ -67,7 +67,7 @@ public static class DisplayDataStore
                     refreshedAt,
                     nextRefreshAt,
                     accounts,
-                    DeviceInfo.Current);
+                    DeviceInfo.Detailed);
 
                 Directory.CreateDirectory(RootDir);
                 WriteAtomic(SnapshotPath, JsonSerializer.Serialize(snapshot, Json));

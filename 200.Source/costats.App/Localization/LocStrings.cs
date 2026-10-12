@@ -125,6 +125,8 @@ internal static class LocStrings
         ["Keep usage log"] = "사용 정보 수집",
         ["Keeps refresh · error · link events on this PC. Nothing is sent anywhere."] = "갱신·오류·연동 기록을 이 PC 에만\n자동 전송 없음",
         ["Open issue"] = "이슈 열기",
+        ["Copies the diagnostics to the clipboard"] = "진단 정보를 클립보드에 복사",
+        ["Diagnostics copied to the clipboard"] = "진단 정보를 클립보드에 복사했습니다",
         ["Save file"] = "파일로 저장",
         ["Copy"] = "복사",
         ["Copied — paste it into the issue"] = "복사했습니다 — 이슈에 붙여 넣어 주십시오",

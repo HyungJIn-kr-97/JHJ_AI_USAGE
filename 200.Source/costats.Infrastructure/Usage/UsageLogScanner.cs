@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -197,114 +198,148 @@ internal sealed class UsageLogScanner
         foreach (var (file, owner) in enumerate(weekCutoff))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var stream = new FileStream(file, new FileStreamOptions
+            foreach (var entry in ParseClaudeFile(file, cancellationToken))
             {
-                Mode = FileMode.Open,
-                Access = FileAccess.Read,
-                Share = FileShare.ReadWrite,
-                Options = FileOptions.SequentialScan,
-                BufferSize = FileReadBufferSize
-            });
-            using var reader = new StreamReader(stream);
-            string? line;
-            var lineBuffer = new StringBuilder();
-
-            while ((line = ReadLineLimited(reader, lineBuffer)) is not null)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (line.Length == 0 || !line.Contains("\"type\""))
+                var timestamp = entry.Timestamp;
+                // 왜: 주인 판정은 줄을 풀 때마다 다시 한다 — 연동표가 바뀌면 같은 줄의 주인이 바뀐다
+                if (owner is not null && !string.Equals(
+                        ClaudeProgramRouter.OwnerOf(ClaudeProgramRouter.SourceOf(entry.Entrypoint, entry.SessionId, timestamp)),
+                        owner, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                JsonDocument? doc = null;
-                try
-                {
-                    doc = JsonDocument.Parse(line);
-                    var root = doc.RootElement;
-                    if (!root.TryGetProperty("type", out var typeElement))
-                    {
-                        continue;
-                    }
-
-                    var type = typeElement.GetString();
-                    if (!string.Equals(type, "assistant", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    if (!TryGetTimestamp(root, out var timestamp))
-                    {
-                        continue;
-                    }
-
-                    if (!root.TryGetProperty("message", out var messageElement))
-                    {
-                        continue;
-                    }
-
-                    if (!messageElement.TryGetProperty("usage", out var usageElement) ||
-                        usageElement.ValueKind != JsonValueKind.Object)
-                    {
-                        continue;
-                    }
-
-                    if (owner is not null && !IsOwnedBy(root, owner, timestamp))
-                    {
-                        continue;
-                    }
-
-                    var messageId = messageElement.TryGetProperty("id", out var messageIdElement)
-                        ? messageIdElement.GetString()
-                        : null;
-                    var requestId = root.TryGetProperty("requestId", out var requestIdElement)
-                        ? requestIdElement.GetString()
-                        : null;
-                    if (!string.IsNullOrWhiteSpace(messageId) && !string.IsNullOrWhiteSpace(requestId))
-                    {
-                        if (!TryAddDedupeKey(seenKeys, new MessageRequestKey(messageId, requestId)))
-                        {
-                            continue;
-                        }
-                    }
-
-                    var tokens = ExtractClaudeTokens(usageElement);
-                    if (tokens == 0)
-                    {
-                        continue;
-                    }
-
-                    if (timestamp >= weekCutoff)
-                    {
-                        weekTokens += tokens;
-                    }
-
-                    if (timestamp >= sessionCutoff)
-                    {
-                        sessionTokens += tokens;
-                        if (sessionStart is null || timestamp < sessionStart)
-                        {
-                            sessionStart = timestamp;
-                        }
-                    }
-
-                    if (latest is null || timestamp > latest)
-                    {
-                        latest = timestamp;
-                    }
-                }
-                catch (JsonException)
+                if (!string.IsNullOrWhiteSpace(entry.MessageId) && !string.IsNullOrWhiteSpace(entry.RequestId) &&
+                    !TryAddDedupeKey(seenKeys, new MessageRequestKey(entry.MessageId, entry.RequestId)))
                 {
                     continue;
                 }
-                finally
+
+                var tokens = entry.Tokens;
+                if (tokens == 0)
                 {
-                    doc?.Dispose();
+                    continue;
+                }
+
+                if (timestamp >= weekCutoff)
+                {
+                    weekTokens += tokens;
+                }
+
+                if (timestamp >= sessionCutoff)
+                {
+                    sessionTokens += tokens;
+                    if (sessionStart is null || timestamp < sessionStart)
+                    {
+                        sessionStart = timestamp;
+                    }
+                }
+
+                if (latest is null || timestamp > latest)
+                {
+                    latest = timestamp;
                 }
             }
         }
 
         return new UsageLogResult(sessionTokens, weekTokens, latest, sessionStart, null);
+    }
+
+    // 왜: 최근 8일치 로그(실측 544개 1.3GB)를 계정마다 갱신마다 통째로 읽어 한 번에 4초씩 걸렸다 — 바뀌지 않은 파일은 풀어 둔 줄을 다시 쓴다
+    // 계약: 수정 시각과 크기가 같을 때만 다시 쓰고, 주인·기간으로 거르지 않은 줄을 둔다 — 계정마다 다르게 걸러 쓴다
+    private static readonly ConcurrentDictionary<string, ParsedFile> ParsedByFile = new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed record ParsedFile(DateTime WriteTimeUtc, long Length, ClaudeLine[] Lines);
+
+    private readonly record struct ClaudeLine(
+        string? Entrypoint, string? SessionId, DateTimeOffset Timestamp, string? MessageId, string? RequestId, long Tokens);
+
+    private static IReadOnlyList<ClaudeLine> ParseClaudeFile(string file, CancellationToken cancellationToken)
+    {
+        var info = new FileInfo(file);
+        if (ParsedByFile.TryGetValue(file, out var known) &&
+            known.WriteTimeUtc == info.LastWriteTimeUtc && known.Length == info.Length)
+        {
+            return known.Lines;
+        }
+
+        var lines = new List<ClaudeLine>();
+        using var stream = new FileStream(file, new FileStreamOptions
+        {
+            Mode = FileMode.Open,
+            Access = FileAccess.Read,
+            Share = FileShare.ReadWrite,
+            Options = FileOptions.SequentialScan,
+            BufferSize = FileReadBufferSize
+        });
+        using var reader = new StreamReader(stream);
+        string? line;
+        var lineBuffer = new StringBuilder();
+
+        while ((line = ReadLineLimited(reader, lineBuffer)) is not null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (line.Length == 0 || !line.Contains("\"type\""))
+            {
+                continue;
+            }
+
+            JsonDocument? doc = null;
+            try
+            {
+                doc = JsonDocument.Parse(line);
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("type", out var typeElement))
+                {
+                    continue;
+                }
+
+                var type = typeElement.GetString();
+                if (!string.Equals(type, "assistant", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!TryGetTimestamp(root, out var timestamp))
+                {
+                    continue;
+                }
+
+                if (!root.TryGetProperty("message", out var messageElement))
+                {
+                    continue;
+                }
+
+                if (!messageElement.TryGetProperty("usage", out var usageElement) ||
+                    usageElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                lines.Add(new ClaudeLine(
+                    root.TryGetProperty("entrypoint", out var element) && element.ValueKind == JsonValueKind.String
+                        ? string.Intern(element.GetString()!)
+                        : null,
+                    root.TryGetProperty("sessionId", out var sessionElement) && sessionElement.ValueKind == JsonValueKind.String
+                        ? string.Intern(sessionElement.GetString()!)
+                        : null,
+                    timestamp,
+                    messageElement.TryGetProperty("id", out var messageIdElement) ? messageIdElement.GetString() : null,
+                    root.TryGetProperty("requestId", out var requestIdElement) ? requestIdElement.GetString() : null,
+                    ExtractClaudeTokens(usageElement)));
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+            finally
+            {
+                doc?.Dispose();
+            }
+        }
+
+        ParsedByFile[file] = new ParsedFile(info.LastWriteTimeUtc, info.Length, lines.ToArray());
+        return lines;
     }
 
     private static IEnumerable<string> EnumerateCodexFiles(DateTimeOffset oldestRelevant, string? codexHome)
@@ -405,17 +440,6 @@ internal sealed class UsageLogScanner
                 continue;
             yield return file;
         }
-    }
-
-    private static bool IsOwnedBy(JsonElement root, string owner, DateTimeOffset at)
-    {
-        var entrypoint = root.TryGetProperty("entrypoint", out var element) && element.ValueKind == JsonValueKind.String
-            ? element.GetString()
-            : null;
-        var sessionId = root.TryGetProperty("sessionId", out var sessionElement) && sessionElement.ValueKind == JsonValueKind.String
-            ? sessionElement.GetString()
-            : null;
-        return string.Equals(ClaudeProgramRouter.OwnerOf(ClaudeProgramRouter.SourceOf(entrypoint, sessionId, at)), owner, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ReadLineLimited(StreamReader reader, StringBuilder buffer)

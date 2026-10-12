@@ -2039,7 +2039,22 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private string BuildDiagnostics() => DiagnosticsReport.Build(_settings, _pulseViewModel?.LastState, Version);
 
-    // 왜: 「복사」와 「이슈 열기」를 따로 두면 줄이 넘친다 — 이슈를 열 때 진단 정보를 함께 복사한다
+    // 왜: 이슈를 열지 않고 진단 정보만 필요할 때가 있다 — 메신저·Agent 에 바로 붙여 넣는다
+    [RelayCommand]
+    private void CopyDiagnostics()
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(BuildDiagnostics());
+            DiagnosticsStatusText = Loc.T("Diagnostics copied to the clipboard");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsStatusText = ex.Message;
+        }
+    }
+
+    // 계약: 「이슈 열기」는 「복사」가 따로 있어도 진단 정보를 함께 복사한다 — 본문에 바로 붙여 넣게 한다
     [RelayCommand]
     private void OpenIssueWithDiagnostics()
     {

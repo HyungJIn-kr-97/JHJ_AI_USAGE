@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using costats.Application.Abstractions;
 using costats.Core.Pulse;
+using Jhj.Core.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -15,6 +17,9 @@ public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
     private readonly PulseBroadcaster _broadcaster;
     private readonly IPulseSnapshotWriter _snapshotWriter;
     private readonly ILogger<PulseOrchestrator> _logger;
+    // 왜: 갱신은 30초 안에 끝나는 것이 정상이다 — 넘기면 어느 단계가 붙잡았는지 남겨야 다음에 고칠 수 있다
+    private static readonly TimeSpan SlowRefresh = TimeSpan.FromSeconds(30);
+
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly object _intervalLock = new();
 
@@ -67,7 +72,10 @@ public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
 
     public async Task RefreshOnceAsync(RefreshTrigger trigger, CancellationToken cancellationToken)
     {
+        var total = Stopwatch.StartNew();
         await _refreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var waited = total.Elapsed;
+        var steps = new List<string>();
         try
         {
             if (ShouldShowShimmer(trigger))
@@ -86,18 +94,24 @@ public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
             foreach (var (providerId, providerSources) in byProvider)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                var step = Stopwatch.StartNew();
                 var reading = await _selector.SelectAsync(providerId, providerSources, cancellationToken).ConfigureAwait(false);
                 providerReads[providerId] = reading;
+                steps.Add($"{providerId} {step.Elapsed.TotalSeconds:0.0}초");
             }
 
-            var state = new PulseState(providerReads, _clock.UtcNow, errors, false, trigger);
+            var state = new PulseState(providerReads, _clock.UtcNow, errors, false, trigger,
+                $"{total.Elapsed.TotalSeconds:0.0}초(대기 {waited.TotalSeconds:0.0} · {string.Join(" · ", steps)})");
             _lastState = state;
             _hasSuccessfulLoad = true;
             _broadcaster.Publish(state);
+            var write = Stopwatch.StartNew();
             await _snapshotWriter.WriteAsync(state, cancellationToken).ConfigureAwait(false);
+            steps.Add($"저장 {write.Elapsed.TotalSeconds:0.0}초");
         }
         catch (Exception ex)
         {
+            steps.Add($"중단 {ex.GetType().Name}");
             _logger.LogError(ex, "Pulse refresh failed");
             var keepRefreshing = trigger == RefreshTrigger.Initial && !_hasSuccessfulLoad;
             var baseState = _lastState ?? new PulseState(
@@ -112,7 +126,8 @@ public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
                 LastRefresh = _clock.UtcNow,
                 Errors = new List<string> { ex.Message },
                 IsRefreshing = keepRefreshing,
-                Trigger = trigger
+                Trigger = trigger,
+                Timing = $"{total.Elapsed.TotalSeconds:0.0}초(대기 {waited.TotalSeconds:0.0} · {string.Join(" · ", steps)})"
             };
 
             if (!keepRefreshing)
@@ -125,6 +140,13 @@ public sealed class PulseOrchestrator : BackgroundService, IPulseOrchestrator
         finally
         {
             _refreshGate.Release();
+            // 계약: 누른 때부터 끝까지가 SlowRefresh 를 넘기면 diagnostics\events.log 에 slow-refresh 한 줄을 남긴다
+            if (total.Elapsed >= SlowRefresh)
+            {
+                DiagnosticsLog.Record("slow-refresh",
+                    $"{trigger} · 전체 {total.Elapsed.TotalSeconds:0.0}초 · 앞 갱신 대기 {waited.TotalSeconds:0.0}초 · " +
+                    string.Join(" · ", steps));
+            }
         }
     }
 

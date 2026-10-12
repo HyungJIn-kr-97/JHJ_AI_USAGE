@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text.Json;
 using costats.Core.Pulse;
+using Jhj.Core.Diagnostics;
 
 namespace costats.Infrastructure.Providers;
 
@@ -171,6 +173,10 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
             }
 
             LastError = $"HTTP {(int)response.StatusCode}";
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            RecordFailure($"HTTP {(int)response.StatusCode} {response.ReasonPhrase}" +
+                (response.Headers.RetryAfter is { } retry ? $" · Retry-After {retry}" : string.Empty) +
+                (body.Length > 0 ? $" · {body[..Math.Min(body.Length, 300)]}" : string.Empty));
             return null;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -180,9 +186,37 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
         catch (Exception ex)
         {
             LastError = ex.GetType().Name;
+            RecordFailure(Describe(ex));
             return null;
         }
     }
+
+    // 왜: 화면에는 예외 이름만 뜬다 — DNS · 연결 거부 · TLS · 시간 초과 중 무엇인지는 안쪽 예외에만 있다
+    private static string Describe(Exception ex)
+    {
+        var parts = new List<string> { ex.GetType().Name };
+        if (ex is HttpRequestException http)
+        {
+            parts.Add($"종류 {http.HttpRequestError}");
+            if (http.StatusCode is { } code)
+            {
+                parts.Add($"HTTP {(int)code}");
+            }
+        }
+
+        for (var inner = ex.InnerException; inner is not null; inner = inner.InnerException)
+        {
+            parts.Add(inner is SocketException socket ? $"{inner.GetType().Name} {socket.SocketErrorCode}" : inner.GetType().Name);
+        }
+
+        parts.Add(ex.Message);
+        return string.Join(" · ", parts);
+    }
+
+    // 계약: 자리는 폴더 이름만 적는다 — 진단 정보는 남에게 건네는 글이라 전체 경로(사용자 이름)를 싣지 않는다
+    private void RecordFailure(string detail) =>
+        DiagnosticsLog.Record("lookup-fail",
+            $"claude:{(_configDir is null ? "default" : Path.GetFileName(_configDir.TrimEnd('\\', '/')))} · {detail}");
 
     /// <summary>
     /// Runs <c>claude /status</c> which internally triggers Claude Code's
