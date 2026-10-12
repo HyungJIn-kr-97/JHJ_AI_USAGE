@@ -583,7 +583,19 @@
                                    ToolTip="{Binding StatusSummary}" />
                         <!-- 계약: 예약 갱신은 시계 눈금에 맞는다 — 다음 시각과 남은 시간을 1초마다 다시 쓴다(모든 탭 공통 값) -->
                         <TextBlock Text="{Binding DataContext.NextRefreshText, RelativeSource={RelativeSource AncestorType=Window}}"
-                                   FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,3,0,0" MinHeight="14" />
+                                   FontSize="11" Foreground="{DynamicResource TextFaintBrush}" Margin="0,3,0,0" MinHeight="14"
+                                   Visibility="{Binding DataContext.IsRefreshing, RelativeSource={RelativeSource AncestorType=Window}, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}" />
+                        <!-- 계약: 갱신 중에는 「다음 갱신」 줄을 「새로 고치는 중」으로 바꾼다 — 「전체」 머리줄과 같은 표시를 계정 화면에도 낸다 -->
+                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0" MinHeight="14"
+                                    Visibility="{Binding DataContext.IsRefreshing, RelativeSource={RelativeSource AncestorType=Window}, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                            <Path Style="{StaticResource SpinnerPath}" Width="11" Height="11" VerticalAlignment="Center" Margin="0,0,5,0">
+                                <Path.RenderTransform>
+                                    <RotateTransform Angle="0" />
+                                </Path.RenderTransform>
+                            </Path>
+                            <TextBlock Text="{loc:Tr 'Refreshing…'}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource AccentBrush}" />
+                        </StackPanel>
                     </StackPanel>
                 </DockPanel>
 
