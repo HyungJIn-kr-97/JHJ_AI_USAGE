@@ -140,7 +140,7 @@ namespace costats.App.Services
             ShowWidget();
         }
 
-        /// <summary>미니 위젯 켬/끔 — 트레이 메뉴와 전역 단축키(Ctrl+Alt+Shift+2)가 부른다. 메뉴의 체크 표시를 함께 맞춘다.</summary>
+        /// <summary>미니 위젯 켬/끔 — 트레이 메뉴와 전역 단축키(Alt+Shift+2)가 부른다. 메뉴의 체크 표시를 함께 맞춘다.</summary>
         public void ToggleMiniWidget()
         {
             MiniWidget?.Toggle();

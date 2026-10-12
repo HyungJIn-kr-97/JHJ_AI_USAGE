@@ -28,6 +28,11 @@ public sealed partial class ProgramLinkRow : ObservableObject
 
     public IReadOnlyList<ProgramAccountOption> Options { get; }
 
+    // 계약: 이 줄을 마지막으로 다시 읽은 결과 — ✓ 그대로 · ● 바뀜 · ! 못 읽음. 한 번도 안 읽었으면 비어 있다
+    public string Mark { get; init; } = string.Empty;
+
+    public string MarkDetail { get; init; } = string.Empty;
+
     [ObservableProperty]
     private ProgramAccountOption selectedAccount;
 

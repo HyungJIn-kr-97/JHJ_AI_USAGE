@@ -142,9 +142,16 @@ public sealed class AppSettings : IScheduledUpdateSettings
     public int? MiniWidgetLeftPx { get; set; }
     public int? MiniWidgetTopPx { get; set; }
 
-    // 계약: 미니 위젯 켬/끔 전역 단축키 — 팝업 단축키(Ctrl+Alt+2)에 Shift 를 더한 것. 비우면 등록하지 않는다
-    public const string DefaultMiniWidgetHotkey = "Ctrl+Alt+Shift+2";
-    public string MiniWidgetHotkey { get; set; } = DefaultMiniWidgetHotkey;
+    // 계약: 미니 위젯 켬/끔 전역 단축키 — 팝업(Ctrl+Alt+2)과 같은 숫자에 Alt+Shift(보조 창 자리). 비우면 등록하지 않는다
+    public const string DefaultMiniWidgetHotkey = "Alt+Shift+2";
+    // 왜: 옛 기본값은 수정키가 셋이라 누르기 힘들었다 — 그 값이 저장된 PC 를 읽을 때 새 기본값으로 옮긴다
+    private const string LegacyMiniWidgetHotkey = "Ctrl+Alt+Shift+2";
+    private string _miniWidgetHotkey = DefaultMiniWidgetHotkey;
+    public string MiniWidgetHotkey
+    {
+        get => _miniWidgetHotkey;
+        set => _miniWidgetHotkey = value == LegacyMiniWidgetHotkey ? DefaultMiniWidgetHotkey : value;
+    }
 
     // 계약: 유형별 켜고 끄기 — 세션(5시간) · 주간 · 모델별 주간(Fable 등)
     public bool UsageAlertSession { get; set; } = true;

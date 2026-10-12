@@ -8,7 +8,7 @@ namespace costats.App.Services
     /// <summary>
     /// 팝업 열고 닫기 단축키. 0번이 「팝업 단축키 1」(AppSettings.Hotkey), 1번부터가 AppSettings.ExtraHotkeys 다.
     /// 계약: 해석·등록·규칙 검사는 JHJ_CS_CORE 가 한다(HotkeyRules·HotkeyService) — 여기는 **이 앱의 설정 두 칸**만 잇는다.
-    /// 계약: 자리표는 JHJ_DEV/000.AGENTS_MD/060.단축키/060.단축키-대장.md 다 — AI Usage 는 2번(Ctrl+Alt+2)이고, 미니 위젯은 거기에 Shift 를 더한 Ctrl+Alt+Shift+2 다.
+    /// 계약: 자리표는 JHJ_DEV/000.AGENTS_MD/060.단축키/060.단축키-대장.md 다 — AI Usage 는 2번(Ctrl+Alt+2)이고, 미니 위젯은 같은 숫자의 보조 창 자리 Alt+Shift+2 다.
     /// 계약: 미니 위젯 단축키는 하는 일이 달라 Core NamedHotkeys 로 따로 건다 — 팝업 칸과 섞이지 않는다.
     /// </summary>
     public sealed class HotkeyService : IDisposable

@@ -276,6 +276,97 @@ public sealed partial class SettingsViewModel : ObservableObject
         ProgramLinkHistory = BuildProgramLinkHistory(options);
     }
 
+    // 계약: 새로고침·복사 단추의 결과 한 줄 — 비어 있으면 그리지 않는다
+    [ObservableProperty]
+    private string programLinkStatus = string.Empty;
+
+    private string? _linkSyncedAt;
+
+    // 계약: 프로그램마다 마지막으로 다시 읽은 결과 — 줄을 다시 그려도 표지가 남게 여기서 들고 있는다
+    private readonly Dictionary<string, (string Mark, string Detail)> _linkMarks = new(StringComparer.OrdinalIgnoreCase);
+
+    // 계약: 프로그램 하나를 지금 다시 읽고 그 줄의 표지를 남긴다 — 이력에 새 줄이 생겼으면 true
+    private async Task<bool> SyncProgramLinkAsync(string program)
+    {
+        // 함정: 세션 메타 수백 개를 읽는 길이다 — 화면 스레드에서 돌리면 창이 멈칫한다
+        var (account, changed) = await Task.Run(() => ClaudeProgramRouter.SyncLinkNow(program));
+        var (mark, text) = account is null ? ("!", Loc.T("Could not read the signed-in account"))
+            : ClaudeProgramRouter.SlotOfAccount(account) is null ? ("!", Loc.T("Signed in with an account not registered on this PC"))
+            : changed ? ("●", Loc.T("Changed"))
+            : ("✓", Loc.T("Unchanged"));
+        _linkMarks[program] = (mark, $"{text} · {DateTime.Now:HH:mm:ss}");
+        return changed;
+    }
+
+    private void StampLinkSync() =>
+        _linkSyncedAt = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} — {string.Join(" · ", _linkMarks.Select(p => $"{p.Key} {p.Value.Mark} {p.Value.Detail}"))}";
+
+    // 왜: 전체 갱신(F5)은 호출 간격·1분 캐시에 걸려 방금 바꾼 로그인을 못 따라올 때가 있다 — 이 칸만 프로그램 하나씩 지금 값으로 다시 읽는다
+    [RelayCommand]
+    private async Task RefreshProgramLinksNowAsync()
+    {
+        try
+        {
+            var changedCount = 0;
+            foreach (var (program, label) in ClaudePrograms)
+            {
+                ProgramLinkStatus = Loc.T("Checking {0}…", Loc.T(label));
+                if (await SyncProgramLinkAsync(program))
+                {
+                    changedCount++;
+                }
+
+                RefreshProgramLinks();
+            }
+
+            StampLinkSync();
+            var at = DateTime.Now.ToString("HH:mm:ss");
+            ProgramLinkStatus = changedCount > 0 ? Loc.T("Synced {0} · {1} changed", at, changedCount) : Loc.T("Synced {0}", at);
+        }
+        catch (Exception ex)
+        {
+            _linkSyncedAt = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} 실패 {ex.GetType().Name}";
+            ProgramLinkStatus = ex.Message;
+        }
+    }
+
+    [RelayCommand]
+    private async Task RefreshProgramLinkAsync(ProgramLinkRow? row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        try
+        {
+            ProgramLinkStatus = Loc.T("Checking {0}…", row.Label);
+            await SyncProgramLinkAsync(row.Program);
+            RefreshProgramLinks();
+            StampLinkSync();
+            ProgramLinkStatus = $"{row.Label} · {_linkMarks[row.Program].Detail}";
+        }
+        catch (Exception ex)
+        {
+            _linkSyncedAt = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {row.Program} 실패 {ex.GetType().Name}";
+            ProgramLinkStatus = ex.Message;
+        }
+    }
+
+    [RelayCommand]
+    private void CopyProgramLinkInfo()
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(DiagnosticsReport.BuildProgramLinks(Version, _linkSyncedAt));
+            ProgramLinkStatus = Loc.T("Copied");
+        }
+        catch (Exception ex)
+        {
+            ProgramLinkStatus = ex.Message;
+        }
+    }
+
     private System.Windows.Threading.DispatcherTimer? _linkTimer;
     private string _linkSignature = string.Empty;
 
@@ -319,8 +410,13 @@ public sealed partial class SettingsViewModel : ObservableObject
                 new(ProgramLinkRow.AutoId, nowLabel is null ? Loc.T("Auto · current login") : Loc.T("Auto · {0}", nowLabel)),
                 .. options
             ];
+            var mark = _linkMarks.GetValueOrDefault(p.Program);
             return new ProgramLinkRow(p.Program, Loc.T(p.Label), rowOptions,
-                _settings.ProgramAccountPins.GetValueOrDefault(p.Program, ProgramLinkRow.AutoId), OnProgramLinkChanged);
+                _settings.ProgramAccountPins.GetValueOrDefault(p.Program, ProgramLinkRow.AutoId), OnProgramLinkChanged)
+            {
+                Mark = mark.Mark ?? string.Empty,
+                MarkDetail = mark.Detail ?? string.Empty
+            };
         }).ToList();
     }
 

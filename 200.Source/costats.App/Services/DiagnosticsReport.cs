@@ -164,6 +164,44 @@ public static class DiagnosticsReport
         return sb.ToString();
     }
 
+    // 왜: 연동이 어긋났을 때 전체 보고서는 길다 — 환경·판정 표·연동 이력만 추려 메신저·Agent 에 바로 붙인다
+    public static string BuildProgramLinks(string version, string? lastSync)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"# JHJ_AI-Usage-Monitor v{version} — 프로그램 연동 정보");
+        sb.AppendLine();
+        sb.AppendLine("## 환경");
+        sb.AppendLine();
+        sb.AppendLine($"- 생성: {DateTime.Now:yyyy-MM-dd HH:mm:ss} · 마지막 새로고침: {lastSync ?? "누른 적 없음"}");
+        sb.AppendLine($"- OS: {Environment.OSVersion.VersionString} · {RuntimeInformation.OSArchitecture} · .NET {Environment.Version} · {System.Globalization.CultureInfo.CurrentUICulture.Name}");
+        sb.AppendLine($"- 장비: {DeviceInfo.Current.Name} · 명칭 {DeviceInfo.Current.Label ?? "-"} · ID {DeviceInfo.Current.Id}");
+        sb.AppendLine($"- 실행 위치: {Mask(Environment.ProcessPath ?? "?")}");
+        sb.AppendLine();
+
+        Section(sb, "지금의 연동(프로그램 → 자리)", () =>
+        {
+            var links = ClaudeProgramRouter.CurrentLinks();
+            foreach (var program in ClaudeProgramRouter.LinkedPrograms)
+            {
+                sb.AppendLine($"- {program} → {(links.TryGetValue(program, out var id) ? id : "이 PC 에 등록되지 않은 계정")}");
+            }
+        });
+
+        Section(sb, "판정 표", () => sb.AppendLine(Mask(ClaudeProgramRouter.Describe())));
+
+        Section(sb, "연동 이력(최근 30줄 · 최근 것이 위)", () =>
+        {
+            var all = ClaudeProgramLinks.All();
+            sb.AppendLine($"- 전체 {all.Count}줄");
+            foreach (var entry in all.Reverse().Take(30))
+            {
+                sb.AppendLine(Mask($"- {entry.From.ToLocalTime():yyyy-MM-dd HH:mm:ss} · {entry.Program} → {entry.Account} (자리 {ClaudeProgramRouter.SlotOfAccount(entry.Account) ?? "없음"}) · 장비 {entry.DeviceName ?? "-"}"));
+            }
+        });
+
+        return sb.ToString();
+    }
+
     private static void Section(StringBuilder sb, string title, Action body)
     {
         sb.AppendLine($"## {title}");

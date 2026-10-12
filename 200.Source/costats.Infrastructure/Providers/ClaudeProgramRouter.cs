@@ -126,6 +126,36 @@ public static class ClaudeProgramRouter
     }
 
     /// <summary>
+    /// 설정 › 「프로그램 연동」의 새로고침 단추 — 프로그램 하나만 호출 간격·데스크톱 세션 캐시(1분)를 건너뛰고 지금 다시 읽는다.
+    /// 계약: 읽은 계정 UUID(로그아웃·읽기 실패면 null)와 이력에 새 줄이 생겼는지를 돌려준다.
+    /// </summary>
+    public static (string? Account, bool Changed) SyncLinkNow(string program)
+    {
+        var snapshot = Volatile.Read(ref _current);
+        if (!snapshot.Active)
+        {
+            return (null, false);
+        }
+
+        if (program == DesktopProgram)
+        {
+            ClaudeDesktopSessions.Invalidate();
+        }
+
+        snapshot = RefreshSlotAccounts(snapshot);
+        var before = ClaudeProgramLinks.CurrentAccount(program);
+        var account = AccountFor(snapshot, program, AccountUuidOf(DefaultConfigDir));
+        ClaudeProgramLinks.Record(program, account, DateTimeOffset.UtcNow);
+        return (account, account is not null && !string.Equals(before, account, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // 계약: 손으로 고정한 줄은 그 자리의 계정, 나머지는 지금 로그인한 계정이다 — 데스크톱 앱만 앱 쪽 신호를 먼저 본다
+    private static string? AccountFor(Snapshot snapshot, string program, string? home) =>
+        snapshot.Pins.TryGetValue(program, out var pinned) && snapshot.SlotAccounts.TryGetValue(pinned, out var pinnedAccount)
+            ? pinnedAccount
+            : program == DesktopProgram ? ClaudeDesktopSessions.CurrentAccount() ?? home : home;
+
+    /// <summary>
     /// 지금 이 PC 의 로그인 계정을 프로그램마다 읽어 연동 이력(ClaudeProgramLinks)에 남긴다.
     /// 계약: 손으로 고정한 줄은 그 자리의 계정을 쓰고, 나머지는 지금 로그인한 계정을 따른다.
     /// </summary>
@@ -143,10 +173,7 @@ public static class ClaudeProgramRouter
         var home = AccountUuidOf(DefaultConfigDir);
         foreach (var program in LinkedPrograms)
         {
-            var account = snapshot.Pins.TryGetValue(program, out var pinned) && snapshot.SlotAccounts.TryGetValue(pinned, out var pinnedAccount)
-                ? pinnedAccount
-                : program == DesktopProgram ? ClaudeDesktopSessions.CurrentAccount() ?? home : home;
-            ClaudeProgramLinks.Record(program, account, now);
+            ClaudeProgramLinks.Record(program, AccountFor(snapshot, program, home), now);
         }
     }
 
@@ -289,6 +316,9 @@ internal static class ClaudeDesktopSessions
 
     public static string? AccountOf(string? sessionId) =>
         !string.IsNullOrEmpty(sessionId) && Current().Map.TryGetValue(sessionId, out var account) ? account : null;
+
+    // 계약: 다음 읽기에서 세션 메타를 다시 훑게 한다 — 지난 표는 그때까지 그대로 쓰인다
+    public static void Invalidate() => _cache = (DateTime.MinValue, _cache.Map, _cache.Newest, _cache.NewestAt);
 
     /// <summary>
     /// 지금 데스크톱 앱에 로그인한 계정 UUID — 앱 설정(config.json)의 lastKnownAccountUuid 와 최근 세션 메타 중 더 늦게 쓰인 쪽을 따른다.
