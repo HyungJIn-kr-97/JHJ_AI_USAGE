@@ -274,6 +274,7 @@ internal static class LocStringsZh
         ["Relink"] = "重新关联",
         ["Unlink"] = "解除关联",
         ["CLI login · {0}"] = "CLI 登录 · {0}",
+        ["Browser sign-in · {0}"] = "浏览器登录关联 · {0}",
         ["Desktop app login · {0}"] = "桌面应用登录 · {0}",
         ["Account: {0}"] = "账号：{0}",
         ["File: {0}"] = "文件：{0}",

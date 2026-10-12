@@ -283,6 +283,7 @@ internal static class LocStrings
         ["Relink"] = "다시 연동",
         ["Unlink"] = "연동 해제",
         ["CLI login · {0}"] = "CLI 로그인 · {0}",
+        ["Browser sign-in · {0}"] = "브라우저 로그인 연동 · {0}",
         ["Desktop app login · {0}"] = "전용 앱 로그인 · {0}",
         ["Account: {0}"] = "계정: {0}",
         ["File: {0}"] = "파일: {0}",
