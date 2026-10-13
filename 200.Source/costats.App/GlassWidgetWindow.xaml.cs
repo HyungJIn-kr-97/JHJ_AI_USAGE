@@ -260,13 +260,13 @@ namespace costats.App
         }
 
         /// <summary>「연동 ▾」가 열릴 때 줄 표지(연동됨 · 추천 · 먼저 설치)의 근거 — 카드는 「연동 필요」일 때만 이 단추를 보인다.</summary>
-        public LinkMenuState LinkMenuStateFor(string providerId, bool needsLink) => _settingsViewModel.LinkMenuStateFor(providerId, needsLink);
+        public LinkMenuState LinkMenuStateFor(string providerId, bool needsLink, bool usesDesktopApp) => _settingsViewModel.LinkMenuStateFor(providerId, needsLink, usesDesktopApp);
 
         private void OnLinkMenuOpening(object? sender, EventArgs e)
         {
             if (sender is Views.LinkModeMenu { DataContext: ProviderPulseViewModel card } menu)
             {
-                menu.State = LinkMenuStateFor(card.ProviderId, card.NeedsLink);
+                menu.State = LinkMenuStateFor(card.ProviderId, card.NeedsLink, card.UsesDesktopAppValues);
             }
         }
 

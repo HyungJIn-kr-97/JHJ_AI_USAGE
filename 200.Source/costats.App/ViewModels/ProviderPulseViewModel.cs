@@ -297,6 +297,10 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private bool needsLink;
 
+    // 계약: 이 자리의 값이 데스크톱 앱 표본에서 온다 — 「연동 ▾」가 「데스크톱 앱」 줄을 「연동됨」으로 잠그는 근거
+    [ObservableProperty]
+    private bool usesDesktopAppValues;
+
     // 계약: 이 카드의 자리로 연동이 진행 중이거나 결과를 보이는 중 — 카드 바로 밑에 연동 진행 칸이 펼쳐진다(팝업 창이 넣는다)
     [ObservableProperty]
     private bool isLinking;
@@ -404,6 +408,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
         if (vm.ProviderKind is "claude" or "codex")
         {
             vm.NeedsLink = !vm.HasSessionQuota && !vm.HasWeekQuota;
+            vm.UsesDesktopAppValues = reading.Source == ReadingSource.DesktopApp;
             vm.AccountStateText = Loc.T(vm.NeedsLink ? "Needs linking" : "Linked");
             vm.AccountStateBrush = vm.NeedsLink ? NeedsLinkBrush : LinkedBrush;
             // 왜: 데스크톱 앱 값으로 메운 카드는 한도가 있어 「연동됨」으로 보인다 — 죽은 토큰은 다시 연동해야 풀리니 단추를 보이고 깜빡인다

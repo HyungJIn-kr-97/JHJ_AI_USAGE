@@ -66,9 +66,9 @@ public partial class LinkModeMenu : UserControl
     private void ApplyState()
     {
         var state = State;
-        ApplyRow(CliRow, CliBadge, CliBadgeText, SettingsViewModel.LinkModeCli, state);
-        ApplyRow(AppRow, AppBadge, AppBadgeText, SettingsViewModel.LinkModeApp, state);
-        ApplyRow(WebRow, WebBadge, WebBadgeText, SettingsViewModel.LinkModeWeb, state);
+        ApplyRow(CliRow, CliBadge, CliBadgeText, state?.CliLinked == true, state?.Recommended == SettingsViewModel.LinkModeCli);
+        ApplyRow(AppRow, AppBadge, AppBadgeText, state?.AppLinked == true, state?.Recommended == SettingsViewModel.LinkModeApp);
+        ApplyRow(WebRow, WebBadge, WebBadgeText, state?.WebLinked == true, state?.Recommended == SettingsViewModel.LinkModeWeb);
         var install = state is { CliInstalled: false } ? Loc.T("Not installed yet — {0} CLI is installed first (winget), then sign-in continues.", state.CliName) : string.Empty;
         ShowNote(CliNote, install);
         ShowNote(WebNote, install);
@@ -76,10 +76,8 @@ public partial class LinkModeMenu : UserControl
     }
 
     // 계약: 연동된 줄은 「연동됨」 표지와 함께 눌리지 않고, 추천 줄은 강조색 테의 「추천」 표지를 단다
-    private void ApplyRow(Button row, Border badge, TextBlock badgeText, string mode, LinkMenuState? state)
+    private void ApplyRow(Button row, Border badge, TextBlock badgeText, bool linked, bool recommended)
     {
-        var linked = state?.LinkedMode == mode;
-        var recommended = state?.Recommended == mode;
         row.IsEnabled = !linked;
         badge.Visibility = linked || recommended ? Visibility.Visible : Visibility.Collapsed;
         badgeText.Text = linked ? Loc.T("Linked") : Loc.T("Recommended");

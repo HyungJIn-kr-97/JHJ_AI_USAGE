@@ -24,7 +24,7 @@ public partial class ClaudeMultiPanelView : UserControl
     {
         if (sender is LinkModeMenu { DataContext: ProviderPulseViewModel card } menu && Window.GetWindow(this) is GlassWidgetWindow window)
         {
-            menu.State = window.LinkMenuStateFor(card.ProviderId, card.NeedsLink);
+            menu.State = window.LinkMenuStateFor(card.ProviderId, card.NeedsLink, card.UsesDesktopAppValues);
         }
     }
 }

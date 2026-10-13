@@ -16,6 +16,9 @@ public partial class LinkProgressView : UserControl
         if (DataContext is SettingsViewModel viewModel)
         {
             viewModel.AccountsMessage = string.Empty;
+            viewModel.InstallLog = string.Empty;
         }
     }
+
+    private void OnInstallLogChanged(object sender, TextChangedEventArgs e) => (sender as TextBox)?.ScrollToEnd();
 }

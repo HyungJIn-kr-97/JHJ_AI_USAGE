@@ -701,19 +701,20 @@ public sealed partial class SettingsViewModel : ObservableObject
         return (id, dir, codex);
     }
 
-    /// <summary>「연동 ▾」가 열릴 때 줄마다 붙일 표지 — 지금 유효한 방식은 「연동됨」으로 잠그고, 아니면 한 방식에 「추천」을 붙인다.</summary>
-    // 계약: 추천은 웹(앱이 브라우저를 열고 코드를 받는 기본 길)이다 — CLI 가 없고 데스크톱 앱이 로그인돼 있으면 설치 없이 되는 App 을 민다
-    // 함정: 방식은 이 앱이 성공시킨 연동만 안다(AccountInfo.LinkMode) — 앱 밖에서 로그인한 토큰은 어느 줄도 잠그지 않는다
-    public LinkMenuState LinkMenuStateFor(string providerId, bool needsLink)
+    /// <summary>「연동 ▾」가 열릴 때 줄마다 붙일 표지 — 지금 효과 중인 방식은 「연동됨」으로 잠그고, 추천은 CLI → 웹 순이다.</summary>
+    // 계약: CLI 는 자리에 토큰이 있으면 연동된 것이다(CLI 가 없으면 설치부터 돈다). 토큰이 있는데도 안 붙으면(needsLink) 웹을 추천한다
+    // 계약: App 은 지금 값이 데스크톱 앱 표본에서 오거나(usesDesktopApp) 이 앱이 App 으로 연동시킨 자리면 연동된 것이다. 웹은 이 앱이 웹으로 연동시켜 붙어 있는 동안만이다
+    public LinkMenuState LinkMenuStateFor(string providerId, bool needsLink, bool usesDesktopApp = false)
     {
         var (id, dir, codex) = ResolveSlot(providerId);
         var cliInstalled = (codex ? CliLocator.FindCodex() : CliLocator.FindClaude()) is not null;
         var desktopSignedIn = !codex && ClaudeDesktopUsage.CurrentAccount() is { Length: > 0 };
         var stored = AccountMeta.LinkModeOf(_settings, id) ?? string.Empty;
-        var hasToken = File.Exists(codex ? CodexTokenFile(dir) : ClaudeTokenFile(dir));
-        var linked = !needsLink && stored.Length > 0 && (hasToken || (stored == LinkModeApp && AccountMeta.MailOf(id) is not null)) ? stored : string.Empty;
-        var recommended = linked.Length > 0 ? string.Empty : !cliInstalled && desktopSignedIn ? LinkModeApp : LinkModeWeb;
-        return new LinkMenuState(linked, recommended, cliInstalled, desktopSignedIn, CliInstaller.NameOf(codex));
+        var cliLinked = File.Exists(codex ? CodexTokenFile(dir) : ClaudeTokenFile(dir));
+        var appLinked = usesDesktopApp || (!needsLink && stored == LinkModeApp && AccountMeta.MailOf(id) is not null);
+        var webLinked = !needsLink && cliLinked && stored == LinkModeWeb;
+        var recommended = !cliLinked ? LinkModeCli : needsLink ? LinkModeWeb : string.Empty;
+        return new LinkMenuState(cliLinked, appLinked, webLinked, recommended, cliInstalled, desktopSignedIn, CliInstaller.NameOf(codex));
     }
 
     // 계약: 자리 하나에 계정을 연동한다(이미 연동돼 있으면 다시 연동 = 다른 계정으로 바꾸기). 연동 뒤 VerifyLink 가 결과를 확인한다
@@ -762,8 +763,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         return true;
     }
 
-    // 계약: CLI 가 없으면 winget 콘솔로 먼저 깔고(진행은 그 창에 보인다), 끝나면 같은 방식으로 연동을 이어간다 — Git Center 의 gh 설치와 같은 길
-    // 함정: 설치 콘솔을 _loginProcess 에 둔다 — 진행 칸의 「취소」가 그 콘솔을 끝내고, 그러면 연동도 멈춘다
+    // 계약: CLI 설치 로그 — winget 출력의 마지막 줄들이 진행 칸의 로그 상자에 보인다(배포하기 화면과 같은 모양). 비어 있으면 상자가 접힌다
+    [ObservableProperty]
+    private string installLog = string.Empty;
+
+    // 계약: CLI 가 없으면 winget 을 창 없이 돌려 진행을 이 앱의 진행 칸에 보이고, 끝나면 같은 방식으로 연동을 이어간다 — 로그인·사용량 갱신까지 한 흐름이다
+    // 함정: 설치 프로세스를 _loginProcess 에 둔다 — 진행 칸의 「취소」가 그것을 끝내고, 그러면 연동도 멈춘다
     private async Task InstallCliThenLinkAsync(string id, string label, string? dir, string mode, bool codex)
     {
         var cli = CliInstaller.NameOf(codex);
@@ -780,7 +785,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         LoginAcceptsCode = false;
         LoginUrl = string.Empty;
         LoginOutput = string.Empty;
-        AccountsMessage = Loc.T("{0} CLI is not on this PC — installing it with winget. Watch the console window that just opened; sign-in continues when it finishes.", cli);
+        InstallLog = string.Empty;
+        AccountsMessage = Loc.T("{0} CLI is not on this PC — installing it with winget. Sign-in continues here when it finishes.", cli);
         using var process = CliInstaller.Start(codex);
         if (process is null)
         {
@@ -790,9 +796,13 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         _loginProcess = process;
         LoginInProgress = true;
+        var lines = new List<string>();
         try
         {
+            process.StandardInput.Close();
+            var pumps = Task.WhenAll(PumpInstallOutputAsync(process.StandardOutput, lines), PumpInstallOutputAsync(process.StandardError, lines));
             await process.WaitForExitAsync();
+            await pumps;
         }
         finally
         {
@@ -803,12 +813,77 @@ public sealed partial class SettingsViewModel : ObservableObject
         CliInstaller.RefreshProcessPath();
         if ((codex ? CliLocator.FindCodex() : CliLocator.FindClaude()) is null)
         {
-            AccountsMessage = Loc.T("{0} CLI install did not finish. Run {1} yourself, then press Link again.", cli, CliInstaller.CommandOf(codex));
+            AccountsMessage = Loc.T("{0} CLI install did not finish (winget exit code {1}). Run {2} yourself, then press Link again.", cli, process.ExitCode, CliInstaller.CommandOf(codex));
             return;
         }
 
         AccountsMessage = Loc.T("{0} CLI installed. Continuing with sign-in…", cli);
         LinkSlot(id, label, dir, mode);
+    }
+
+    // 계약: winget 은 진행 막대를 \r 로 같은 줄에 덧쓴다 — 줄 단위가 아니라 글자 단위로 읽어 \r 이면 마지막 줄을 바꾸고 \n 이면 줄을 더한다
+    // 왜: 마지막 12줄만 보인다 — 진행 칸은 카드 밑의 좁은 자리라 전체 로그를 쌓지 않는다
+    private async Task PumpInstallOutputAsync(StreamReader reader, List<string> lines)
+    {
+        var buffer = new char[256];
+        var current = new System.Text.StringBuilder();
+        try
+        {
+            int read;
+            while ((read = await reader.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            {
+                var changed = false;
+                for (var i = 0; i < read; i++)
+                {
+                    var c = buffer[i];
+                    if (c is '\r' or '\n')
+                    {
+                        var line = AnsiEscape.Replace(current.ToString(), string.Empty).Trim();
+                        current.Clear();
+                        lock (lines)
+                        {
+                            if (c == '\n' || lines.Count == 0)
+                            {
+                                if (line.Length > 0 && line is not ("-" or "\\" or "|" or "/"))
+                                {
+                                    lines.Add(line);
+                                    changed = true;
+                                }
+                            }
+                            else if (line.Length > 0)
+                            {
+                                lines[^1] = line;
+                                changed = true;
+                            }
+
+                            while (lines.Count > 12)
+                            {
+                                lines.RemoveAt(0);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        current.Append(c);
+                    }
+                }
+
+                if (changed)
+                {
+                    string text;
+                    lock (lines)
+                    {
+                        text = string.Join(Environment.NewLine, lines);
+                    }
+
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => InstallLog = text);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            // winget 이 끝나며 파이프가 닫혔다
+        }
     }
 
     // 계약: 「App」 연동 — 데스크톱 앱에 지금 로그인한 계정을 이 자리의 계정으로 삼는다. 로그인 창도 토큰도 없다

@@ -12,6 +12,11 @@
                         Visibility="{Binding LoginInProgress, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}" />
                 <TextBlock Text="{Binding AccountsMessage}" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource AccentBrush}" />
             </DockPanel>
+            <!-- 계약: CLI 설치 로그 — winget 출력의 마지막 줄들(InstallLog). 비어 있으면 접히고, 줄이 늘면 끝으로 스크롤한다 -->
+            <TextBox Text="{Binding InstallLog, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" FontSize="10" Margin="0,6,0,0" Padding="6,4"
+                     MaxHeight="120" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextChanged="OnInstallLogChanged"
+                     Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextMutedBrush}" BorderBrush="{DynamicResource DividerBrush}"
+                     Visibility="{Binding InstallLog, Converter={x:Static local:StringToVisibilityConverter.Instance}}" />
             <StackPanel Visibility="{Binding LoginInProgress, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
                 <WrapPanel Margin="0,6,0,0" Visibility="{Binding LoginUrl, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
                     <Button Content="{loc:Tr 'Open in browser'}" Margin="0,0,4,4" Cursor="Hand" FocusVisualStyle="{x:Null}"
