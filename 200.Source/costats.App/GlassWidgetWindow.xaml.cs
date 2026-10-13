@@ -201,7 +201,8 @@ namespace costats.App
         {
             ApplyShellScale();
 
-            var target = SystemParameters.WorkArea.Height - 24;
+            // 왜: SystemParameters.WorkArea 는 앱이 뜰 때의 배율로 굳는다 — 원격 접속으로 화면이 바뀌면 높이가 옛 화면 기준으로 남는다
+            var target = TaskbarPositionService.WorkAreaFor(this).Height - 24;
             if (Math.Abs(Height - target) > 1.0)
             {
                 Height = target;
@@ -220,7 +221,7 @@ namespace costats.App
         {
             // 계약: 0 은 「자동」이다 — 기본값은 100(등배)이고, 자동은 사용자가 고를 때만 쓴다
             var percent = _settings.PopupScalePercent;
-            var scale = percent > 0 ? percent / 100.0 : AutoScale(SystemParameters.WorkArea.Height);
+            var scale = percent > 0 ? percent / 100.0 : AutoScale(TaskbarPositionService.WorkAreaFor(this).Height);
             if (Math.Abs(ShellScale.ScaleX - scale) > 0.001)
             {
                 ShellScale.ScaleX = scale;

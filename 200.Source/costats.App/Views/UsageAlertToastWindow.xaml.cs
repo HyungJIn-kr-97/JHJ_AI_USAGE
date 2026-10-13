@@ -69,7 +69,8 @@ public partial class UsageAlertToastWindow : Window
     public void Reposition()
     {
         var height = ActualHeight > 0 ? ActualHeight : Height;
-        var area = SystemParameters.WorkArea;
+        // 왜: SystemParameters.WorkArea 는 앱이 뜰 때의 배율로 굳는다 — 원격 접속으로 화면이 바뀌면 어긋난다
+        var area = TaskbarPositionService.WorkAreaFor(this);
         const double margin = 12;
         var corner = _corner();
         // 계약: 우측 아래(기본)만 작업 표시줄 위치를 따르고 팝업을 피한다 — 나머지 셋은 작업 영역 모서리 고정
@@ -78,16 +79,16 @@ public partial class UsageAlertToastWindow : Window
             "top-right" => new Point(area.Right - Width - margin, area.Top + margin),
             "top-left" => new Point(area.Left + margin, area.Top + margin),
             "bottom-left" => new Point(area.Left + margin, area.Bottom - height - margin),
-            _ => _anchor.GetWidgetPosition(Width, height, margin),
+            _ => _anchor.GetWidgetPosition(Width, height, margin, this),
         };
         var widget = _widget();
         if (corner is not ("top-right" or "top-left" or "bottom-left") && widget is { IsVisible: true })
         {
             // 왜: 팝업과 같은 구석을 쓰면 토스트가 팝업 뒤에 숨는다 — 팝업 왼쪽에 바닥을 맞춰 둔다
             var left = widget.Left - Width - 8;
-            if (left >= SystemParameters.WorkArea.Left)
+            if (left >= area.Left)
             {
-                position = new Point(left, Math.Max(SystemParameters.WorkArea.Top, widget.Top + widget.ActualHeight - height));
+                position = new Point(left, Math.Max(area.Top, widget.Top + widget.ActualHeight - height));
             }
         }
 

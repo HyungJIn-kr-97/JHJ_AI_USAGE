@@ -51,8 +51,12 @@ namespace costats.App.Services
             TrayPinService.ApplyAfterIconShown(_settings.PinTrayIcon);
 
             SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+            SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+            _widgetWindow.DpiChanged += OnWidgetDpiChanged;
             _widgetWindow.SizeChanged += OnWidgetSizeChanged;
         }
+
+        private void OnWidgetDpiChanged(object sender, DpiChangedEventArgs e) => RefitWidget();
 
         private void OnTrayLeftClick(object? sender, EventArgs e)
         {
@@ -217,6 +221,8 @@ namespace costats.App.Services
             TrayIconRenderer.Changed -= OnTrayIconChanged;
             _widgetWindow.SizeChanged -= OnWidgetSizeChanged;
             SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+            _widgetWindow.DpiChanged -= OnWidgetDpiChanged;
             _taskbarIcon.Dispose();
             _widgetWindow.Close();
         }
@@ -229,17 +235,31 @@ namespace costats.App.Services
             }
         }
 
-        private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+        private void OnDisplaySettingsChanged(object? sender, EventArgs e) => RefitWidget();
+
+        // 왜: 작업 표시줄은 해상도가 바뀐 뒤에 자리를 다시 잡는다 — 작업 영역이 그때 한 번 더 바뀐다
+        private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
         {
-            if (_widgetWindow.IsVisible)
+            if (e.Category == UserPreferenceCategory.Desktop)
             {
-                PositionWidget();
+                RefitWidget();
             }
         }
 
+        // 계약: 화면·배율이 바뀌면 크기와 자리를 함께 다시 잡는다 — 자리만 옮기면 높이가 옛 화면 기준으로 남는다
+        // 함정: 알림을 받은 그 자리에서는 창의 배율이 아직 옛 값일 수 있다 — 한 박자 미뤄 읽는다
+        private void RefitWidget() => _widgetWindow.Dispatcher.BeginInvoke(() =>
+        {
+            if (_widgetWindow.IsVisible)
+            {
+                _widgetWindow.FitToWorkArea();
+                PositionWidget();
+            }
+        });
+
         private void PositionWidget()
         {
-            var position = _taskbarPosition.GetWidgetPosition(_widgetWindow.Width, _widgetWindow.Height, 12);
+            var position = _taskbarPosition.GetWidgetPosition(_widgetWindow.Width, _widgetWindow.Height, 12, _widgetWindow);
             _widgetWindow.Left = position.X;
             _widgetWindow.Top = position.Y;
         }
