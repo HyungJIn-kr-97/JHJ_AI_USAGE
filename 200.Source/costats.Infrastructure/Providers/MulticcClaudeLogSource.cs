@@ -132,7 +132,7 @@ public sealed class MulticcClaudeLogSource : ISignalSource, IDisposable
         var statusSummary = oauthResult is not null
             ? _oauthFetcher.StaleSummary ?? $"Updated {FormatRelativeTime(oauthResult.FetchedAt, now)}"
             : desktop is not null
-                ? ClaudeDesktopUsage.Describe(desktop, now)
+                ? ClaudeDesktopUsage.Describe(desktop, now, !_oauthFetcher.HasToken ? "no token" : _oauthFetcher.LastError ?? "lookup skipped")
                 : !_oauthFetcher.HasToken
                     ? "No Claude token on this PC — sign in from Settings › Accounts"
                     : _oauthFetcher.LastError is { } error
@@ -148,7 +148,10 @@ public sealed class MulticcClaudeLogSource : ISignalSource, IDisposable
             StatusSummary: statusSummary,
             CapturedAt: usage.CapturedAt,
             Confidence: confidence,
-            Source: source);
+            Source: source)
+        {
+            NeedsRelink = oauthResult is null && _oauthFetcher.NeedsRelink
+        };
     }
 
     private static string FormatPlanText(string? subscriptionType)

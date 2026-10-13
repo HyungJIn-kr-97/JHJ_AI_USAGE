@@ -1606,7 +1606,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     // 계약: 모양 id 「j」는 기본값이고 화면 이름은 JHJ 다
     private static string PresetLabelOf(string style) => style switch
     {
-        TrayIconRenderer.DefaultStyle => "JHJ AI",
+        TrayIconRenderer.DefaultStyle => "J + AI",
+        "jhj-ai" => "JHJ AI",
+        "j-ai" => "J + AI (flat)",
         "ai" => "AI",
         "bars" => "Bars",
         "ring" => "Ring",

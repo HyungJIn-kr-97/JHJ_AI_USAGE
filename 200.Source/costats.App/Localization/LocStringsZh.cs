@@ -49,6 +49,7 @@ internal static class LocStringsZh
         ["Next refresh {0} · in {1}"] = "下次刷新 {0} · {1} 后",
         ["Next {0} · in {1}"] = "下次 {0} · {1} 后",
         ["Weekly · per model"] = "每周 · 按模型",
+        ["Not in Desktop app values"] = "桌面应用的值中没有",
         ["This week:"] = "本周：",
         [" tokens"] = " 令牌",
         ["All Profiles"] = "全部账户",
@@ -238,6 +239,8 @@ internal static class LocStringsZh
         ["Bars"] = "条形",
         ["Ring"] = "圆环",
         ["Sparkle"] = "闪光",
+        ["J + AI"] = "J + AI",
+        ["J + AI (flat)"] = "J + AI (纯色)",
         ["Drawing {0}"] = "绘图 {0}",
         ["Image {0}"] = "图片 {0}",
         ["+ Draw"] = "+ 绘制",
@@ -285,6 +288,7 @@ internal static class LocStringsZh
         ["The token is managed in Accounts › Copilot."] = "令牌管理：「账户 › Copilot」",
         ["The sign-in is shown in Accounts › Gemini."] = "登录状态：「账户 › Gemini」",
         ["Needs linking"] = "需要关联",
+        ["Relink needed"] = "需要重新关联",
         ["Relink"] = "重新关联",
         ["Unlink"] = "解除关联",
         ["CLI login · {0}"] = "CLI 登录 · {0}",
@@ -535,6 +539,8 @@ internal static class LocStringsZh
         "HTTP 401" => "HTTP 401 · 令牌被拒绝（需重新关联）",
         "HTTP 403" => "HTTP 403 · 无权限（需重新关联）",
         "HTTP 429" => "HTTP 429 · 请求过多（自动重试）",
+        "no token" => "本机没有令牌（需关联）",
+        "lookup skipped" => "等待查询（上次失败后暂停）",
         _ => reason.Replace("token expired", "令牌过期"),
     };
 
@@ -552,7 +558,9 @@ internal static class LocStringsZh
         (new Regex(@"^No data for (.+)$"), m => $"{m.Groups[1].Value} 没有数据"),
         (new Regex(@"^Usage lookup failed \((.+)\)$"), m => $"用量查询失败 — {LookupReason(m.Groups[1].Value)}"),
         (new Regex(@"^Cached values, lookup failing \((.+)\)$"), m => $"显示旧值 — {LookupReason(m.Groups[1].Value)}"),
-        (new Regex(@"^Claude Desktop app values, (\d+[mhd]) old$"), m => $"Claude 桌面应用的值 — {Loc.Duration(m.Groups[1].Value)}前的记录"),
+        (new Regex(@"^Claude Desktop app values, (\d+[mhd]) old(?: \((.+)\))?$"), m => m.Groups[2].Success
+            ? $"Claude 桌面应用的值 — {Loc.Duration(m.Groups[1].Value)}前的记录 · 令牌查询失败：{LookupReason(m.Groups[2].Value)}"
+            : $"Claude 桌面应用的值 — {Loc.Duration(m.Groups[1].Value)}前的记录"),
         (new Regex(@"^Overage: (.+) / (.+)$"), m => $"超额使用：{m.Groups[1].Value} / {m.Groups[2].Value}"),
         (new Regex(@"^Balance: (.+) remaining$"), m => $"余额：{m.Groups[1].Value}"),
         (new Regex(@"^(.+) today  ·  (.+) / 30d$"), m => $"今天 {m.Groups[1].Value}  ·  30 天 {m.Groups[2].Value}"),

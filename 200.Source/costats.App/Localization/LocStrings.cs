@@ -58,6 +58,7 @@ internal static class LocStrings
         ["Next refresh {0} · in {1}"] = "다음 갱신 {0} · {1} 후",
         ["Next {0} · in {1}"] = "다음 {0} · {1} 후",
         ["Weekly · per model"] = "주간 · 모델별",
+        ["Not in Desktop app values"] = "데스크톱 앱 값에는 없음",
         ["This week:"] = "이번 주:",
         [" tokens"] = " 토큰",
         ["All Profiles"] = "전체 계정",
@@ -247,6 +248,8 @@ internal static class LocStrings
         ["Bars"] = "막대",
         ["Ring"] = "링",
         ["Sparkle"] = "반짝임",
+        ["J + AI"] = "J + AI",
+        ["J + AI (flat)"] = "J + AI (단색)",
         ["Drawing {0}"] = "그림 {0}",
         ["Image {0}"] = "이미지 {0}",
         ["+ Draw"] = "+ 그리기",
@@ -294,6 +297,7 @@ internal static class LocStrings
         ["The token is managed in Accounts › Copilot."] = "토큰 관리: 「계정 › Copilot」",
         ["The sign-in is shown in Accounts › Gemini."] = "로그인 상태: 「계정 › Gemini」",
         ["Needs linking"] = "연동 필요",
+        ["Relink needed"] = "다시 연동 필요",
         ["Relink"] = "다시 연동",
         ["Unlink"] = "연동 해제",
         ["CLI login · {0}"] = "CLI 로그인 · {0}",
@@ -547,6 +551,8 @@ internal static class LocStrings
         "HTTP 401" => "HTTP 401 · 토큰 거부(다시 연동 필요)",
         "HTTP 403" => "HTTP 403 · 권한 없음(다시 연동 필요)",
         "HTTP 429" => "HTTP 429 · 요청 과다(자동 재시도)",
+        "no token" => "이 PC 에 토큰 없음(연동 필요)",
+        "lookup skipped" => "조회 대기 중(앞선 실패로 잠시 쉼)",
         _ => reason.Replace("token expired", "토큰 만료"),
     };
 
@@ -564,7 +570,9 @@ internal static class LocStrings
         (new Regex(@"^No data for (.+)$"), m => $"{m.Groups[1].Value} 데이터 없음"),
         (new Regex(@"^Usage lookup failed \((.+)\)$"), m => $"사용량 조회 실패 — {LookupReason(m.Groups[1].Value)}"),
         (new Regex(@"^Cached values, lookup failing \((.+)\)$"), m => $"옛 값 표시 중 — {LookupReason(m.Groups[1].Value)}"),
-        (new Regex(@"^Claude Desktop app values, (\d+[mhd]) old$"), m => $"Claude 데스크톱 앱 값 — {Loc.Duration(m.Groups[1].Value)} 전 기록"),
+        (new Regex(@"^Claude Desktop app values, (\d+[mhd]) old(?: \((.+)\))?$"), m => m.Groups[2].Success
+            ? $"Claude 데스크톱 앱 값 — {Loc.Duration(m.Groups[1].Value)} 전 기록 · 토큰 조회 실패: {LookupReason(m.Groups[2].Value)}"
+            : $"Claude 데스크톱 앱 값 — {Loc.Duration(m.Groups[1].Value)} 전 기록"),
         (new Regex(@"^Overage: (.+) / (.+)$"), m => $"초과 사용: {m.Groups[1].Value} / {m.Groups[2].Value}"),
         (new Regex(@"^Balance: (.+) remaining$"), m => $"잔액: {m.Groups[1].Value}"),
         (new Regex(@"^(.+) today  ·  (.+) / 30d$"), m => $"오늘 {m.Groups[1].Value}  ·  30일 {m.Groups[2].Value}"),

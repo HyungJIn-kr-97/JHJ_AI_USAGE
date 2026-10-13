@@ -110,7 +110,8 @@ public sealed class ClaudeLogSource : ISignalSource
         var statusSummary = oauthResult is not null
             ? _oauthFetcher.StaleSummary ?? $"Updated {FormatRelativeTime(oauthResult.FetchedAt, now)}"
             : desktop is not null
-                ? ClaudeDesktopUsage.Describe(desktop, now)
+                // 왜: 폴백 줄이 LastError 를 가리면 왜 데스크톱 값인지 모른다 — 모델별 주간이 비는 까닭이 여기 있다
+                ? ClaudeDesktopUsage.Describe(desktop, now, !_oauthFetcher.HasToken ? "no token" : _oauthFetcher.LastError ?? "lookup skipped")
                 : !_oauthFetcher.HasToken
                     ? "No Claude token on this PC — sign in from Settings › Accounts"
                     : _oauthFetcher.LastError is { } error
@@ -126,7 +127,10 @@ public sealed class ClaudeLogSource : ISignalSource
             StatusSummary: statusSummary,
             CapturedAt: usage.CapturedAt,
             Confidence: confidence,
-            Source: source);
+            Source: source)
+        {
+            NeedsRelink = oauthResult is null && _oauthFetcher.NeedsRelink
+        };
     }
 
     private static string FormatPlanText(string? subscriptionType)

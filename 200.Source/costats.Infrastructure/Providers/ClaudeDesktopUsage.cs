@@ -139,11 +139,12 @@ public static class ClaudeDesktopUsage
             ? Math.Clamp(percent, 0, 100)
             : null;
 
-    /// <summary>상태 줄 — 「Claude Desktop app values, 25m old」. 문구 번역은 LocStrings 의 같은 꼴 정규식이 맡는다.</summary>
-    public static string Describe(Sample sample, DateTimeOffset now)
+    /// <summary>상태 줄 — 「Claude Desktop app values, 25m old (token expired, …)」. 문구 번역은 LocStrings 의 같은 꼴 정규식이 맡는다.</summary>
+    /// 계약: reason 은 토큰 조회가 왜 실패해 이 값을 빌리는지다(fetcher 의 LastError · 「no token」) — 없으면 괄호를 붙이지 않는다
+    public static string Describe(Sample sample, DateTimeOffset now, string? reason = null)
     {
         var age = now - sample.At;
         var text = age.TotalHours >= 1 ? $"{(int)age.TotalHours}h" : $"{Math.Max(1, (int)age.TotalMinutes)}m";
-        return $"Claude Desktop app values, {text} old";
+        return reason is null ? $"Claude Desktop app values, {text} old" : $"Claude Desktop app values, {text} old ({reason})";
     }
 }

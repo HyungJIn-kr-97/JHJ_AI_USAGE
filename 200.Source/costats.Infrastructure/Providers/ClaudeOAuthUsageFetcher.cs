@@ -66,6 +66,10 @@ public sealed class ClaudeOAuthUsageFetcher : IDisposable
     // 계약: 마지막 FetchAsync 가 조회에 실패해 옛 캐시 값을 냈나 — 화면은 값 옆에 「캐시 값」과 LastError 를 함께 보인다
     public bool ServedFromCache { get; private set; }
 
+    // 계약: 토큰이 있는데 죽은 상태(만료를 CLI 가 못 살림 · 401 · 403)다 — 다시 연동해야만 풀린다. 토큰이 없거나 일시 오류(429 · 네트워크)면 false
+    public bool NeedsRelink => HasToken && LastError is { } error &&
+        (error.StartsWith("token expired", StringComparison.Ordinal) || error is "HTTP 401" or "HTTP 403");
+
     /// <summary>캐시 값을 내는 중이면 그 사실과 까닭을 한 문장으로 — 방금 받은 값이면 null.</summary>
     public string? StaleSummary => ServedFromCache && LastError is { } error ? $"Cached values, lookup failing ({error})" : null;
 

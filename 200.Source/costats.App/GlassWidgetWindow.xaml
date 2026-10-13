@@ -6,6 +6,7 @@
         xmlns:core="clr-namespace:Jhj.Core.App;assembly=Jhj.Core"
         xmlns:views="clr-namespace:costats.App.Views"
         xmlns:deploy="clr-namespace:Jhj.Core.Wpf.Deploy;assembly=Jhj.Core.Wpf"
+        xmlns:jhj="clr-namespace:Jhj.Core.Wpf.Shell;assembly=Jhj.Core.Wpf"
         Title="JHJ AI Usage Monitor"
         Width="360"
         Height="816"
@@ -445,9 +446,10 @@
                 <DockPanel Margin="0,0,0,14">
                     <!-- 왜: 머리글 우측에 요금제 배지와 「사용량 보기」 링크를 세로로 묶는다 — 주간 구역 아래에 두면 모델 한도 막대 사이에 끼어 눈에 안 띈다 -->
                     <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch">
-                    <!-- 계약: 요금제 배지 왼쪽에 계정 상태 — 연동이 필요하면 「연동 ▾」(CLI · App · 웹 중 고른 방식으로, 진행은 머리글 아래 칸) -->
+                    <!-- 계약: 요금제 배지 왼쪽에 계정 상태 — 연동이 필요하면 「연동 ▾」(CLI · App · 웹 중 고른 방식으로, 진행은 머리글 아래 칸). 토큰이 죽은 자리는 이 단추가 깜빡인다(Nudge link) -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
                     <views:LinkModeMenu Margin="0,0,6,0" VerticalAlignment="Center" ModeChosen="OnLinkModeChosen"
+                            jhj:Nudge.Key="link" jhj:Nudge.Active="{Binding NudgeAction}"
                             ShowDesktopApp="{Binding CanLinkFromDesktopApp}" IsBusy="{Binding IsLinkBusy}"
                             ToolTip="{loc:Tr 'Link an account to this slot — pick CLI, desktop app or browser.'}"
                             Visibility="{Binding NeedsLink, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />

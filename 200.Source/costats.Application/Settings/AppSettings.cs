@@ -34,28 +34,44 @@ public sealed class AppSettings : IScheduledUpdateSettings
     /// <summary>"bull" | "navy" | "emerald" | "violet" | "slate". 색상 팔레트.</summary>
     public string Palette { get; set; } = "bull";
 
-    // 계약: 트레이 아이콘 모양 — "jhj-ai"(기본 · JHJ + AI 표지) · "ai"(두 글자) · "j"(화면 이름 JHJ) · "bars" · "ring" · "spark"(팔레트 색으로 그림) · "custom:<파일 이름>"(사용자 아이콘)
+    // 계약: 트레이 아이콘 모양 — "gold-j-ai"(기본 · 금속 금 J + AI 표지) · "jhj-ai"(JHJ + 표지) · "j-ai"(단색 J + 표지) · "ai"(두 글자) · "j"(화면 이름 JHJ) · "bars" · "ring" · "spark"(팔레트 색으로 그림) · "custom:<파일 이름>"(사용자 아이콘)
     // 계약: costats.App 의 TrayIconRenderer.DefaultStyle 과 같은 값이어야 한다 — 참조 방향이 반대라 상수를 공유하지 못한다
-    public string TrayIconStyle { get; set; } = "jhj-ai";
+    public string TrayIconStyle { get; set; } = "gold-j-ai";
 
     // 계약: 옛 기본값 "ai" 를 새 기본으로 옮겼다는 표시 — 켜진 뒤에 고른 "ai" 는 사용자의 선택이라 건드리지 않는다
     public bool TrayIconDefaultMoved { get; set; }
 
-    /// <summary>옛 기본 모양("ai")이 저장된 설정을 새 기본으로 한 번만 옮긴다. 바뀐 것이 있으면 true — 부른 쪽이 저장한다.</summary>
+    // 계약: 둘째 이사 표시 — 옛 기본 "jhj-ai" 와 그 작은 판 그림 "j-ai" 를 "gold-j-ai" 로 옮겼다는 표시
+    public bool TrayIconGoldMoved { get; set; }
+
+    /// <summary>옛 기본 모양이 저장된 설정을 새 기본으로 한 번만 옮긴다. 바뀐 것이 있으면 true — 부른 쪽이 저장한다.</summary>
+    // 왜: 기본값은 파일에 그대로 저장돼 있어 상수만 바꾸면 깔린 PC 는 옛 그림으로 남는다 — 세대마다 표시 하나로 한 번씩 옮긴다
     public bool MoveLegacyTrayIconDefault()
     {
-        if (TrayIconDefaultMoved)
+        var moved = false;
+        if (!TrayIconDefaultMoved)
         {
-            return false;
+            if (TrayIconStyle == "ai")
+            {
+                TrayIconStyle = "jhj-ai";
+            }
+
+            TrayIconDefaultMoved = true;
+            moved = true;
         }
 
-        if (TrayIconStyle == "ai")
+        if (!TrayIconGoldMoved)
         {
-            TrayIconStyle = new AppSettings().TrayIconStyle;
+            if (TrayIconStyle is "jhj-ai" or "j-ai")
+            {
+                TrayIconStyle = new AppSettings().TrayIconStyle;
+            }
+
+            TrayIconGoldMoved = true;
+            moved = true;
         }
 
-        TrayIconDefaultMoved = true;
-        return true;
+        return moved;
     }
 
     /// <summary>"en" | "ko" | "zh". 화면 문구의 언어.</summary>

@@ -8,6 +8,7 @@ namespace costats.App.Services;
 
 /// <summary>
 /// 트레이 아이콘을 그린다 — 기본 제공 모양은 JHJ 공통 바탕(둥근 사각·팔레트 그라데이션) 위에, 사용자 그림은 그대로.
+/// 기본은 금속 금 J + AI 반짝임(생성기 --style gold 와 같은 숫자) — 다른 모양도 생성기의 함수 이름을 주석에 적어 둔다.
 /// 규격(작은 판은 칸을 채우고 정수 픽셀에 맞춘다): JHJ_DEV/000.AGENTS_MD/070.아이콘/070.아이콘-규격.md
 /// 함정: 사용자 그림은 설치 폴더가 아니라 데이터 폴더(icons)에 둔다 — 설치 폴더는 업데이트 때 통째로 교체된다.
 /// </summary>
@@ -20,13 +21,14 @@ public static class TrayIconRenderer
     // 계약: 앱의 기본 아이콘 모양 — 트레이·exe·설치 관리자가 모두 이것 하나를 쓴다.
     //       바꾸면 800.Deploy\make-icons.ps1 을 다시 돌려 .ico 를 새로 뽑는다.
     // 계약: AppSettings.TrayIconStyle 의 기본값과 같은 값이어야 한다 — 층이 반대라 상수를 공유하지 못한다
-    // 왜: 「AI」 두 글자만으로는 남의 앱과 헷갈린다 — 기본은 JHJ + AI 표지이고 「AI」는 고르는 선택지로 남긴다(080.CS앱-화면-공통 §2)
-    public const string DefaultStyle = "jhj-ai";
+    // 왜: 기본은 「금속 금 J + AI 표지」다 — 070.아이콘-규격 §1 「금 J + 표지」(--style gold). Git Center 는 G 가 곧 표지라 JGm 을 쓴다
+    public const string DefaultStyle = "gold-j-ai";
 
     // 계약: 기본 아이콘의 팔레트 — ThemeManager 의 기본 팔레트와 같다
     public const string DefaultPalette = "bull";
 
-    public static readonly string[] Presets = [DefaultStyle, "ai", "j", "bars", "ring", "spark"];
+    // 계약: "jhj-ai"(옛 기본 · JHJ + 표지) 와 "j-ai"(단색 J + 표지) 는 선택지로 남긴다 — 저장된 값이 그대로 뜨게 모양 id 는 지우지 않는다
+    public static readonly string[] Presets = [DefaultStyle, "jhj-ai", "j-ai", "ai", "j", "bars", "ring", "spark"];
 
     // 계약: 070.아이콘-규격의 아홉 크기다 — 20·40 은 화면 배율 125%·250% 의 트레이·작업 표시줄이 고른다
     private static readonly int[] IcoSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
@@ -177,16 +179,15 @@ public static class TrayIconRenderer
             case TileStyle:
                 break;
             case DefaultStyle:
-                // 계약: 32px 이하는 「J + 표지」로 줄여 그린다 — 070.아이콘-규격 §1 「작은 판」
-                if (s <= 32)
-                {
-                    DrawJAi(g, s, c[2], c[3]);
-                }
-                else
-                {
-                    DrawJhjAi(g, s, c[2], c[3]);
-                }
-
+                DrawGoldJAi(g, s, c[2], c[3]);
+                break;
+            case "jhj-ai":
+                // 계약: 모든 크기에 「JHJ + 표지」 한 디자인이다 — 070.아이콘-규격 §1 「한 디자인」(32px 이하를 J 로 줄이던 옛 규칙은 뒤집혔다)
+                DrawJhjAi(g, s, c[2], c[3]);
+                break;
+            case "j-ai":
+                DrawJAi(g, s, c[2], c[3]);
+                DrawAiDuo(g, s, c[2], c[3]);
                 break;
             case "ai":
                 DrawAI(g, s, c[2]);
@@ -245,7 +246,7 @@ public static class TrayIconRenderer
         g.Restore(state);
     }
 
-    // 계약: 070.아이콘 생성기(make_jhj_icon.py)의 duo_j() · duo_ai() 와 같은 숫자다
+    // 계약: 070.아이콘 생성기(make_jhj_icon.py)의 duo_j() 와 같은 숫자다 — 왼쪽 반 칸의 단색 J, 정수 픽셀
     private static void DrawJAi(Graphics g, int s, Color ink, Color mark)
     {
         var t = Math.Max(2, (int)Math.Round(s * 0.17));
@@ -269,8 +270,13 @@ public static class TrayIconRenderer
         var cx = (left + right) / 2f;
         using var pen = new Pen(ink, t);
         g.DrawArc(pen, cx - r, cy - r, r * 2, r * 2, 0, 180);
+    }
 
+    // 계약: 070.아이콘 생성기(make_jhj_icon.py)의 duo_ai() 와 같은 숫자다 — 오른쪽 반 칸의 AI 반짝임, 24px 부터 작은 것 하나 더
+    private static void DrawAiDuo(Graphics g, int s, Color ink, Color mark)
+    {
         static float Snap(double v) => (float)(Math.Round(v * 2) / 2);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
         using var gold = new SolidBrush(mark);
         g.FillPolygon(gold, Sparkle(Snap(s * 0.73), Snap(s * 0.54), s * 0.21f, s * 0.06f));
         if (s >= 24)
@@ -278,6 +284,72 @@ public static class TrayIconRenderer
             using var soft = new SolidBrush(Color.FromArgb(230, ink));
             g.FillPolygon(soft, Sparkle(Snap(s * 0.88), Snap(s * 0.28), s * 0.09f, s * 0.03f));
         }
+    }
+
+    // 계약: 생성기의 LUX_GOLD · LUX_GOLD_POS 와 같은 값 — 닦은 금속 막대처럼 세로로 밝음·어두움이 오가는 띠
+    private static readonly string[] LuxGoldHex = ["#FFF4C4", "#F9D96A", "#C8961F", "#F6D56A", "#FFF6D0", "#D9A72E", "#8F6514"];
+    private static readonly float[] LuxGoldPos = [0f, 0.18f, 0.42f, 0.55f, 0.66f, 0.84f, 1f];
+
+    // 계약: 생성기 render() 의 gold 그림과 같은 숫자다 — 팔레트 바탕 위에 금속 금 J(foil_j(20, 50, 92, 156)) + 오른쪽 AI 반짝임(DUO)
+    // 왜: 바탕은 팔레트 그대로다 — 트레이 상주 앱은 색으로 갈린다(Git Center 는 검은 보라, 이 앱은 bull 빨강)
+    private static void DrawGoldJAi(Graphics g, int s, Color ink, Color mark)
+    {
+        var w = s > 20 ? 38f : 44f;
+        using var path = new GraphicsPath();
+        AddLetterJ(path, 20, 50, 92, 156, w);
+        var state = g.Save();
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.ScaleTransform(s / 256f, s / 256f);
+        DrawLuxStroke(g, path, w);
+        g.Restore(state);
+        DrawAiDuo(g, s, ink, mark);
+    }
+
+    // 계약: 생성기 lux_stroke() 의 큰 판 — 그림자 · 어두운 테 · 광택 몸 · 왼쪽 위 빛줄. 좌표는 256 판이고 호출부가 scale 을 건다
+    // 함정: GDI+ 에는 blur 가 없다 — 그림자는 굵기가 다른 반투명 획 둘로 흉내 낸다
+    private static void DrawLuxStroke(Graphics g, GraphicsPath path, float w)
+    {
+        static Pen Round(Brush brush, float width) => new(brush, width) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+
+        var shadowState = g.Save();
+        g.TranslateTransform(0, 7);
+        using (var wide = new SolidBrush(Color.FromArgb(40, 0, 0, 0)))
+        using (var widePen = Round(wide, w + 10))
+        using (var near = new SolidBrush(Color.FromArgb(90, 0, 0, 0)))
+        using (var nearPen = Round(near, w + 2))
+        {
+            g.DrawPath(widePen, path);
+            g.DrawPath(nearPen, path);
+        }
+
+        g.Restore(shadowState);
+
+        using (var bevel = new SolidBrush(ColorTranslator.FromHtml("#5A3E0A")))
+        using (var bevelPen = Round(bevel, w))
+        {
+            g.DrawPath(bevelPen, path);
+        }
+
+        using (var body = new LinearGradientBrush(new PointF(0, 40), new PointF(0, 216), Color.Black, Color.Black) { WrapMode = WrapMode.TileFlipXY })
+        {
+            body.InterpolationColors = new ColorBlend
+            {
+                Colors = LuxGoldHex.Select(ColorTranslator.FromHtml).ToArray(),
+                Positions = LuxGoldPos,
+            };
+            using var bodyPen = Round(body, w - 5);
+            g.DrawPath(bodyPen, path);
+        }
+
+        var lightState = g.Save();
+        g.TranslateTransform(-w * 0.22f, -w * 0.24f);
+        using (var light = new SolidBrush(Color.FromArgb(190, 255, 255, 255)))
+        using (var lightPen = Round(light, Math.Max(2f, w * 0.14f)))
+        {
+            g.DrawPath(lightPen, path);
+        }
+
+        g.Restore(lightState);
     }
 
     private static void AddLetterJ(GraphicsPath path, float x, float top, float width, float height, float w)

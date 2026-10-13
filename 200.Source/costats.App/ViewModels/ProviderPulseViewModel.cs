@@ -330,6 +330,10 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     [ObservableProperty]
     private string accountStateText = string.Empty;
 
+    // 계약: 지금 깜빡여서 가리킬 단추의 이름(Nudge.Key) — "link" 면 「연동 ▾」. 비면 아무것도 안 깜빡인다(규격 080 §6)
+    [ObservableProperty]
+    private string nudgeAction = string.Empty;
+
     // 계약: 지금 이 계정에 붙어 있는 프로그램 이름 — 연동이 옮겨 가면 이 카드에서 사라지고 새 계정 카드에 붙는다
     [ObservableProperty]
     private string linkedProgramsText = string.Empty;
@@ -402,6 +406,15 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
             vm.NeedsLink = !vm.HasSessionQuota && !vm.HasWeekQuota;
             vm.AccountStateText = Loc.T(vm.NeedsLink ? "Needs linking" : "Linked");
             vm.AccountStateBrush = vm.NeedsLink ? NeedsLinkBrush : LinkedBrush;
+            // 왜: 데스크톱 앱 값으로 메운 카드는 한도가 있어 「연동됨」으로 보인다 — 죽은 토큰은 다시 연동해야 풀리니 단추를 보이고 깜빡인다
+            if (reading.NeedsRelink)
+            {
+                vm.NeedsLink = true;
+                vm.AccountStateText = Loc.T("Relink needed");
+                vm.AccountStateBrush = NeedsLinkBrush;
+                vm.NudgeAction = "link";
+            }
+
             vm.LinkedProgramsText = LinkedProgramsOf(vm.ProviderId);
         }
 
@@ -427,9 +440,11 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
                     : string.Empty))
             .ToList();
         // 왜: 탭을 바꿀 때 창 높이가 출렁이지 않게 한다 — 모델별 한도가 없는 도구도 같은 자리를 빈 값으로 차지한다
+        // 왜: 데스크톱 앱 폴백 파일에는 모델별 주간 값이 없다 — "--" 만 보이면 모델을 못 알아본 것으로 오해한다
         if (vm.ModelWeeks.Count == 0)
         {
-            vm.ModelWeeks = [new ModelWeekRow(Loc.T("Weekly · per model"), 0, "--", string.Empty)];
+            var empty = reading.Source == ReadingSource.DesktopApp ? Loc.T("Not in Desktop app values") : "--";
+            vm.ModelWeeks = [new ModelWeekRow(Loc.T("Weekly · per model"), 0, empty, string.Empty)];
         }
 
         // 왜: 아래 문장들은 코어·인프라 층이 영어로 만들어 준다 — 화면에 나가기 직전에 한 번에 옮긴다

@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:costats.App"
              xmlns:views="clr-namespace:costats.App.Views"
-        xmlns:loc="clr-namespace:Jhj.Core.Wpf.Localization;assembly=Jhj.Core.Wpf">
+        xmlns:loc="clr-namespace:Jhj.Core.Wpf.Localization;assembly=Jhj.Core.Wpf"
+        xmlns:jhj="clr-namespace:Jhj.Core.Wpf.Shell;assembly=Jhj.Core.Wpf">
 
     <UserControl.Resources>
         <!-- 색 브러시는 App 리소스(Themes/Bull.*.xaml)에서 온다 -->
@@ -110,8 +111,9 @@
                                                        Visibility="{Binding HasLinkedPrograms, Converter={StaticResource BoolToVisibilityConverter}}" />
                                         </StackPanel>
                                     </Border>
-                                    <!-- 계약: 「연동 ▾」 — CLI · App · 웹 중 고른 방식으로 연동한다(LinkModeMenu). 연동 중에는 눌리지 않는다 -->
+                                    <!-- 계약: 「연동 ▾」 — CLI · App · 웹 중 고른 방식으로 연동한다(LinkModeMenu). 연동 중에는 눌리지 않는다. 토큰이 죽은 자리는 깜빡인다(Nudge link) -->
                                     <views:LinkModeMenu DockPanel.Dock="Right" Margin="0,0,6,0" VerticalAlignment="Center" ModeChosen="OnLinkModeChosen"
+                                            jhj:Nudge.Key="link" jhj:Nudge.Active="{Binding NudgeAction}"
                                             ShowDesktopApp="{Binding CanLinkFromDesktopApp}" IsBusy="{Binding IsLinkBusy}"
                                             ToolTip="{loc:Tr 'Link an account to this slot — pick CLI, desktop app or browser.'}"
                                             Visibility="{Binding NeedsLink, Converter={StaticResource BoolToVisibilityConverter}}" />
