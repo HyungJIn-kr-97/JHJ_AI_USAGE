@@ -122,13 +122,9 @@ namespace costats.App.Services
         // 계약: 계정(명칭·유형·요금·연동)과 사용량 이력은 남긴다 — 되살릴 수 없는 값이라서다
         private void ResetAllSettings()
         {
-            var answer = System.Windows.MessageBox.Show(
-                Loc.T("Restore every setting to its default?") + Environment.NewLine + Environment.NewLine +
-                Loc.T("Accounts, linking and usage history are kept."),
-                Loc.T("Reset settings..."),
-                System.Windows.MessageBoxButton.OKCancel,
-                System.Windows.MessageBoxImage.Warning);
-            if (answer != System.Windows.MessageBoxResult.OK)
+            if (!JhjMessage.ConfirmDanger(
+                    Loc.T("Restore every setting to its default?"),
+                    Loc.T("Accounts, linking and usage history are kept.")))
             {
                 return;
             }

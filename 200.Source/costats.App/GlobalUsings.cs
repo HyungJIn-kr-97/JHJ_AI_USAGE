@@ -8,6 +8,7 @@ global using IGlassBackdropService = Jhj.Core.Wpf.Shell.IGlassBackdrop;
 global using HotkeyRules = Jhj.Core.Wpf.Hotkeys.HotkeyRules;
 global using HotkeyVerdict = Jhj.Core.Wpf.Hotkeys.HotkeyVerdict;
 global using LegacyMigration = Jhj.Core.Windows.Install.LegacyMigration;
+global using JhjMessage = Jhj.Core.Wpf.Shell.JhjMessage;
 global using Loc = Jhj.Core.Wpf.Localization.Loc;
 global using ReleaseInfo = Jhj.Core.Updates.ReleaseInfo;
 global using ScheduledUpdateService = Jhj.Core.Wpf.Updates.ScheduledUpdateService;

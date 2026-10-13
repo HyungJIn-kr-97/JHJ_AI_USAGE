@@ -55,6 +55,8 @@ namespace costats.App
             {
                 Name = "JHJ_AI-Usage-Monitor",
                 DisplayName = "JHJ AI 통합 사용량 모니터",
+                // 계약: 알림 상자 제목이 창 머리와 같은 이름이다(080 §1) — JhjMessage 가 읽는다
+                WindowTitle = "JHJ AI Usage Monitor",
                 DefaultPalette = JhjPalettes.Bull,
                 // 계약: 공개 좌표는 UpdateOptions 상수 한 곳에서 온다 — 「앱 공유하기」·바닥 링크는 Core AppLinks 가 여기서 주소를 짓는다(030 규격 §4-1)
                 Repository = UpdateOptions.DefaultRepository,
@@ -73,7 +75,7 @@ namespace costats.App
             Loc.Register(CoreStrings.Catalog);
             Loc.Register(costats.App.Localization.LocStrings.Catalog);
 
-            if (SelfInstaller.TryInstallWithChoices(Jhj.Core.Wpf.Install.InstallPrompts.Choose, WarnInstallFailed))
+            if (SelfInstaller.TryInstallWithChoices(Jhj.Core.Wpf.Install.InstallPrompts.Choose, Jhj.Core.Wpf.Install.InstallPrompts.WarnFailed))
             {
                 Shutdown(0);
                 return;
@@ -186,11 +188,7 @@ namespace costats.App
             catch (Exception ex)
             {
                 Log.Fatal(ex, "Startup failed");
-                System.Windows.MessageBox.Show(
-                    $"Startup error: {ex.Message}\n\n{ex.StackTrace}",
-                    "JHJ AI Usage Monitor",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                JhjMessage.Error(Loc.T("Could not start."), ex);
                 Shutdown(1);
             }
         }
@@ -228,13 +226,6 @@ namespace costats.App
 
             return true;
         }
-
-        private static void WarnInstallFailed(string message) =>
-            System.Windows.MessageBox.Show(
-                $"{Loc.T("Could not install. Running from this location instead.")}\n\n{message}",
-                JhjApp.Current.DisplayName,
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
 
         private void RegisterExceptionHandlers()
         {

@@ -424,9 +424,7 @@ namespace costats.Setup
                 if (options.PinToTaskbar && !_silent && !_installer.IsPinnedToTaskbar)
                 {
                     var lnk = _installer.RevealShortcutForTaskbarPin();
-                    MessageBox.Show(this,
-                        "작업 표시줄 고정은 Windows 가 프로그램에 허용하지 않습니다.\n열린 폴더에서 선택된 바로가기를 오른쪽 클릭 → 「작업 표시줄에 고정」을 눌러 주십시오.\n\n" + lnk,
-                        Setup.App.DisplayName + " · 작업 표시줄 고정", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    SetupPrompts.TaskbarPinNotice(this, _installer, lnk);
                 }
                 if (_runAfter.Checked)
                 {
@@ -456,18 +454,16 @@ namespace costats.Setup
         // 계약: 제거 — 앱 종료 · 설치 폴더 · 시작 메뉴 바로가기 · 시작 프로그램 등록을 지운다. 설정·이력은 물어보고 지운다
         private void Remove()
         {
-            var answer = MessageBox.Show(this,
-                "설치된 앱을 제거합니다.\n\n설정과 사용량 이력(" + _installer.DataDir + ")도 함께 지울까요?\n「예」= 모두 지움 · 「아니요」= 앱만 지우고 설정·이력은 남김",
-                "제거", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
-            if (answer == DialogResult.Cancel)
+            var choice = SetupPrompts.ConfirmUninstall(this, _installer, "설정과 사용량 이력");
+            if (choice == UninstallChoice.Cancel)
             {
                 return;
             }
 
             try
             {
-                _installer.Uninstall(keepData: answer == DialogResult.No);
-                _status.Text = answer == DialogResult.Yes ? "제거했습니다. 설정·이력도 지웠습니다." : "제거했습니다. 설정·이력은 남겨 두었습니다.";
+                _installer.Uninstall(keepData: choice == UninstallChoice.KeepData);
+                _status.Text = choice == UninstallChoice.RemoveAll ? "제거했습니다. 설정·이력도 지웠습니다." : "제거했습니다. 설정·이력은 남겨 두었습니다.";
                 RefreshInstalledState();
             }
             catch (Exception ex)

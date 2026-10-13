@@ -603,9 +603,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        if (isMain && MessageBox.Show(
-                Loc.T("Sign out of \"{0}\" on this PC? The {0} CLI in your terminal will be signed out too.", tool),
-                "JHJ AI Usage Monitor", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        if (isMain && !JhjMessage.Confirm(
+                Loc.T("Sign out of \"{0}\" on this PC? The {0} CLI in your terminal will be signed out too.", tool)))
         {
             return;
         }
