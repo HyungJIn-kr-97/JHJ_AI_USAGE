@@ -553,12 +553,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         _pulseViewModel?.ApplyAccountMeta();
     }
 
-    [RelayCommand]
-    private void SignInRow(ExtraAccountRow? row)
+    /// <summary>설정 창 계정 줄의 연동 — mode 는 LinkModeCli · LinkModeApp · LinkModeWeb.</summary>
+    public void LinkRow(ExtraAccountRow? row, string mode)
     {
         if (row is not null)
         {
-            LinkSlot(row.Id, row.DisplayNameText, row.ConfigDir);
+            LinkSlot(row.Id, row.DisplayNameText, row.ConfigDir, mode);
         }
     }
 
@@ -2207,6 +2207,26 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string versionCompareText = string.Empty;
 
+    // 계약: 콤보에서 고른 버전을 지금 버전과 견준 한 줄 — 고른 것이 없으면 빈 문자열
+    [ObservableProperty]
+    private string selectedReleaseCompareText = string.Empty;
+
+    partial void OnSelectedReleaseChanged(ReleaseInfo? value)
+    {
+        if (value is null || _updateCoordinator is null)
+        {
+            SelectedReleaseCompareText = string.Empty;
+            return;
+        }
+
+        SelectedReleaseCompareText = value.Version.CompareTo(_updateCoordinator.CurrentVersion) switch
+        {
+            > 0 => Loc.T("Newer than the current version — installing updates the app."),
+            < 0 => Loc.T("Older than the current version — installing rolls the app back."),
+            _ => Loc.T("This is the version you are running.")
+        };
+    }
+
     public bool CanInstallRelease => _updateCoordinator?.CanInstall ?? false;
 
     private readonly ScheduledUpdateService? _scheduledUpdate;
@@ -2284,8 +2304,9 @@ public sealed partial class SettingsViewModel : ObservableObject
             var list = await Task.Run(() => _updateCoordinator.GetReleasesAsync(ct), ct);
             Releases = list;
             var current = _updateCoordinator.CurrentVersion;
-            SelectedRelease = list.FirstOrDefault(r => r.Version != current && r.HasPackage) ?? list.FirstOrDefault();
             var latest = list.FirstOrDefault(r => !r.Prerelease);
+            // 왜: 「현재가 아닌 첫 버전」을 고르면 최신을 쓰는 중에 한 단계 옛 버전이 골라져 있다 — 읽을 때마다 최신으로 되돌린다
+            SelectedRelease = latest ?? list.FirstOrDefault();
             if (latest is null)
             {
                 LatestReleaseText = Loc.T("No release on GitHub yet");

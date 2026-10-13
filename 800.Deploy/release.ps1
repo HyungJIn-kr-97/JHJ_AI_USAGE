@@ -10,7 +10,16 @@
 #>
 
 param(
-    [string]$Repository = "HyungJIn-kr-97/JHJ_AI_USAGE"
+    [string]$Repository = "HyungJIn-kr-97/JHJ_AI_USAGE",
+    # 계약: 아래 넷은 앱의 「배포하기」 화면이 넘긴다(Core AppDeploy) - 손으로 돌릴 때는 비워 두면 지금처럼 묻는다
+    [ValidateSet('', 'patch', 'minor', 'major', 'none')]
+    [string]$Bump = '',
+    [string]$Date = '',
+    # 계약: 묻지 않고 기본값으로 간다 - 단, 같은 이름의 릴리스를 지우는 것만은 -Overwrite 가 있어야 한다
+    [switch]$Unattended,
+    [switch]$Overwrite,
+    # 계약: 저장소에서 띄운 앱을 내리지 않는다 - 빌드를 bin\deploy 로 돌려 잠금을 피한다(publish.ps1 -KeepApp)
+    [switch]$KeepApp
 )
 
 # 함정: "Stop" 이면 Windows PowerShell 5.1 이 git/gh 의 진행 표시(stderr)를 오류로 보고 멈춘다 - 종료 코드로 판정한다
@@ -32,6 +41,7 @@ function Fail {
 
 function Ask {
     param([string]$Question, [string]$Default)
+    if ($Unattended) { return $Default }
     $answer = Read-Host $Question
     if ([string]::IsNullOrWhiteSpace($answer)) { return $Default }
     return $answer.Trim().ToLowerInvariant()
@@ -86,15 +96,22 @@ Write-Host "  2       기능을 더했음 (마이너)     v$minor.$sample"
 Write-Host "  3       호환이 깨짐 (메이저)       v$major.$sample"
 Write-Host "  0       안 올림, 날짜만 바뀜       v$current.$sample"
 Write-Host ""
-$bump = Ask "선택 (Enter · 2 · 3 · 0)" "1"
+# 함정: PowerShell 변수는 대소문자를 안 가린다 - $bump 로 받으면 매개변수 $Bump 의 ValidateSet 에 걸려 죽는다
+$bumpChoice = switch ($Bump) {
+    'patch' { "1" }
+    'minor' { "2" }
+    'major' { "3" }
+    'none'  { "0" }
+    default { Ask "선택 (Enter · 2 · 3 · 0)" "1" }
+}
 
 $bumpArgs = $null
-switch ($bump) {
+switch ($bumpChoice) {
     "0" { }
     "1" { $bumpArgs = @{ Bump = "patch" } }
     "2" { $bumpArgs = @{ Bump = "minor" } }
     "3" { $bumpArgs = @{ Bump = "major" } }
-    default { Fail "'$bump' 은(는) 고를 수 없습니다. Enter · 2 · 3 · 0 중 하나입니다." }
+    default { Fail "'$bumpChoice' 은(는) 고를 수 없습니다. Enter · 2 · 3 · 0 중 하나입니다." }
 }
 
 if ($bumpArgs) {
@@ -114,7 +131,7 @@ Write-Host "  Enter       v$version.$today  (오늘)"
 Write-Host "  1007        v$version.$(Get-Date -Format 'yyyy')1007"
 Write-Host "  20261007    v$version.20261007"
 Write-Host ""
-$date = Ask "날짜 (Enter = 오늘)" $today
+$date = if ($Date) { $Date } else { Ask "날짜 (Enter = 오늘)" $today }
 if ($date -match '^\d{4}$') { $date = (Get-Date -Format "yyyy") + $date }
 if ($date -notmatch '^\d{8}$') { Fail "'$date' 은(는) 날짜가 아닙니다. 1007 또는 20261007 처럼 적습니다." }
 try { [void][datetime]::ParseExact($date, "yyyyMMdd", $null) }
@@ -153,9 +170,9 @@ Step "4/5 빌드"
 $devApp = Get-Process $appProcessNames -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -and $repo -and $_.Path.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) }
 $devAppWasRunning = $null -ne $devApp
-$devApp | Stop-Process -Force
+if (-not $KeepApp) { $devApp | Stop-Process -Force }
 
-try { & (Join-Path $PSScriptRoot "publish.ps1") -Platform x64 -BuildDate $date }
+try { & (Join-Path $PSScriptRoot "publish.ps1") -Platform x64 -BuildDate $date -KeepApp:$KeepApp }
 catch { Fail "빌드 실패: $($_.Exception.Message)" }
 if ($LASTEXITCODE -ne 0) { Fail "빌드 실패. 위 메시지를 확인해 주십시오." }
 
@@ -174,7 +191,8 @@ Step "5/5 GitHub 에 올리기"
 gh release view $tag --repo $Repository *> $null
 if ($LASTEXITCODE -eq 0) {
     Write-Host "$tag 릴리스가 GitHub 에 이미 있습니다." -ForegroundColor Yellow
-    if (-not (Confirm "지우고 지금 만든 것으로 다시 올릴까요?" -DefaultNo)) { Fail "취소했습니다. 기존 릴리스는 그대로입니다." }
+    $replace = if ($Unattended) { [bool]$Overwrite } else { Confirm "지우고 지금 만든 것으로 다시 올릴까요?" -DefaultNo }
+    if (-not $replace) { Fail "취소했습니다. 기존 릴리스는 그대로입니다." }
     gh release delete $tag --repo $Repository --cleanup-tag --yes
     if ($LASTEXITCODE -ne 0) { Fail "기존 릴리스를 지우지 못했습니다." }
 }
@@ -242,7 +260,10 @@ if ($manifestDir) {
 Write-Host "  릴리스 페이지 : https://github.com/$Repository/releases/tag/$tag"
 Write-Host "  설치 파일 주소: https://github.com/$Repository/releases/latest/download/JHJ_AI-Usage-Monitor_Setup.exe"
 $devExe = "$repo\200.Source\costats.App\bin\Release\net10.0-windows\win-x64\JHJ_AI-Usage-Monitor.exe"
-if (Test-Path $devExe) {
+if ($KeepApp) {
+    Write-Host "  앱을 내리지 않고 배포했습니다 - 지금 떠 있는 앱은 배포 전 빌드 그대로입니다."
+}
+elseif (Test-Path $devExe) {
     # 왜: 배포하면 빌드 때문에 앱이 꺼진 채 남는다 — 떠 있었든 아니든 끝나면 다시 띄운다
     # 함정: explorer.exe 로 띄운다 - 이 콘솔의 자식이 되면 창을 닫을 때 같이 죽는다
     Start-Process explorer.exe $devExe

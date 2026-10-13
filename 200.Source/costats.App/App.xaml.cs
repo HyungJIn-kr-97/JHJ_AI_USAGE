@@ -73,7 +73,7 @@ namespace costats.App
             Loc.Register(CoreStrings.Catalog);
             Loc.Register(costats.App.Localization.LocStrings.Catalog);
 
-            if (SelfInstaller.TryInstallAndRelaunch(ConfirmInstall, WarnInstallFailed))
+            if (SelfInstaller.TryInstallWithChoices(Jhj.Core.Wpf.Install.InstallPrompts.Choose, WarnInstallFailed))
             {
                 Shutdown(0);
                 return;
@@ -228,14 +228,6 @@ namespace costats.App
 
             return true;
         }
-
-        // 계약: 묻고 알리는 것은 앱 몫이다 — Core 의 SelfInstaller 는 WPF 를 모른다. 본문(설치본 버전 → 이번 버전)은 Core 의 InstallPromptText 다
-        private static bool ConfirmInstall(Jhj.Core.Windows.Install.InstallPrompt prompt) =>
-            System.Windows.MessageBox.Show(
-                InstallPromptText.Describe(prompt),
-                JhjApp.Current.DisplayName,
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question) == MessageBoxResult.Yes;
 
         private static void WarnInstallFailed(string message) =>
             System.Windows.MessageBox.Show(

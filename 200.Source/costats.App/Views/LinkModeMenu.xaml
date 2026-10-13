@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:costats.App"
              xmlns:loc="clr-namespace:Jhj.Core.Wpf.Localization;assembly=Jhj.Core.Wpf">
-    <!-- 계약: 「연동 ▾」 — 누르면 CLI · App · 웹 세 방식이 펼쳐지고, 고른 방식으로 GlassWidgetWindow.LinkAccount 를 부른다. DataContext 는 카드(ProviderPulseViewModel) -->
+    <!-- 계약: 「연동 ▾」 — 누르면 CLI · App · 웹 세 방식이 펼쳐지고, 고른 방식을 ModeChosen(cli · app · web)으로 알린다. 호스트가 자리를 정해 SettingsViewModel 에 넘긴다 -->
+    <!-- 계약: Text(연동 · 다시 연동) · ShowDesktopApp(App 줄 — Claude 자리만) · IsBusy(연동 중 비활성) · Flat(설정 창의 네모 단추 모양) -->
     <!-- 왜: 방식마다 로그인 주체가 다르다 — CLI 는 터미널 창, App 은 데스크톱 앱의 계정(로그인 없음), 웹은 앱이 연 브라우저 -->
     <UserControl.Resources>
         <ControlTemplate x:Key="LinkModeRow" TargetType="Button">
@@ -30,30 +31,44 @@
     </UserControl.Resources>
     <Grid>
         <ToggleButton x:Name="Toggle" Cursor="Hand" FocusVisualStyle="{x:Null}" VerticalAlignment="Center"
-                      ToolTip="{loc:Tr 'Link an account to this slot — pick CLI, desktop app or browser.'}"
+                      ToolTip="{Binding ToolTip, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      IsEnabled="{Binding IsBusy, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={x:Static local:BoolNegationConverter.Instance}}"
                       IsHitTestVisible="{Binding IsOpen, ElementName=Menu, Converter={x:Static local:BoolNegationConverter.Instance}}">
-            <ToggleButton.Style>
-                <Style TargetType="ToggleButton">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsLinkBusy}" Value="True">
-                            <Setter Property="IsEnabled" Value="False" />
-                            <Setter Property="Opacity" Value="0.4" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </ToggleButton.Style>
             <ToggleButton.Template>
                 <ControlTemplate TargetType="ToggleButton">
                     <Border x:Name="pill" CornerRadius="4" Padding="8,2" BorderThickness="1" BorderBrush="{DynamicResource AccentBrush}"
                             Background="{DynamicResource TabHoverBrush}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{loc:Tr 'Link'}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
-                            <Path Data="M0,0 L4,4 L8,0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.3" Margin="5,1,0,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="label" Text="{Binding Text, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" />
+                            <Path x:Name="chevron" Data="M0,0 L4,4 L8,0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.3" Margin="5,1,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <!-- 왜: 설정 창의 이웃 단추(SettingsButton)와 같은 모양이어야 줄이 고르다 — 알약 대신 네모 -->
+                        <DataTrigger Binding="{Binding Flat, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                            <Setter TargetName="pill" Property="CornerRadius" Value="8" />
+                            <Setter TargetName="pill" Property="Padding" Value="8,3" />
+                            <Setter TargetName="pill" Property="Background" Value="{DynamicResource SubtleOverlayBrush}" />
+                            <Setter TargetName="pill" Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+                            <Setter TargetName="label" Property="FontSize" Value="11" />
+                            <Setter TargetName="label" Property="FontWeight" Value="Normal" />
+                            <Setter TargetName="label" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            <Setter TargetName="chevron" Property="Stroke" Value="{DynamicResource TextMutedBrush}" />
+                        </DataTrigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="pill" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                        </Trigger>
+                        <!-- 왜: 같은 단추가 줄마다 있다 — 펼친 것에 강조색 테와 눌린 바탕을 줘야 목록이 어느 줄 것인지 보인다 -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="pill" Property="Background" Value="{DynamicResource PressedOverlayBrush}" />
+                            <Setter TargetName="pill" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="label" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="chevron" Property="Stroke" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="chevron" Property="Data" Value="M0,4 L4,0 L8,4" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -70,9 +85,8 @@
                             <TextBlock Text="{loc:Tr 'Claude Code signs in from its own terminal window — the code goes there too.'}" Style="{StaticResource RowDetail}" />
                         </StackPanel>
                     </Button>
-                    <!-- 계약: App 은 Claude 자리에만 — Codex 는 전용 앱 출처를 아직 읽지 않는다(ProviderPulseViewModel.CanLinkFromDesktopApp) -->
                     <Button Tag="app" Cursor="Hand" FocusVisualStyle="{x:Null}" Click="OnModeClick" Template="{StaticResource LinkModeRow}"
-                            Visibility="{Binding CanLinkFromDesktopApp, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                            Visibility="{Binding ShowDesktopApp, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
                         <StackPanel>
                             <TextBlock Text="{loc:Tr 'Desktop app'}" Style="{StaticResource RowTitle}" />
                             <TextBlock Text="{loc:Tr 'Uses the account signed in to the Claude desktop app — no sign-in window, no token.'}" Style="{StaticResource RowDetail}" />

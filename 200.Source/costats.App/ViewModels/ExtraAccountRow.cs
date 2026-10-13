@@ -48,6 +48,9 @@ public sealed partial class ExtraAccountRow : ObservableObject
 
     public bool IsMain => Name.Length == 0;
 
+    // 계약: 「App」 연동(데스크톱 앱 계정 빌리기)은 Claude 자리에만 — Codex 는 전용 앱 출처를 아직 읽지 않는다
+    public bool CanLinkFromDesktopApp => costats.App.Services.AccountMeta.KindOf(Id) == "claude";
+
     // 계약: 이 계정을 찾은 출처마다 표지 하나 — 채우는 곳은 SettingsViewModel.Sources.cs
     public IReadOnlyList<AccountSourceBadge> Sources { get; init; } = [];
 

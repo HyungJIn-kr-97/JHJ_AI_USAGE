@@ -209,6 +209,11 @@
                                             <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter TargetName="Box" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
                                             </Trigger>
+                                            <!-- 왜: 목록이 펼쳐진 콤보가 어느 것인지 보여야 한다 — 열려 있는 동안 강조색 테와 눌린 바탕을 준다 -->
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                <Setter TargetName="Box" Property="Background" Value="{DynamicResource PressedOverlayBrush}" />
+                                            </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </ToggleButton.Template>

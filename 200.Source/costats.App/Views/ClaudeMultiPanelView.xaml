@@ -111,7 +111,9 @@
                                         </StackPanel>
                                     </Border>
                                     <!-- 계약: 「연동 ▾」 — CLI · App · 웹 중 고른 방식으로 연동한다(LinkModeMenu). 연동 중에는 눌리지 않는다 -->
-                                    <views:LinkModeMenu DockPanel.Dock="Right" Margin="0,0,6,0" VerticalAlignment="Center"
+                                    <views:LinkModeMenu DockPanel.Dock="Right" Margin="0,0,6,0" VerticalAlignment="Center" ModeChosen="OnLinkModeChosen"
+                                            ShowDesktopApp="{Binding CanLinkFromDesktopApp}" IsBusy="{Binding IsLinkBusy}"
+                                            ToolTip="{loc:Tr 'Link an account to this slot — pick CLI, desktop app or browser.'}"
                                             Visibility="{Binding NeedsLink, Converter={StaticResource BoolToVisibilityConverter}}" />
 
 

@@ -58,6 +58,8 @@ namespace costats.Setup
         private readonly AccentCheck _shortStart = new AccentCheck { Text = "시작 메뉴", Checked = true };
         private readonly AccentCheck _shortDesktop = new AccentCheck { Text = "바탕 화면" };
         private readonly AccentCheck _pinTaskbar = new AccentCheck { Text = "작업 표시줄 고정" };
+        // 계약: 켠 채로 연다 — Core InstallOptions.StartAtLogin 으로 넘어가 「시작 앱」의 켬/끔이 된다
+        private readonly AccentCheck _startAtLogin = new AccentCheck { Text = "로그인할 때 자동 실행", Checked = true };
         private readonly LinkLabel _consentInfo = new LinkLabel { Text = "자세히", AutoSize = true, LinkColor = Accent, ActiveLinkColor = AccentHover, LinkBehavior = LinkBehavior.HoverUnderline, Margin = new Padding(0) };
         private readonly SlimProgress _progress = new SlimProgress { Width = Px(400), Height = Px(6) };
         private readonly Label _status = new Label { AutoSize = false, Width = Px(400), Height = Px(22), ForeColor = Text2, AutoEllipsis = true };
@@ -91,7 +93,7 @@ namespace costats.Setup
             ForeColor = Text1;
             Font = new Font("Malgun Gothic", 10.5f);
             AutoScaleMode = AutoScaleMode.None;
-            ClientSize = new Size(Px(448), Px(498));
+            ClientSize = new Size(Px(448), Px(536));
             // 계약: 크기는 고정이다 — 배율을 곱한 값보다 작아지지 않는다
             MinimumSize = Size;
             MaximumSize = Size;
@@ -99,7 +101,7 @@ namespace costats.Setup
 
             Controls.Add(BuildTitleBar());
 
-            var body = new FlowLayoutPanel { Location = new Point(Px(24), Px(56)), Size = new Size(Px(400), Px(442)), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Bg };
+            var body = new FlowLayoutPanel { Location = new Point(Px(24), Px(56)), Size = new Size(Px(400), Px(480)), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Bg };
             var title = new Label { Text = "JHJ AI 통합 사용량 모니터", Font = new Font(Font.FontFamily, 17f, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 0, 0, Px(2)) };
 
             // 설치 위치 — 직접 입력(Enter · 포커스 이탈)하거나 「변경」으로 고른다
@@ -177,6 +179,10 @@ namespace costats.Setup
             body.Controls.Add(checksRow);
             body.Controls.Add(shortcutLabel);
             body.Controls.Add(shortcutsRow);
+            var startupRow = new System.Windows.Forms.Panel { Width = Px(400), Height = Px(24), Margin = new Padding(0, 0, 0, Px(14)) };
+            _startAtLogin.Location = new Point(0, 0);
+            startupRow.Controls.Add(_startAtLogin);
+            body.Controls.Add(startupRow);
             body.Controls.Add(new HairLine { Width = Px(400), Margin = new Padding(0, 0, 0, Px(10)) });
             body.Controls.Add(_status);
             body.Controls.Add(_progress);
@@ -410,7 +416,7 @@ namespace costats.Setup
                 var zip = await _client.DownloadAsync(release, progress, _cts.Token);
 
                 _status.Text = "설치하는 중입니다...";
-                var options = new InstallOptions { StartMenuShortcut = _shortStart.Checked, DesktopShortcut = _shortDesktop.Checked, PinToTaskbar = _pinTaskbar.Checked };
+                var options = new InstallOptions { StartMenuShortcut = _shortStart.Checked, DesktopShortcut = _shortDesktop.Checked, PinToTaskbar = _pinTaskbar.Checked, StartAtLogin = _startAtLogin.Checked };
                 await Task.Run(() => _installer.Install(zip, options));
                 try { System.IO.File.Delete(zip); } catch (System.IO.IOException) { }
 

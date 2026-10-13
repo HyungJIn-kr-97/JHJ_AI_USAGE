@@ -30,8 +30,18 @@ namespace costats.App.Views
         private readonly Jhj.Core.App.AppDeploy _deploy = new(UpdateOptions.DefaultRepository);
 
         // 계약: 계정 확인 → 이력 시작 기록 → 배포 콘솔 순서는 Core 가 지킨다 — 여기서는 결과만 알린다
+        /// <summary>「배포하기」를 눌렀고 앱 안 배포가 되는 저장소다 — 팝업이 설정을 닫고 배포 화면을 연다.</summary>
+        public event EventHandler? DeployRequested;
+
         private async void OnShareDeployClick(object sender, RoutedEventArgs e)
         {
+            // 계약: release.ps1 이 묻지 않고 도는 인자를 받으면 앱 안 화면으로 넘긴다 — 못 받는 옛 스크립트면 콘솔 배포 그대로다
+            if (_deploy.SupportsInApp)
+            {
+                DeployRequested?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+
             ShareDeployButton.IsEnabled = false;
             var (outcome, detail) = await _deploy.StartAsync();
             ShareDeployButton.IsEnabled = true;
@@ -64,6 +74,15 @@ namespace costats.App.Views
             catch (System.Exception ex)
             {
                 return ex.Message;
+            }
+        }
+
+        // 계약: 계정 줄의 「연동 ▾」 — 줄(ExtraAccountRow)과 고른 방식을 뷰모델에 넘긴다
+        private void OnLinkModeChosen(object? sender, string mode)
+        {
+            if (sender is FrameworkElement { DataContext: ExtraAccountRow row } && DataContext is SettingsViewModel viewModel)
+            {
+                viewModel.LinkRow(row, mode);
             }
         }
 

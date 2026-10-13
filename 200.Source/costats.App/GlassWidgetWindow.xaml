@@ -5,6 +5,7 @@
         xmlns:loc="clr-namespace:Jhj.Core.Wpf.Localization;assembly=Jhj.Core.Wpf"
         xmlns:core="clr-namespace:Jhj.Core.App;assembly=Jhj.Core"
         xmlns:views="clr-namespace:costats.App.Views"
+        xmlns:deploy="clr-namespace:Jhj.Core.Wpf.Deploy;assembly=Jhj.Core.Wpf"
         Title="JHJ AI Usage Monitor"
         Width="360"
         Height="816"
@@ -138,7 +139,7 @@
                 <ToggleButton x:Name="PinToggle" Style="{StaticResource PinToggle}" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="6,0,0,0"
                               Click="OnPinToggleClick" ToolTip="{loc:Tr 'Pin — stays open when you click elsewhere'}" />
                 <Button x:Name="SettingsTitleChip" DockPanel.Dock="Right" VerticalAlignment="Center" Cursor="Hand" Visibility="Collapsed"
-                        Click="OnSettingsClick" FocusVisualStyle="{x:Null}" ToolTip="{loc:Tr 'Close settings'}">
+                        Click="OnBackClick" FocusVisualStyle="{x:Null}" ToolTip="{loc:Tr 'Back'}">
                     <!-- 왜: 테두리 알약은 계정 드롭다운·창 닫기 ✕ 와 겹쳐 보여 이질적이었다 — 링크처럼 글자만 두고 올렸을 때만 바탕을 준다 -->
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
@@ -446,7 +447,9 @@
                     <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Stretch">
                     <!-- 계약: 요금제 배지 왼쪽에 계정 상태 — 연동이 필요하면 「연동 ▾」(CLI · App · 웹 중 고른 방식으로, 진행은 머리글 아래 칸) -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
-                    <views:LinkModeMenu Margin="0,0,6,0" VerticalAlignment="Center"
+                    <views:LinkModeMenu Margin="0,0,6,0" VerticalAlignment="Center" ModeChosen="OnLinkModeChosen"
+                            ShowDesktopApp="{Binding CanLinkFromDesktopApp}" IsBusy="{Binding IsLinkBusy}"
+                            ToolTip="{loc:Tr 'Link an account to this slot — pick CLI, desktop app or browser.'}"
                             Visibility="{Binding NeedsLink, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
                     <Border CornerRadius="4" Padding="6,2" Margin="0,0,6,0" VerticalAlignment="Center" BorderThickness="1"
                             BorderBrush="{Binding AccountStateBrush}"
@@ -1003,6 +1006,13 @@
                 </Border>
             </Grid>
 
+            <!-- 계약: 배포 화면은 설정과 같은 자리를 덮는 별개 화면이다 — 둘 중 하나만 열리고, 열린 쪽은 하단 아이콘이 강조색이 된다(SetScreen) -->
+            <!-- 계약: 몸통은 Core 의 DeployPanel 이다 — 단추·콤보 모양은 설정 화면 것을 코드에서 넘긴다(030 규격 §1-1) -->
+            <Border x:Name="DeployHost" Grid.Row="0" Grid.RowSpan="3" Background="{DynamicResource BgBrush}" Padding="4,2,4,6" Visibility="Collapsed">
+                <deploy:DeployPanel x:Name="DeployView" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12"
+                                    AccentBrush="{DynamicResource AccentBrush}" LineBrush="{DynamicResource DividerBrush}" />
+            </Border>
+
             <!-- Footer note -->
             <StackPanel x:Name="FooterPanel" Grid.Row="3" Margin="0,20,0,0">
                 <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,14" />
@@ -1013,7 +1023,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                    <Button Width="28" Height="28" Grid.Row="0" Grid.Column="2" Margin="6,0,0,0"
+                    <Button x:Name="SettingsFooterButton" Width="28" Height="28" Grid.Row="0" Grid.Column="2" Margin="6,0,0,0"
                             Background="Transparent" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
                             ToolTip="{loc:Tr 'Settings'}" Padding="0" Cursor="Hand" VerticalAlignment="Top"
                             Click="OnSettingsClick">
@@ -1044,7 +1054,7 @@
                                 </Setter>
                             </Style>
                         </Button.Style>
-                        <Path Data="{StaticResource SettingsIconPath}" Fill="{DynamicResource TextSecondaryBrush}"
+                        <Path x:Name="SettingsFooterIcon" Data="{StaticResource SettingsIconPath}" Fill="{DynamicResource TextSecondaryBrush}"
                               Stretch="Uniform" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Button>
                     <!-- Theme toggle (light / dark) -->
@@ -1120,6 +1130,31 @@
                         </Grid>
                     </Button>
                     </Grid>
+                    <!-- 계약: 배포 화면을 여닫는 단추 — 개발 장비 + 저장소 소유자에게만 보인다(SyncDeployButton). 열려 있으면 강조색이다 -->
+                    <Button x:Name="DeployFooterButton" DockPanel.Dock="Right" Width="28" Height="28" VerticalAlignment="Top" Visibility="Collapsed"
+                            Background="Transparent" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                            ToolTip="{loc:Tr 'Deploy'}" Padding="0" Cursor="Hand" Click="OnDeployClick">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="border" Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="6">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="border" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="border" Property="Background" Value="{DynamicResource PressedOverlayBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <Path x:Name="DeployFooterIcon" Data="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" Fill="{DynamicResource TextSecondaryBrush}"
+                              Stretch="Uniform" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
                     <!-- Description text fills remaining space -->
                     <!-- 계약: 켜진 AI 도구 이름만 앱 탭 순서로 한 줄에 — 설명문은 두지 않는다(접힌 항목은 자리를 차지하지 않는다) -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,12,0" Height="28" VerticalAlignment="Top">

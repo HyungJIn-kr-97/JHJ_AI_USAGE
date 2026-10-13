@@ -14,6 +14,9 @@ namespace costats.App
         private readonly IGlassBackdropService _backdropService;
         private readonly SettingsViewModel _settingsViewModel;
         private bool _settingsOpen;
+        private bool _deployOpen;
+        private readonly Jhj.Core.App.AppDeploy _deploy = new(costats.App.Services.Updates.UpdateOptions.DefaultRepository);
+        private Jhj.Core.Wpf.Deploy.DeployPanelViewModel? _deployViewModel;
 
         private readonly costats.Application.Settings.AppSettings _settings;
         private readonly costats.Application.Settings.ISettingsStore _settingsStore;
@@ -36,6 +39,12 @@ namespace costats.App
             _backdropService = backdropService;
             _settingsViewModel = settingsViewModel;
             SettingsView.DataContext = settingsViewModel;
+            SettingsView.DeployRequested += (_, _) => SetDeployOpen(true);
+            // 왜: 단추·콤보 틀은 설정 화면의 자원이다 — 배포 화면이 같은 모양이 되게 그대로 넘긴다
+            DeployView.ButtonStyle = SettingsView.TryFindResource("SettingsButton") as Style;
+            DeployView.ComboBoxStyle = SettingsView.TryFindResource("SettingsComboBox") as Style;
+            DeployView.CheckBoxStyle = SettingsView.TryFindResource("SettingsCheckBox") as Style;
+            IsVisibleChanged += (_, _) => SyncDeployButton();
             viewModel.LinkContext = settingsViewModel;
             _viewModel = viewModel;
             // 왜: 카드는 갱신 때마다 새로 만들어진다 — 연동 상태가 바뀌거나 카드가 바뀔 때마다 진행 칸을 펼칠 카드를 다시 고른다
@@ -68,6 +77,10 @@ namespace costats.App
                 if (_settingsOpen)
                 {
                     SetSettingsOpen(false);
+                }
+                else if (_deployOpen)
+                {
+                    SetDeployOpen(false);
                 }
                 else
                 {
@@ -237,6 +250,14 @@ namespace costats.App
         // 계약: 팝업에서 바로 연동한다 — mode 는 LinkModeMenu 가 고른 cli · app · web. 진행(브라우저 버튼·코드 칸·결과)은 누른 카드·머리글 바로 밑(LinkProgressView)에 보인다
         public void LinkAccount(string providerId, string mode) => _settingsViewModel.LinkAccount(providerId, mode);
 
+        private void OnLinkModeChosen(object? sender, string mode)
+        {
+            if (sender is FrameworkElement { DataContext: ProviderPulseViewModel card })
+            {
+                LinkAccount(card.ProviderId, mode);
+            }
+        }
+
         private async void OnThemeToggleClick(object sender, RoutedEventArgs e)
         {
             var dark = !ThemeManager.IsDark;
@@ -272,11 +293,14 @@ namespace costats.App
                 return;
             }
 
+            // 계약: 설정과 배포는 한 번에 하나만 열린다 — 설정을 열면 배포 화면이 닫힌다
+            if (open)
+            {
+                SetDeployOpen(false);
+            }
+
             _settingsOpen = open;
-            // 왜: 설정 화면에서는 계정 전환이 쓸모없다 — 제목에 " · 설정" 을 잇고 그 자리에는 돌아가기만 둔다
-            SettingsTitleChip.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-            AccountToggle.Visibility = open ? Visibility.Collapsed : Visibility.Visible;
-            TitleSuffix.Text = open ? " · " + Loc.T("Settings") : string.Empty;
+            SyncScreenChrome();
 
             var width = Math.Max(1, ActualWidth);
             // 함정: SettingsHost 를 늘 클립해 두면 설정 본문 막대가 통째로 잘린다 — 막대는 바깥 여백 위에 겹쳐 그려진다(App.xaml GutterScrollViewer)
@@ -320,6 +344,77 @@ namespace costats.App
                 }
             };
             SettingsSlide.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, slideOut);
+        }
+
+        private void OnDeployClick(object sender, RoutedEventArgs e) => SetDeployOpen(!_deployOpen);
+
+        // 계약: 제목 줄의 「‹ 돌아가기」는 열려 있는 화면(설정 · 배포)을 닫는다
+        private void OnBackClick(object sender, RoutedEventArgs e)
+        {
+            SetSettingsOpen(false);
+            SetDeployOpen(false);
+        }
+
+        // 계약: 배포 화면을 닫아도 돌고 있는 배포는 계속 돈다 — 뷰모델을 한 번만 만들어 다시 열면 진행이 이어 보인다
+        private void SetDeployOpen(bool open)
+        {
+            if (_deployOpen == open)
+            {
+                return;
+            }
+
+            if (open)
+            {
+                SetSettingsOpen(false);
+                if (_deployViewModel is null)
+                {
+                    _deployViewModel = new Jhj.Core.Wpf.Deploy.DeployPanelViewModel(_deploy);
+                    _deployViewModel.CloseRequested += (_, _) => SetDeployOpen(false);
+                    DeployView.DataContext = _deployViewModel;
+                }
+            }
+
+            _deployOpen = open;
+            DeployHost.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            // 왜: 본문 스크롤 막대는 바깥 여백에 그려져 덮은 화면 위에 남는다 — 설정과 같은 까닭으로 숨긴다(Hidden 이라 위치는 보존된다)
+            BodyScroll.Visibility = open ? Visibility.Hidden : Visibility.Visible;
+            SyncScreenChrome();
+        }
+
+        // 계약: 제목 꼬리 · 돌아가기 · 하단 아이콘 색이 지금 열린 화면을 말한다 — 열린 쪽 아이콘이 강조색이다
+        private void SyncScreenChrome()
+        {
+            var covered = _settingsOpen || _deployOpen;
+            // 왜: 덮인 동안에는 계정 전환이 쓸모없다 — 그 자리에는 돌아가기만 둔다
+            SettingsTitleChip.Visibility = covered ? Visibility.Visible : Visibility.Collapsed;
+            AccountToggle.Visibility = covered ? Visibility.Collapsed : Visibility.Visible;
+            TitleSuffix.Text = _settingsOpen ? " · " + Loc.T("Settings") : _deployOpen ? " · " + Loc.T("Deploy") : string.Empty;
+            Mark(SettingsFooterButton, SettingsFooterIcon, _settingsOpen);
+            Mark(DeployFooterButton, DeployFooterIcon, _deployOpen);
+
+            static void Mark(System.Windows.Controls.Button button, System.Windows.Shapes.Path icon, bool on)
+            {
+                button.SetResourceReference(BorderBrushProperty, on ? "AccentBrush" : "DividerBrush");
+                if (on)
+                {
+                    button.SetResourceReference(BackgroundProperty, "SubtleOverlayBrush");
+                }
+                else
+                {
+                    button.Background = System.Windows.Media.Brushes.Transparent;
+                }
+
+                icon.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, on ? "AccentBrush" : "TextSecondaryBrush");
+            }
+        }
+
+        // 왜: 파일 둘만 읽는 판정이라 팝업을 띄울 때마다 다시 본다 — gh 로그인을 바꾼 뒤 앱을 다시 띄우지 않아도 된다
+        private void SyncDeployButton()
+        {
+            if (IsVisible)
+            {
+                DeployFooterButton.Visibility = _deploy.CanDeploy && _deploy.SupportsInApp ? Visibility.Visible : Visibility.Collapsed;
+            }
         }
 
         private void OnUsageLinkNavigate(object sender, RequestNavigateEventArgs e)

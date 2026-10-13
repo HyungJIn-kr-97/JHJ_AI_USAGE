@@ -30,7 +30,9 @@ param(
     [ValidateSet("Release", "Debug")]
     [string]$Configuration = "Release",
     # Build date for the release name (yyyyMMdd). Defaults to today.
-    [string]$BuildDate = ""
+    [string]$BuildDate = "",
+    # Contract: leave the app running - build into bin\deploy so the running dev build (bin\Release) is not locked.
+    [switch]$KeepApp
 )
 
 $ErrorActionPreference = "Stop"
@@ -88,7 +90,7 @@ $platforms = if ($Platform -eq "all") { @("win-x64", "win-arm64") } else { @("wi
 # 함정: 이 저장소에서 띄운 앱이 bin\ 이나 publish\ 를 잠그면 GenerateBundle 이 죽는다 - 먼저 내린다
 # 함정: 반드시 이름으로 먼저 거른다 - 전체 프로세스를 훑으면 경로 비교가 빗나갔을 때 남의 프로세스를 내린다
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-if ($repoRoot) {
+if ($repoRoot -and -not $KeepApp) {
     Get-Process 'JHJ_AI-Usage-Monitor','AI-Usage-Monitor_JHJ','AiUsageMonitor' -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -and $_.Path.StartsWith($repoRoot, [StringComparison]::OrdinalIgnoreCase) } |
         Stop-Process -Force -ErrorAction SilentlyContinue
@@ -99,6 +101,11 @@ Write-Host "Building AI Usage Monitor v$Release" -ForegroundColor Cyan
 Write-Host "Configuration: $Configuration" -ForegroundColor Gray
 Write-Host "Platforms: $($platforms -join ', ')" -ForegroundColor Gray
 Write-Host ""
+
+# Trap: keep the path relative - an absolute BaseOutputPath would send every referenced project into one folder.
+# Trap: do not write this as "$x = if (...) { @('one') }" - a one-item array unrolls to a string and splatting it passes one argument per character.
+$keepAppArgs = @()
+if ($KeepApp) { $keepAppArgs += '-p:BaseOutputPath=bin\deploy\' }
 
 foreach ($rid in $platforms) {
     $outputPath = Join-Path $outputBase $rid
@@ -118,7 +125,8 @@ foreach ($rid in $platforms) {
         -p:DebugType=embedded `
         -p:VersionPrefix=$Version `
         -p:Version=$Version `
-        -p:BuildDate=$BuildDate
+        -p:BuildDate=$BuildDate `
+        @keepAppArgs
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to publish for $rid" -ForegroundColor Red
