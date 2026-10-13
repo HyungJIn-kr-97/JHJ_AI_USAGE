@@ -15,6 +15,8 @@ using costats.Core.Pulse;
 using costats.Infrastructure.Providers;
 using Microsoft.Win32;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace costats.App.ViewModels;
 
@@ -678,20 +680,38 @@ public sealed partial class SettingsViewModel : ObservableObject
         : LinkLoadingUsage ? Loc.T("Loading usage…")
         : string.Empty;
 
-    public void LinkAccount(string providerId)
+    // 계약: 연동 방식 셋 — "web"(앱이 CLI 를 숨겨 돌리고 브라우저를 연다 · 기본) · "cli"(터미널 창에서 CLI 가 스스로 로그인) · "app"(데스크톱 앱에 로그인한 계정을 빌린다 · 토큰 없음)
+    public const string LinkModeWeb = "web";
+    public const string LinkModeCli = "cli";
+    public const string LinkModeApp = "app";
+
+    public void LinkAccount(string providerId, string mode = LinkModeWeb)
     {
         var kind = AccountMeta.KindOf(providerId);
         var name = providerId.Contains(':') ? providerId[(providerId.IndexOf(':') + 1)..] : string.Empty;
         var isMain = name.Length == 0 || name.Equals(AccountProfileStore.DefaultName, StringComparison.OrdinalIgnoreCase);
         var id = isMain ? (kind == "codex" ? CodexMainId : ClaudeMainId) : providerId;
         var dir = isMain ? null : kind == "codex" ? CodexAccountStore.DirOf(name) : Path.Combine(AccountProfileStore.RootDir, name);
-        LinkSlot(id, AccountMeta.DisplayNameOf(_settings, id), dir);
+        LinkSlot(id, AccountMeta.DisplayNameOf(_settings, id), dir, mode);
     }
 
     // 계약: 자리 하나에 계정을 연동한다(이미 연동돼 있으면 다시 연동 = 다른 계정으로 바꾸기). 연동 뒤 VerifyLink 가 결과를 확인한다
-    private void LinkSlot(string id, string label, string? dir)
+    private void LinkSlot(string id, string label, string? dir, string mode = LinkModeWeb)
     {
         var codex = AccountMeta.KindOf(id) == "codex";
+        if (mode == LinkModeApp)
+        {
+            if (codex)
+            {
+                LinkingId = id;
+                AccountsMessage = Loc.T("Codex has no desktop app source yet. Use CLI or Web.");
+                return;
+            }
+
+            LinkFromDesktopApp(id, label, dir);
+            return;
+        }
+
         var exe = codex ? CliLocator.FindCodex() : CliLocator.FindClaude();
         if (exe is null)
         {
@@ -703,11 +723,135 @@ public sealed partial class SettingsViewModel : ObservableObject
         var before = AccountMeta.MailOf(id);
         var tokenFile = codex ? CodexTokenFile(dir) : ClaudeTokenFile(dir);
         var stampBefore = TokenStamp(tokenFile);
+        // 왜: 터미널 창 로그인은 코드도 그 창이 받는다 — 앱의 코드 칸은 숨긴다
         _ = RunLoginAsync(label, exe, codex ? "login" : "auth login",
             dir is null ? null : (codex ? "CODEX_HOME" : "CLAUDE_CONFIG_DIR", dir),
             () => codex ? AccountIdentityReader.ReadCodex(dir) : AccountIdentityReader.ReadClaude(dir),
-            acceptsCode: !codex,
-            verify: account => VerifyLink(id, label, account, File.Exists(tokenFile), TokenStamp(tokenFile) != stampBefore, before));
+            acceptsCode: !codex && mode != LinkModeCli,
+            verify: account => VerifyLink(id, label, account, File.Exists(tokenFile), TokenStamp(tokenFile) != stampBefore, before),
+            codex: codex,
+            consoleWindow: mode == LinkModeCli);
+    }
+
+    // 계약: 「App」 연동 — 데스크톱 앱에 지금 로그인한 계정을 이 자리의 계정으로 삼는다. 로그인 창도 토큰도 없다
+    // 함정: 사용률은 앱이 남긴 표본(plan-usage-history.json)에서만 온다 — 표본이 묵으면 「연동 필요」로 돌아온다(ClaudeDesktopUsage)
+    // 함정: 메일은 이 PC 에 한 번은 로그인했던 기록(홈 · 자리 폴더의 .claude.json)에서만 안다 — 없으면 CLI·웹으로 먼저 연동해야 한다
+    private void LinkFromDesktopApp(string id, string label, string? dir)
+    {
+        LinkingId = id;
+        if (ClaudeDesktopUsage.CurrentAccount() is not { Length: > 0 } current)
+        {
+            AccountsMessage = Loc.T("The Claude desktop app is not signed in on this PC. Sign in to the app, then try again.");
+            return;
+        }
+
+        if (KnownIdentityOf(current) is not { Email.Length: > 0 } identity)
+        {
+            AccountsMessage = Loc.T("The desktop app is signed in as {0}…, but that account's email is not known on this PC yet. Link it once via CLI or Web first.",
+                current[..Math.Min(8, current.Length)]);
+            return;
+        }
+
+        var mail = identity.Email;
+        var twin = ClaudeAccounts.FirstOrDefault(r =>
+            !r.Id.Equals(id, StringComparison.OrdinalIgnoreCase) && string.Equals(AccountMeta.MailOf(r.Id), mail, StringComparison.OrdinalIgnoreCase));
+        if (twin is not null)
+        {
+            AccountsMessage = Loc.T("{0} is already linked to \"{1}\". Use Relink on this slot and pick another account (the login window helps).", mail, twin.DisplayNameText);
+            return;
+        }
+
+        var before = AccountMeta.MailOf(id);
+        if (dir is null)
+        {
+            // 왜: 기본 자리의 신원 파일은 CLI 것이라 앱이 고치지 않는다 — 데스크톱 앱과 CLI 가 같은 계정일 때만 잇는다
+            var home = ClaudeHomeIdentity.Read();
+            if (!string.Equals(home?.Uuid, current, StringComparison.OrdinalIgnoreCase))
+            {
+                AccountsMessage = Loc.T("The desktop app is signed in as {0}, but this PC's Claude Code is {1}. Sign in to the desktop app with that account, or link via CLI or Web.",
+                    mail, home?.Email ?? Loc.T("Not signed in"));
+                return;
+            }
+        }
+        else
+        {
+            // 함정: 다른 계정의 토큰이 남아 있으면 조회가 그 토큰의 사용량을 낸다 — 앱은 토큰을 지우지 않으므로 먼저 「연동 해제」를 청한다
+            if (before is not null && !before.Equals(mail, StringComparison.OrdinalIgnoreCase) && HasClaudeToken(dir))
+            {
+                AccountsMessage = Loc.T("\"{0}\" still holds a token for {1}. Unlink it first, then link via App.", label, before);
+                return;
+            }
+
+            try
+            {
+                WriteSlotIdentity(Path.Combine(dir, ".claude.json"), identity);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            {
+                AccountsMessage = Loc.T("Could not save the account to \"{0}\": {1}", label, ex.Message);
+                return;
+            }
+        }
+
+        RefreshAccounts();
+        AccountsMessage = before is not null && !before.Equals(mail, StringComparison.OrdinalIgnoreCase)
+            ? Loc.T("✓ \"{0}\" relinked: {1} → {2} (desktop app usage).", label, before, mail)
+            : Loc.T("✓ \"{0}\" linked to {1} (desktop app usage).", label, mail);
+        _ = FinishLinkAsync(dir, codex: false);
+    }
+
+    // 계약: 계정 UUID 의 메일·조직을 이 PC 에 남은 로그인 기록에서 찾는다 — 홈 → 자리 폴더들 → ~/.claude 안의 사본 순. 토큰은 읽지 않는다
+    private static ClaudeHomeIdentity.Identity? KnownIdentityOf(string uuid)
+    {
+        static bool Same(ClaudeHomeIdentity.Identity? identity, string uuid) =>
+            string.Equals(identity?.Uuid, uuid, StringComparison.OrdinalIgnoreCase);
+
+        var home = ClaudeHomeIdentity.Read();
+        if (Same(home, uuid))
+        {
+            return home;
+        }
+
+        IEnumerable<string> dirs = [];
+        try
+        {
+            if (Directory.Exists(AccountProfileStore.RootDir))
+            {
+                dirs = Directory.EnumerateDirectories(AccountProfileStore.RootDir);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // 자리 폴더를 못 읽으면 아래 사본만 본다
+        }
+
+        foreach (var dir in dirs)
+        {
+            var identity = ClaudeHomeIdentity.ReadFile(Path.Combine(dir, ".claude.json"));
+            if (Same(identity, uuid))
+            {
+                return identity;
+            }
+        }
+
+        // 왜: CLI 가 ~/.claude 안에 남긴 사본은 데스크톱 세션이 덮어쓰지 않는다 — 홈 파일이 다른 계정으로 바뀌어도 여기 남는다
+        var inner = ClaudeHomeIdentity.ReadFile(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", ".claude.json"));
+        return Same(inner, uuid) ? inner : null;
+    }
+
+    // 계약: 자리 폴더의 .claude.json 에 oauthAccount 만 쓴다 — 다른 칸은 그대로 두고, 토큰은 넣지 않는다(CLI 가 같은 칸을 읽는다)
+    private static void WriteSlotIdentity(string path, ClaudeHomeIdentity.Identity identity)
+    {
+        var root = (File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject : null) ?? new JsonObject();
+        root["oauthAccount"] = new JsonObject
+        {
+            ["accountUuid"] = identity.Uuid,
+            ["emailAddress"] = identity.Email,
+            ["organizationName"] = identity.Organization,
+            ["organizationUuid"] = identity.OrganizationUuid
+        };
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private static string CodexTokenFile(string? codexHome) => Path.Combine(
@@ -1056,8 +1200,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     // 계약: 로그인은 공식 CLI 가 연 브라우저에서 사용자가 직접 한다 — 앱은 CLI 를 창 없이 돌리고, 코드가 필요하면 입력 칸의 값을 넘겨 준다
     // 함정: Claude 토큰은 CLAUDE_CONFIG_DIR 아래 .credentials.json 에 남는다 — 앱은 값을 읽지 않고 로그인 여부만 본다
+    // 계약: consoleWindow 면 CLI 의 콘솔 창을 그대로 띄운다(「CLI」 연동) — 주소·코드 모두 그 창이 다루고 앱은 끝나기만 기다린다
     private async Task RunLoginAsync(string label, string exe, string arguments, (string Name, string Dir)? homeEnv, Func<string> readAccount, bool acceptsCode,
-        Func<string, bool> verify)
+        Func<string, bool> verify, bool codex, bool consoleWindow = false)
     {
         // 왜: 멈춘 이전 로그인이 「진행 중」으로 남아 새 연동을 막았다 — 새로 연동하면 이전 것을 끝내고 시작한다
         if (LoginInProgress)
@@ -1069,10 +1214,12 @@ public sealed partial class SettingsViewModel : ObservableObject
             }
         }
 
-        var info = CreateCliStartInfo(exe, arguments, homeEnv);
-        AccountsMessage = acceptsCode
-            ? Loc.T("Finish signing in to \"{0}\" in the browser. If it shows a code, paste it below.", label)
-            : Loc.T("Finish signing in to \"{0}\" in the browser.", label);
+        var info = CreateCliStartInfo(exe, arguments, homeEnv, consoleWindow);
+        AccountsMessage = consoleWindow
+            ? Loc.T("Finish signing in to \"{0}\" in the terminal window that just opened.", label)
+            : acceptsCode
+                ? Loc.T("Finish signing in to \"{0}\" in the browser. If it shows a code, paste it below.", label)
+                : Loc.T("Finish signing in to \"{0}\" in the browser.", label);
         try
         {
             using var process = System.Diagnostics.Process.Start(info);
@@ -1086,8 +1233,11 @@ public sealed partial class SettingsViewModel : ObservableObject
                 // 왜: 브라우저가 안 열리면 로그인 주소는 CLI 출력에만 있다 — 주소와 마지막 안내 줄을 화면에 올린다
                 LoginUrl = string.Empty;
                 LoginOutput = string.Empty;
-                _ = PumpLoginOutputAsync(process.StandardOutput);
-                _ = PumpLoginOutputAsync(process.StandardError);
+                if (!consoleWindow)
+                {
+                    _ = PumpLoginOutputAsync(process.StandardOutput);
+                    _ = PumpLoginOutputAsync(process.StandardError);
+                }
 
                 using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(10));
                 try
@@ -1125,15 +1275,21 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        if (homeEnv is null)
+        await FinishLinkAsync(homeEnv?.Dir, codex);
+    }
+
+    // 계약: 연동이 확인된 자리를 재시작 없이 띄운다 — 기본 자리는 갱신만, 추가 자리는 소스를 붙여 갱신, 못 붙이면 스스로 다시 시작한다
+    private async Task FinishLinkAsync(string? dir, bool codex)
+    {
+        if (dir is null)
         {
             // 왜: 기본 자리의 토큰은 fetcher 가 매번 파일에서 다시 읽는다 — 재시작 없이 갱신만 돌리면 새 계정 사용량이 뜬다
-            // 계약: 코드를 받는 로그인은 Claude 다 — 기본 자리의 providerId 는 계정별 보기일 때만 "claude:default" 다
-            _ = RefreshAfterLinkAsync(!acceptsCode ? CodexMainId : ClaudeProgramRouter.IsActive ? ClaudeMainId : "claude");
+            // 계약: 기본 자리의 providerId 는 계정별 보기일 때만 "claude:default" 다
+            _ = RefreshAfterLinkAsync(codex ? CodexMainId : ClaudeProgramRouter.IsActive ? ClaudeMainId : "claude");
             return;
         }
 
-        if ((TryAttachClaudeSlot(homeEnv.Value.Dir) ?? TryAttachCodexSlot(homeEnv.Value.Dir)) is { } linkedId)
+        if ((TryAttachClaudeSlot(dir) ?? TryAttachCodexSlot(dir)) is { } linkedId)
         {
             _ = RefreshAfterLinkAsync(linkedId);
             return;
@@ -1146,17 +1302,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     // 왜: 터미널 창을 띄우면 CLI 의 프롬프트가 그대로 보여 앱 밖으로 끌려 나간다 — 창 없이 돌리고 입출력을 앱이 쥔다
-    private static System.Diagnostics.ProcessStartInfo CreateCliStartInfo(string exe, string arguments, (string Name, string Dir)? homeEnv)
+    // 계약: consoleWindow 면 창을 띄우고 입출력을 넘기지 않는다 — 환경변수(CLAUDE_CONFIG_DIR)는 두 경우 다 붙는다
+    private static System.Diagnostics.ProcessStartInfo CreateCliStartInfo(string exe, string arguments, (string Name, string Dir)? homeEnv, bool consoleWindow = false)
     {
         var isBatch = exe.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) || exe.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
         var info = new System.Diagnostics.ProcessStartInfo(isBatch ? "cmd.exe" : exe)
         {
             Arguments = isBatch ? $"/c \"\"{exe}\" {arguments}\"" : arguments,
             UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
+            CreateNoWindow = !consoleWindow,
+            RedirectStandardInput = !consoleWindow,
+            RedirectStandardOutput = !consoleWindow,
+            RedirectStandardError = !consoleWindow
         };
         if (homeEnv is { } env)
         {

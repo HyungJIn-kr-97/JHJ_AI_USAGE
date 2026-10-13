@@ -22,15 +22,18 @@
                     <Button Content="{loc:Tr 'Copy address'}" Margin="0,0,4,4" Cursor="Hand" FocusVisualStyle="{x:Null}"
                             Template="{StaticResource LinkPillButton}" Command="{Binding OpenLoginPageCommand}" CommandParameter="copy" />
                 </WrapPanel>
-                <DockPanel Margin="0,2,0,0" Visibility="{Binding LoginAcceptsCode, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                <!-- 왜: 취소는 방식을 가리지 않는다 — 코드 칸(웹 연동의 Claude)만 접히고 「취소」는 CLI·Codex 로그인에도 남는다 -->
+                <DockPanel Margin="0,2,0,0">
                     <Button Content="{loc:Tr 'Cancel'}" DockPanel.Dock="Right" Margin="4,0,0,0" Cursor="Hand" FocusVisualStyle="{x:Null}"
                             Template="{StaticResource LinkPillButton}" Command="{Binding CancelLoginCommand}" />
-                    <Button Content="{loc:Tr 'Apply code'}" DockPanel.Dock="Right" Margin="4,0,0,0" Cursor="Hand" FocusVisualStyle="{x:Null}"
-                            Template="{StaticResource LinkPillButton}" Command="{Binding SubmitLoginCodeCommand}" />
-                    <TextBox Text="{Binding LoginCodeInput, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="4,2"
-                             ToolTip="{loc:Tr 'Which code? After you click Authorize in the browser, claude.ai shows an Authentication Code — copy it and paste it below. If the browser finishes by itself, no code is needed.'}"
-                             Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
-                             BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
+                    <DockPanel Visibility="{Binding LoginAcceptsCode, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                        <Button Content="{loc:Tr 'Apply code'}" DockPanel.Dock="Right" Margin="4,0,0,0" Cursor="Hand" FocusVisualStyle="{x:Null}"
+                                Template="{StaticResource LinkPillButton}" Command="{Binding SubmitLoginCodeCommand}" />
+                        <TextBox Text="{Binding LoginCodeInput, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="4,2"
+                                 ToolTip="{loc:Tr 'Which code? After you click Authorize in the browser, claude.ai shows an Authentication Code — copy it and paste it below. If the browser finishes by itself, no code is needed.'}"
+                                 Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                 BorderBrush="{DynamicResource DividerBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" />
+                    </DockPanel>
                 </DockPanel>
             </StackPanel>
         </StackPanel>

@@ -17,7 +17,14 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
     // 함정: 사용량이 없으면 ProviderId 에 표시 이름("Codex")이 들어온다 — 소문자로 접어야 링크·색 트리거가 맞는다
     public string ProviderKind => ProviderId.Split(':')[0].ToLowerInvariant();
 
-    partial void OnProviderIdChanged(string value) => OnPropertyChanged(nameof(ProviderKind));
+    partial void OnProviderIdChanged(string value)
+    {
+        OnPropertyChanged(nameof(ProviderKind));
+        OnPropertyChanged(nameof(CanLinkFromDesktopApp));
+    }
+
+    // 계약: 「App」 연동(데스크톱 앱 계정 빌리기)은 Claude 자리에만 — Codex 는 전용 앱 출처를 아직 읽지 않는다
+    public bool CanLinkFromDesktopApp => ProviderKind == "claude";
 
     [ObservableProperty]
     private string displayName = string.Empty;

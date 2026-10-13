@@ -21,6 +21,9 @@ public static class ClaudeDesktopUsage
     // 왜: 7일 값은 천천히 오르지만 며칠 묵으면 주 초기화를 넘길 수 있다 — 하루까지만 보인다
     private static readonly TimeSpan SevenDayTrust = TimeSpan.FromDays(1);
 
+    /// <summary>지금 데스크톱 앱에 로그인한 계정 UUID — 「App」 연동이 이 계정을 자리에 잇는다(ClaudeDesktopSessions 는 internal).</summary>
+    public static string? CurrentAccount() => ClaudeDesktopSessions.CurrentAccount();
+
     /// <summary>그 자리(설정 폴더)의 계정이 지금 데스크톱 앱에 로그인한 계정일 때, 그 조직의 가장 최근 표본.</summary>
     public static Sample? LatestFor(string configDir, DateTimeOffset now)
     {

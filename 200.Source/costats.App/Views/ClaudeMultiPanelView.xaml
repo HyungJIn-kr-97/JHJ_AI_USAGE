@@ -110,21 +110,9 @@
                                                        Visibility="{Binding HasLinkedPrograms, Converter={StaticResource BoolToVisibilityConverter}}" />
                                         </StackPanel>
                                     </Border>
-                                    <Button DockPanel.Dock="Right" Content="{loc:Tr 'Link'}" Margin="0,0,6,0" VerticalAlignment="Center" Cursor="Hand"
-                                            FocusVisualStyle="{x:Null}" Tag="{Binding ProviderId}" Click="OnLinkAccountClick"
-                                            Template="{StaticResource LinkPillButton}"
-                                            Visibility="{Binding NeedsLink, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Button.Style>
-                                            <Style TargetType="Button">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsLinkBusy}" Value="True">
-                                                        <Setter Property="IsEnabled" Value="False" />
-                                                        <Setter Property="Opacity" Value="0.4" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
+                                    <!-- 계약: 「연동 ▾」 — CLI · App · 웹 중 고른 방식으로 연동한다(LinkModeMenu). 연동 중에는 눌리지 않는다 -->
+                                    <views:LinkModeMenu DockPanel.Dock="Right" Margin="0,0,6,0" VerticalAlignment="Center"
+                                            Visibility="{Binding NeedsLink, Converter={StaticResource BoolToVisibilityConverter}}" />
 
 
                                     <!-- 계약: 이름 바로 오른쪽에 유형 딱지 — 명칭·유형 편집은 설정 › 계정에서만 한다. 메일은 아래 줄 -->

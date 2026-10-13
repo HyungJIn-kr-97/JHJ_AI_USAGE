@@ -234,16 +234,8 @@ namespace costats.App
             OnSettingsClick(sender, e);
         }
 
-        private void OnLinkAccountClick(object sender, RoutedEventArgs e)
-        {
-            if (sender is FrameworkElement { Tag: string providerId })
-            {
-                LinkAccount(providerId);
-            }
-        }
-
-        // 계약: 팝업에서 바로 연동한다 — 진행(브라우저 버튼·코드 칸·결과)은 누른 카드·머리글 바로 밑(LinkProgressView)에 보인다
-        public void LinkAccount(string providerId) => _settingsViewModel.LinkAccount(providerId);
+        // 계약: 팝업에서 바로 연동한다 — mode 는 LinkModeMenu 가 고른 cli · app · web. 진행(브라우저 버튼·코드 칸·결과)은 누른 카드·머리글 바로 밑(LinkProgressView)에 보인다
+        public void LinkAccount(string providerId, string mode) => _settingsViewModel.LinkAccount(providerId, mode);
 
         private async void OnThemeToggleClick(object sender, RoutedEventArgs e)
         {
