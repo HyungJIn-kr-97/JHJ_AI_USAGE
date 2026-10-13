@@ -124,6 +124,23 @@ public static class AccountMeta
         return cleared;
     }
 
+    /// <summary>이 앱이 마지막으로 성공시킨 연동 방식 — 지금 로그인된 메일의 기록일 때만 돌려준다.</summary>
+    public static string? LinkModeOf(AppSettings settings, string id) => Current(settings, id)?.LinkMode;
+
+    // 함정: 다른 메일로 다시 연동되면 옛 항목의 명칭·유형은 이미 죽은 값이다(Current 가 버린다) — 새 항목으로 갈아 끼운다
+    public static void SetLinkMode(AppSettings settings, string id, string mode)
+    {
+        var mail = MailOf(id);
+        var entry = Find(settings, id);
+        if (entry is null || (entry.Email is not null && mail is not null && !entry.Email.Equals(mail, StringComparison.OrdinalIgnoreCase)))
+        {
+            entry = settings.Accounts[id] = new AccountInfo();
+        }
+
+        entry.LinkMode = mode;
+        entry.Email ??= mail;
+    }
+
     // 계약: 계정 명칭 최대 글자 수 — 팝업 계정 카드 머리에 요금제·비용과 함께 들어가는 길이
     public const int MaxNameLength = 8;
 

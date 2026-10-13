@@ -273,4 +273,7 @@ public sealed class AccountInfo
 
     // 계약: 사용자가 적은 월 구독료(USD) — null 이면 플랜 등급에서 자동으로 정한다(SubscriptionPlans)
     public decimal? MonthlyFeeUsd { get; set; }
+
+    // 계약: 이 앱이 마지막으로 성공시킨 연동 방식(cli · app · web) — 「연동 ▾」 메뉴가 그 줄을 「연동됨」으로 잠근다. null 이면 모른다(앱 밖에서 로그인)
+    public string? LinkMode { get; set; }
 }

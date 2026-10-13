@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using costats.App.ViewModels;
 
 namespace costats.App.Views;
 
@@ -17,15 +19,25 @@ public partial class LinkModeMenu : UserControl
     public static readonly DependencyProperty FlatProperty =
         DependencyProperty.Register(nameof(Flat), typeof(bool), typeof(LinkModeMenu), new PropertyMetadata(false));
 
+    public static readonly DependencyProperty StateProperty =
+        DependencyProperty.Register(nameof(State), typeof(LinkMenuState), typeof(LinkModeMenu), new PropertyMetadata(null));
+
     public LinkModeMenu()
     {
         InitializeComponent();
+        // 계약: 열릴 때마다 호스트가 State 를 새로 채운다(Opening) — 표지를 붙인 뒤에 폭을 재야 오른쪽 끝이 맞는다
         // 왜: 단추가 카드·줄의 오른쪽 끝에 있어 왼쪽 정렬로 펼치면 메뉴가 창 밖으로 삐져나간다 — 열린 뒤 오른쪽 끝을 단추에 맞춘다
         Menu.Opened += (_, _) =>
         {
-            if (Menu.Child is FrameworkElement body && body.ActualWidth > 0)
+            Opening?.Invoke(this, EventArgs.Empty);
+            ApplyState();
+            if (Menu.Child is FrameworkElement body)
             {
-                Menu.HorizontalOffset = Toggle.ActualWidth - body.ActualWidth;
+                body.UpdateLayout();
+                if (body.ActualWidth > 0)
+                {
+                    Menu.HorizontalOffset = Toggle.ActualWidth - body.ActualWidth;
+                }
             }
         };
     }
@@ -42,8 +54,46 @@ public partial class LinkModeMenu : UserControl
     /// <summary>설정 창의 네모 단추 모양으로 그릴지.</summary>
     public bool Flat { get => (bool)GetValue(FlatProperty); set => SetValue(FlatProperty, value); }
 
+    /// <summary>줄 표지의 근거 — null 이면 표지 없이 세 줄만 보인다.</summary>
+    public LinkMenuState? State { get => (LinkMenuState?)GetValue(StateProperty); set => SetValue(StateProperty, value); }
+
+    /// <summary>메뉴가 열리는 순간 — 호스트가 State 를 채우는 자리.</summary>
+    public event EventHandler? Opening;
+
     /// <summary>고른 방식 — SettingsViewModel.LinkModeCli · LinkModeApp · LinkModeWeb 중 하나.</summary>
     public event EventHandler<string>? ModeChosen;
+
+    private void ApplyState()
+    {
+        var state = State;
+        ApplyRow(CliRow, CliBadge, CliBadgeText, SettingsViewModel.LinkModeCli, state);
+        ApplyRow(AppRow, AppBadge, AppBadgeText, SettingsViewModel.LinkModeApp, state);
+        ApplyRow(WebRow, WebBadge, WebBadgeText, SettingsViewModel.LinkModeWeb, state);
+        var install = state is { CliInstalled: false } ? Loc.T("Not installed yet — {0} CLI is installed first (winget), then sign-in continues.", state.CliName) : string.Empty;
+        ShowNote(CliNote, install);
+        ShowNote(WebNote, install);
+        ShowNote(AppNote, state is { DesktopSignedIn: false } ? Loc.T("The Claude desktop app is not signed in on this PC.") : string.Empty);
+    }
+
+    // 계약: 연동된 줄은 「연동됨」 표지와 함께 눌리지 않고, 추천 줄은 강조색 테의 「추천」 표지를 단다
+    private void ApplyRow(Button row, Border badge, TextBlock badgeText, string mode, LinkMenuState? state)
+    {
+        var linked = state?.LinkedMode == mode;
+        var recommended = state?.Recommended == mode;
+        row.IsEnabled = !linked;
+        badge.Visibility = linked || recommended ? Visibility.Visible : Visibility.Collapsed;
+        badgeText.Text = linked ? Loc.T("Linked") : Loc.T("Recommended");
+        var accent = TryFindResource("AccentBrush") as Brush;
+        badge.BorderBrush = recommended ? accent : Brushes.Transparent;
+        badge.Background = recommended ? Brushes.Transparent : TryFindResource("SubtleOverlayBrush") as Brush;
+        badgeText.Foreground = recommended ? accent : TryFindResource("TextMutedBrush") as Brush;
+    }
+
+    private static void ShowNote(TextBlock note, string text)
+    {
+        note.Text = text;
+        note.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void OnModeClick(object sender, RoutedEventArgs e)
     {

@@ -305,11 +305,11 @@
                                 Command="{Binding DataContext.RemoveRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 Visibility="{Binding IsMain, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}" />
                         <!-- 계약: 「연동 ▾」·「다시 연동 ▾」 — CLI · App · 웹 중 고른 방식으로 연동한다(LinkModeMenu → OnLinkModeChosen → LinkRow) -->
-                        <views:LinkModeMenu DockPanel.Dock="Right" Margin="4,0,0,0" Flat="True" Text="{loc:Tr 'Link'}" ModeChosen="OnLinkModeChosen"
+                        <views:LinkModeMenu DockPanel.Dock="Right" Margin="4,0,0,0" Flat="True" Text="{loc:Tr 'Link'}" ModeChosen="OnLinkModeChosen" Opening="OnLinkMenuOpening"
                                 ShowDesktopApp="{Binding CanLinkFromDesktopApp}"
                                 Visibility="{Binding IsSignedIn, Converter={x:Static local:BoolToVisibilityConverter.Instance}, ConverterParameter=Invert}"
                                 ToolTip="{loc:Tr 'Link an account to this slot — pick CLI, desktop app or browser.'}" />
-                        <views:LinkModeMenu DockPanel.Dock="Right" Margin="4,0,0,0" Flat="True" Text="{loc:Tr 'Relink'}" ModeChosen="OnLinkModeChosen"
+                        <views:LinkModeMenu DockPanel.Dock="Right" Margin="4,0,0,0" Flat="True" Text="{loc:Tr 'Relink'}" ModeChosen="OnLinkModeChosen" Opening="OnLinkMenuOpening"
                                 ShowDesktopApp="{Binding CanLinkFromDesktopApp}"
                                 Visibility="{Binding IsSignedIn, Converter={x:Static local:BoolToVisibilityConverter.Instance}}"
                                 ToolTip="{loc:Tr 'Wrong account? Sign in again and pick another one (the login window lets you pick any account).'}" />

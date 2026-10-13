@@ -19,4 +19,12 @@ public partial class ClaudeMultiPanelView : UserControl
             window.LinkAccount(card.ProviderId, mode);
         }
     }
+
+    private void OnLinkMenuOpening(object? sender, EventArgs e)
+    {
+        if (sender is LinkModeMenu { DataContext: ProviderPulseViewModel card } menu && Window.GetWindow(this) is GlassWidgetWindow window)
+        {
+            menu.State = window.LinkMenuStateFor(card.ProviderId, card.NeedsLink);
+        }
+    }
 }

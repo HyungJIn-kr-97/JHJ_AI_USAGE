@@ -86,6 +86,14 @@ namespace costats.App.Views
             }
         }
 
+        private void OnLinkMenuOpening(object? sender, EventArgs e)
+        {
+            if (sender is LinkModeMenu { DataContext: ExtraAccountRow row } menu && DataContext is SettingsViewModel viewModel)
+            {
+                menu.State = viewModel.LinkMenuStateFor(row.Id, !row.IsSignedIn);
+            }
+        }
+
         private void OnShareLinkClick(object sender, RoutedEventArgs e) =>
             Flash(ShareLinkButton, CopyText(Jhj.Core.App.AppLinks.SetupFileUrl, Loc.T("Copied the setup file link")));
 

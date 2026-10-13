@@ -4,8 +4,9 @@
              xmlns:local="clr-namespace:costats.App"
              xmlns:loc="clr-namespace:Jhj.Core.Wpf.Localization;assembly=Jhj.Core.Wpf">
     <!-- 계약: 「연동 ▾」 — 누르면 CLI · App · 웹 세 방식이 펼쳐지고, 고른 방식을 ModeChosen(cli · app · web)으로 알린다. 호스트가 자리를 정해 SettingsViewModel 에 넘긴다 -->
-    <!-- 계약: Text(연동 · 다시 연동) · ShowDesktopApp(App 줄 — Claude 자리만) · IsBusy(연동 중 비활성) · Flat(설정 창의 네모 단추 모양) -->
+    <!-- 계약: Text(연동 · 다시 연동) · ShowDesktopApp(App 줄 — Claude 자리만) · IsBusy(연동 중 비활성) · Flat(설정 창의 네모 단추 모양) · State(줄 표지 — Opening 때 호스트가 LinkMenuStateFor 로 채운다) -->
     <!-- 왜: 방식마다 로그인 주체가 다르다 — CLI 는 터미널 창, App 은 데스크톱 앱의 계정(로그인 없음), 웹은 앱이 연 브라우저 -->
+    <!-- 왜: 세 줄만 보면 무엇을 고를지 모른다 — 연동된 방식은 「연동됨」으로 잠그고, 아니면 한 줄에 「추천」을 붙이고, CLI 가 없으면 먼저 설치한다고 적는다 -->
     <UserControl.Resources>
         <ControlTemplate x:Key="LinkModeRow" TargetType="Button">
             <Border x:Name="row" CornerRadius="6" Padding="10,6" Background="Transparent">
@@ -15,18 +16,38 @@
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter TargetName="row" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
                 </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter TargetName="row" Property="Opacity" Value="0.45" />
+                </Trigger>
             </ControlTemplate.Triggers>
         </ControlTemplate>
         <Style x:Key="RowTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style x:Key="RowDetail" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10.5" />
             <Setter Property="Foreground" Value="{DynamicResource TextFaintBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="MaxWidth" Value="230" />
+        </Style>
+        <Style x:Key="RowNote" TargetType="TextBlock" BasedOn="{StaticResource RowDetail}">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <Style x:Key="RowBadge" TargetType="Border">
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="5,1" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
+        <Style x:Key="RowBadgeText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </UserControl.Resources>
     <Grid>
@@ -79,23 +100,41 @@
             <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource WindowBorderBrush}"
                     BorderThickness="1" CornerRadius="8" Padding="4" MinWidth="200">
                 <StackPanel>
-                    <Button Tag="cli" Cursor="Hand" FocusVisualStyle="{x:Null}" Click="OnModeClick" Template="{StaticResource LinkModeRow}">
+                    <Button x:Name="CliRow" Tag="cli" Cursor="Hand" FocusVisualStyle="{x:Null}" Click="OnModeClick" Template="{StaticResource LinkModeRow}">
                         <StackPanel>
-                            <TextBlock Text="CLI" Style="{StaticResource RowTitle}" />
+                            <DockPanel LastChildFill="False">
+                                <TextBlock Text="CLI" Style="{StaticResource RowTitle}" />
+                                <Border x:Name="CliBadge" Style="{StaticResource RowBadge}">
+                                    <TextBlock x:Name="CliBadgeText" Style="{StaticResource RowBadgeText}" />
+                                </Border>
+                            </DockPanel>
                             <TextBlock Text="{loc:Tr 'Claude Code signs in from its own terminal window — the code goes there too.'}" Style="{StaticResource RowDetail}" />
+                            <TextBlock x:Name="CliNote" Style="{StaticResource RowNote}" Visibility="Collapsed" />
                         </StackPanel>
                     </Button>
-                    <Button Tag="app" Cursor="Hand" FocusVisualStyle="{x:Null}" Click="OnModeClick" Template="{StaticResource LinkModeRow}"
+                    <Button x:Name="AppRow" Tag="app" Cursor="Hand" FocusVisualStyle="{x:Null}" Click="OnModeClick" Template="{StaticResource LinkModeRow}"
                             Visibility="{Binding ShowDesktopApp, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
                         <StackPanel>
-                            <TextBlock Text="{loc:Tr 'Desktop app'}" Style="{StaticResource RowTitle}" />
+                            <DockPanel LastChildFill="False">
+                                <TextBlock Text="{loc:Tr 'Desktop app'}" Style="{StaticResource RowTitle}" />
+                                <Border x:Name="AppBadge" Style="{StaticResource RowBadge}">
+                                    <TextBlock x:Name="AppBadgeText" Style="{StaticResource RowBadgeText}" />
+                                </Border>
+                            </DockPanel>
                             <TextBlock Text="{loc:Tr 'Uses the account signed in to the Claude desktop app — no sign-in window, no token.'}" Style="{StaticResource RowDetail}" />
+                            <TextBlock x:Name="AppNote" Style="{StaticResource RowNote}" Visibility="Collapsed" />
                         </StackPanel>
                     </Button>
-                    <Button Tag="web" Cursor="Hand" FocusVisualStyle="{x:Null}" Click="OnModeClick" Template="{StaticResource LinkModeRow}">
+                    <Button x:Name="WebRow" Tag="web" Cursor="Hand" FocusVisualStyle="{x:Null}" Click="OnModeClick" Template="{StaticResource LinkModeRow}">
                         <StackPanel>
-                            <TextBlock Text="{loc:Tr 'Web'}" Style="{StaticResource RowTitle}" />
+                            <DockPanel LastChildFill="False">
+                                <TextBlock Text="{loc:Tr 'Web'}" Style="{StaticResource RowTitle}" />
+                                <Border x:Name="WebBadge" Style="{StaticResource RowBadge}">
+                                    <TextBlock x:Name="WebBadgeText" Style="{StaticResource RowBadgeText}" />
+                                </Border>
+                            </DockPanel>
                             <TextBlock Text="{loc:Tr 'This app opens the browser and takes the code here.'}" Style="{StaticResource RowDetail}" />
+                            <TextBlock x:Name="WebNote" Style="{StaticResource RowNote}" Visibility="Collapsed" />
                         </StackPanel>
                     </Button>
                 </StackPanel>

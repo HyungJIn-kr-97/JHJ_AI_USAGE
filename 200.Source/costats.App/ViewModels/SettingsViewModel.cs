@@ -686,12 +686,34 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public void LinkAccount(string providerId, string mode = LinkModeWeb)
     {
-        var kind = AccountMeta.KindOf(providerId);
+        var (id, dir, _) = ResolveSlot(providerId);
+        LinkSlot(id, AccountMeta.DisplayNameOf(_settings, id), dir, mode);
+    }
+
+    // 계약: 팝업의 providerId 를 자리(id · 폴더 · 도구)로 바꾼다 — 기본 자리는 폴더가 null 이다
+    private (string Id, string? Dir, bool Codex) ResolveSlot(string providerId)
+    {
+        var codex = AccountMeta.KindOf(providerId) == "codex";
         var name = providerId.Contains(':') ? providerId[(providerId.IndexOf(':') + 1)..] : string.Empty;
         var isMain = name.Length == 0 || name.Equals(AccountProfileStore.DefaultName, StringComparison.OrdinalIgnoreCase);
-        var id = isMain ? (kind == "codex" ? CodexMainId : ClaudeMainId) : providerId;
-        var dir = isMain ? null : kind == "codex" ? CodexAccountStore.DirOf(name) : Path.Combine(AccountProfileStore.RootDir, name);
-        LinkSlot(id, AccountMeta.DisplayNameOf(_settings, id), dir, mode);
+        var id = isMain ? (codex ? CodexMainId : ClaudeMainId) : providerId;
+        var dir = isMain ? null : codex ? CodexAccountStore.DirOf(name) : Path.Combine(AccountProfileStore.RootDir, name);
+        return (id, dir, codex);
+    }
+
+    /// <summary>「연동 ▾」가 열릴 때 줄마다 붙일 표지 — 지금 유효한 방식은 「연동됨」으로 잠그고, 아니면 한 방식에 「추천」을 붙인다.</summary>
+    // 계약: 추천은 웹(앱이 브라우저를 열고 코드를 받는 기본 길)이다 — CLI 가 없고 데스크톱 앱이 로그인돼 있으면 설치 없이 되는 App 을 민다
+    // 함정: 방식은 이 앱이 성공시킨 연동만 안다(AccountInfo.LinkMode) — 앱 밖에서 로그인한 토큰은 어느 줄도 잠그지 않는다
+    public LinkMenuState LinkMenuStateFor(string providerId, bool needsLink)
+    {
+        var (id, dir, codex) = ResolveSlot(providerId);
+        var cliInstalled = (codex ? CliLocator.FindCodex() : CliLocator.FindClaude()) is not null;
+        var desktopSignedIn = !codex && ClaudeDesktopUsage.CurrentAccount() is { Length: > 0 };
+        var stored = AccountMeta.LinkModeOf(_settings, id) ?? string.Empty;
+        var hasToken = File.Exists(codex ? CodexTokenFile(dir) : ClaudeTokenFile(dir));
+        var linked = !needsLink && stored.Length > 0 && (hasToken || (stored == LinkModeApp && AccountMeta.MailOf(id) is not null)) ? stored : string.Empty;
+        var recommended = linked.Length > 0 ? string.Empty : !cliInstalled && desktopSignedIn ? LinkModeApp : LinkModeWeb;
+        return new LinkMenuState(linked, recommended, cliInstalled, desktopSignedIn, CliInstaller.NameOf(codex));
     }
 
     // 계약: 자리 하나에 계정을 연동한다(이미 연동돼 있으면 다시 연동 = 다른 계정으로 바꾸기). 연동 뒤 VerifyLink 가 결과를 확인한다
@@ -714,7 +736,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         var exe = codex ? CliLocator.FindCodex() : CliLocator.FindClaude();
         if (exe is null)
         {
-            AccountsMessage = Loc.T("{0} CLI was not found on this PC. Install it, then try again.", codex ? "Codex" : "Claude Code");
+            _ = InstallCliThenLinkAsync(id, label, dir, mode, codex);
             return;
         }
 
@@ -727,9 +749,66 @@ public sealed partial class SettingsViewModel : ObservableObject
             dir is null ? null : (codex ? "CODEX_HOME" : "CLAUDE_CONFIG_DIR", dir),
             () => codex ? AccountIdentityReader.ReadCodex(dir) : AccountIdentityReader.ReadClaude(dir),
             acceptsCode: !codex && mode != LinkModeCli,
-            verify: account => VerifyLink(id, label, account, File.Exists(tokenFile), TokenStamp(tokenFile) != stampBefore, before),
+            verify: account => VerifyLink(id, label, account, File.Exists(tokenFile), TokenStamp(tokenFile) != stampBefore, before) && RememberLinkMode(id, mode),
             codex: codex,
             consoleWindow: mode == LinkModeCli);
+    }
+
+    // 계약: 성공한 연동의 방식을 자리에 남긴다 — 「연동 ▾」 메뉴가 그 줄을 「연동됨」으로 잠근다. 늘 true 라 verify 뒤에 && 로 잇는다
+    private bool RememberLinkMode(string id, string mode)
+    {
+        AccountMeta.SetLinkMode(_settings, id, mode);
+        _ = _settingsStore.SaveAsync(_settings, CancellationToken.None);
+        return true;
+    }
+
+    // 계약: CLI 가 없으면 winget 콘솔로 먼저 깔고(진행은 그 창에 보인다), 끝나면 같은 방식으로 연동을 이어간다 — Git Center 의 gh 설치와 같은 길
+    // 함정: 설치 콘솔을 _loginProcess 에 둔다 — 진행 칸의 「취소」가 그 콘솔을 끝내고, 그러면 연동도 멈춘다
+    private async Task InstallCliThenLinkAsync(string id, string label, string? dir, string mode, bool codex)
+    {
+        var cli = CliInstaller.NameOf(codex);
+        if (LoginInProgress)
+        {
+            CancelLogin();
+            for (var i = 0; i < 50 && LoginInProgress; i++)
+            {
+                await Task.Delay(100);
+            }
+        }
+
+        LinkingId = id;
+        LoginAcceptsCode = false;
+        LoginUrl = string.Empty;
+        LoginOutput = string.Empty;
+        AccountsMessage = Loc.T("{0} CLI is not on this PC — installing it with winget. Watch the console window that just opened; sign-in continues when it finishes.", cli);
+        using var process = CliInstaller.Start(codex);
+        if (process is null)
+        {
+            AccountsMessage = Loc.T("winget is not available on this PC. Install {0} CLI by hand ({1}), then press Link again.", cli, CliInstaller.CommandOf(codex));
+            return;
+        }
+
+        _loginProcess = process;
+        LoginInProgress = true;
+        try
+        {
+            await process.WaitForExitAsync();
+        }
+        finally
+        {
+            _loginProcess = null;
+            LoginInProgress = false;
+        }
+
+        CliInstaller.RefreshProcessPath();
+        if ((codex ? CliLocator.FindCodex() : CliLocator.FindClaude()) is null)
+        {
+            AccountsMessage = Loc.T("{0} CLI install did not finish. Run {1} yourself, then press Link again.", cli, CliInstaller.CommandOf(codex));
+            return;
+        }
+
+        AccountsMessage = Loc.T("{0} CLI installed. Continuing with sign-in…", cli);
+        LinkSlot(id, label, dir, mode);
     }
 
     // 계약: 「App」 연동 — 데스크톱 앱에 지금 로그인한 계정을 이 자리의 계정으로 삼는다. 로그인 창도 토큰도 없다
@@ -793,6 +872,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         RefreshAccounts();
+        RememberLinkMode(id, LinkModeApp);
         AccountsMessage = before is not null && !before.Equals(mail, StringComparison.OrdinalIgnoreCase)
             ? Loc.T("✓ \"{0}\" relinked: {1} → {2} (desktop app usage).", label, before, mail)
             : Loc.T("✓ \"{0}\" linked to {1} (desktop app usage).", label, mail);
