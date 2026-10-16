@@ -420,7 +420,7 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
                 vm.NudgeAction = "link";
             }
 
-            vm.LinkedProgramsText = LinkedProgramsOf(vm.ProviderId);
+            vm.LinkedProgramsText = LinkedMethodsOf(vm);
         }
 
         // Set overall status based on the higher of session or week utilization
@@ -990,27 +990,12 @@ public sealed partial class ProviderPulseViewModel : ObservableObject
 
     private const string UnknownProgramKey = "unknown";
 
-    // 계약: 카드 배지에 쓰는 짧은 이름 — 키는 ProgramGroups 와 같고 「프로그램 연동」 표에 서는 셋만이다
-    private static readonly (string Key, string Label)[] LinkedProgramLabels =
-    [
-        ("claude-desktop", "Desktop"),
-        ("claude-vscode", "VS Code"),
-        ("cli", "CLI")
-    ];
+    /// <summary>연동된 방식의 표지 글자(WEB · CLI · APP)를 돌려준다 — SettingsViewModel.LinkedCodesFor 가 꽂힌다(providerId · needsLink · usesDesktopApp).</summary>
+    public static Func<string, bool, bool, IReadOnlyList<string>>? LinkedCodesResolver { get; set; }
 
-    // 계약: 지금 이 계정에 붙어 있는 프로그램 — ClaudeProgramLinks 의 마지막 줄을 따른다. 빈 문자열이면 배지를 그리지 않는다
-    private static string LinkedProgramsOf(string providerId)
-    {
-        if (!ClaudeProgramRouter.IsActive || !IsClaudeProvider(providerId))
-        {
-            return string.Empty;
-        }
-
-        var current = ClaudeProgramRouter.CurrentLinks();
-        return string.Join(" · ", LinkedProgramLabels
-            .Where(g => current.TryGetValue(g.Key, out var id) && id.Equals(providerId, StringComparison.OrdinalIgnoreCase))
-            .Select(g => Loc.T(g.Label)));
-    }
+    // 계약: 카드 배지에는 연동된 방식만 잇는다 — 설정 계정 줄의 초록 표지와 같은 판정이다. 빈 문자열이면 배지에 덧붙이지 않는다
+    private static string LinkedMethodsOf(ProviderPulseViewModel vm) =>
+        LinkedCodesResolver is { } resolve ? string.Join(" · ", resolve(vm.ProviderId, vm.NeedsLink, vm.UsesDesktopAppValues)) : string.Empty;
 
     // 계약: 기록 단위 "claude-desktop@<계정UUID>" 에서 '@' 앞을 묶음 키로 쓴다 — 표에 없는 이름은 UnknownProgramKey
     private static string ProgramGroupOf(string source)

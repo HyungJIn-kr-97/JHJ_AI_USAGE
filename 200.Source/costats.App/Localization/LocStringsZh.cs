@@ -262,6 +262,7 @@ internal static class LocStringsZh
         ["Checking {0}…"] = "正在查询 {0}…",
         ["Re-read this program only"] = "仅重新读取此程序",
         ["Could not read the signed-in account"] = "无法读取登录账户",
+        ["Single account — every program counts here"] = "单一账户 — 所有程序都计入此账户",
         ["Signed in with an account not registered on this PC"] = "以未在此电脑注册的账户登录",
         ["Changed"] = "已变更",
         ["Unchanged"] = "未变",

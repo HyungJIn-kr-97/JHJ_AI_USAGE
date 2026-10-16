@@ -271,6 +271,7 @@ internal static class LocStrings
         ["Checking {0}…"] = "{0} 조회 중…",
         ["Re-read this program only"] = "이 프로그램만 다시 읽기",
         ["Could not read the signed-in account"] = "로그인 계정 읽기 실패",
+        ["Single account — every program counts here"] = "계정 하나 — 모든 프로그램이 이 계정에 집계",
         ["Signed in with an account not registered on this PC"] = "이 PC 미등록 계정으로 로그인",
         ["Changed"] = "변경됨",
         ["Unchanged"] = "그대로",

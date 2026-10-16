@@ -457,7 +457,7 @@
                             BorderBrush="{Binding AccountStateBrush}"
                             ToolTip="{loc:Tr 'Programs counted for this account right now'}"
                             Visibility="{Binding AccountStateText, Converter={x:Static local:StringToVisibilityConverter.Instance}}">
-                        <!-- 계약: 배지 안에 지금 이 계정에 붙어 있는 프로그램을 잇는다 — ProviderPulseViewModel.LinkedProgramsText -->
+                        <!-- 계약: 배지 안에 연동된 방식(WEB · CLI · APP)만 잇는다 — ProviderPulseViewModel.LinkedProgramsText -->
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding AccountStateText}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding AccountStateBrush}" />
                             <TextBlock Text="{Binding LinkedProgramsText, StringFormat=' · {0}'}" FontSize="10" MaxWidth="132"

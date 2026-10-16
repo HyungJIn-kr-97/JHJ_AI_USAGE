@@ -83,6 +83,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _copilotFetcher = copilotFetcher;
         _updateCoordinator = updateCoordinator;
         _multiccDiscovery = multiccDiscovery;
+        ProviderPulseViewModel.LinkedCodesResolver = LinkedCodesFor;
 
         refreshMinutes = settings.RefreshMinutes;
         popupScalePercent = settings.PopupScalePercent;
@@ -292,7 +293,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         // 함정: 세션 메타 수백 개를 읽는 길이다 — 화면 스레드에서 돌리면 창이 멈칫한다
         var (account, changed) = await Task.Run(() => ClaudeProgramRouter.SyncLinkNow(program));
-        var (mark, text) = account is null ? ("!", Loc.T("Could not read the signed-in account"))
+        // 왜: 라우터는 추가 자리가 있을 때만 켜진다(App.xaml.cs) — 계정이 하나면 읽지 않아도 모든 기록이 그 계정에 세이니 실패가 아니다
+        var (mark, text) = !ClaudeProgramRouter.IsActive ? ("✓", Loc.T("Single account — every program counts here"))
+            : account is null ? ("!", Loc.T("Could not read the signed-in account"))
             : ClaudeProgramRouter.SlotOfAccount(account) is null ? ("!", Loc.T("Signed in with an account not registered on this PC"))
             : changed ? ("●", Loc.T("Changed"))
             : ("✓", Loc.T("Unchanged"));
@@ -707,6 +710,46 @@ public sealed partial class SettingsViewModel : ObservableObject
     public LinkMenuState LinkMenuStateFor(string providerId, bool needsLink, bool usesDesktopApp = false)
     {
         var (id, dir, codex) = ResolveSlot(providerId);
+        var (cliLinked, cliBroken, appLinked, webLinked, needs) = LinkedFlagsOf(id, dir, codex, needsLink, usesDesktopApp);
+        var cliInstalled = (codex ? CliLocator.FindCodex() : CliLocator.FindClaude()) is not null;
+        var desktopSignedIn = !codex && ClaudeDesktopUsage.CurrentAccount() is { Length: > 0 };
+        var recommended = !needs && (cliLinked || appLinked || webLinked) ? string.Empty
+            : _cliFailedSlots.Contains(id) ? LinkModeWeb
+            : LinkModeCli;
+        return new LinkMenuState(cliLinked, cliBroken, appLinked, webLinked, recommended, cliInstalled, desktopSignedIn, CliInstaller.NameOf(codex));
+    }
+
+    /// <summary>연동된 방식의 표지 글자(WEB · CLI · APP) — 카드 배지가 부른다. 「연동 ▾」의 「연동됨」과 같은 판정이다.</summary>
+    public IReadOnlyList<string> LinkedCodesFor(string providerId, bool needsLink, bool usesDesktopApp)
+    {
+        var (id, dir, codex) = ResolveSlot(providerId);
+        var (cli, _, app, web, _) = LinkedFlagsOf(id, dir, codex, needsLink, usesDesktopApp);
+        return LinkedCodes(cli, app, web);
+    }
+
+    // 계약: 웹 연동은 CLI 토큰을 브라우저로 받은 것이라 WEB 하나로 적고 CLI 를 겹쳐 적지 않는다
+    private static List<string> LinkedCodes(bool cli, bool app, bool web)
+    {
+        var codes = new List<string>();
+        if (web)
+        {
+            codes.Add("WEB");
+        }
+        else if (cli)
+        {
+            codes.Add("CLI");
+        }
+
+        if (app)
+        {
+            codes.Add("APP");
+        }
+
+        return codes;
+    }
+
+    private (bool Cli, bool CliBroken, bool App, bool Web, bool NeedsLink) LinkedFlagsOf(string id, string? dir, bool codex, bool needsLink, bool usesDesktopApp)
+    {
         // 왜: 설정 줄은 토큰 파일만 보고 「로그인됨」이라 한다 — 죽은 토큰(만료·401)과 데스크톱 앱 값 사용은 카드만 안다. 카드가 있으면 그 판정을 합친다
         if (CardOf(id) is { } card)
         {
@@ -714,18 +757,11 @@ public sealed partial class SettingsViewModel : ObservableObject
             usesDesktopApp |= card.UsesDesktopAppValues;
         }
 
-        var cliInstalled = (codex ? CliLocator.FindCodex() : CliLocator.FindClaude()) is not null;
-        var desktopSignedIn = !codex && ClaudeDesktopUsage.CurrentAccount() is { Length: > 0 };
         var stored = AccountMeta.LinkModeOf(_settings, id) ?? string.Empty;
         var hasToken = File.Exists(codex ? CodexTokenFile(dir) : ClaudeTokenFile(dir));
         var cliLinked = hasToken && !needsLink;
-        var cliBroken = hasToken && needsLink;
         var appLinked = usesDesktopApp || (!needsLink && stored == LinkModeApp && AccountMeta.MailOf(id) is not null);
-        var webLinked = cliLinked && stored == LinkModeWeb;
-        var recommended = !needsLink && (cliLinked || appLinked || webLinked) ? string.Empty
-            : _cliFailedSlots.Contains(id) ? LinkModeWeb
-            : LinkModeCli;
-        return new LinkMenuState(cliLinked, cliBroken, appLinked, webLinked, recommended, cliInstalled, desktopSignedIn, CliInstaller.NameOf(codex));
+        return (cliLinked, hasToken && needsLink, appLinked, cliLinked && stored == LinkModeWeb, needsLink);
     }
 
     // 계약: CLI 로 다시 연동해도 안 붙은 자리 — 메뉴가 그 자리에는 웹을 추천한다(CLI → 웹 순). 어떤 방식으로든 성공하면 지운다
