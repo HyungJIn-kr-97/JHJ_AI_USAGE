@@ -14,7 +14,8 @@ public sealed class AppSettings : IScheduledUpdateSettings
 
     // 계약: 「팝업 단축키 2」부터 — 기본은 비어 있어 단축키가 하나다
     public List<string> ExtraHotkeys { get; set; } = [];
-    public bool StartAtLogin { get; set; } = false;
+    // 계약: 기본은 켬 — 작업 관리자에서 끈 값(StartupApproved 0x03)은 시작 때 이 값을 이긴다
+    public bool StartAtLogin { get; set; } = true;
 
     // 왜: 백그라운드가 주기적으로 갱신하므로 팝업을 열 때마다 다시 조회하는 것은 기본으로 끈다
     public bool RefreshOnOpen { get; set; } = false;

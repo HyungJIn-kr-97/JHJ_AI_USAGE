@@ -368,7 +368,7 @@ internal static class LocStringsZh
         ["✓ \"{0}\" signed in as {1}. Refreshing usage now."] = "✓ \"{0}\" 已以 {1} 登录。正在重新读取用量。",
         ["Restart app to apply"] = "重启应用以生效",
         ["SYSTEM"] = "系统",
-        ["Start at login"] = "登录时自动启动",
+        ["Start at login"] = "系统启动时自动运行",
         ["Start menu shortcut"] = "开始菜单快捷方式",
         ["Keep a shortcut to this app in the Start menu."] = "在开始菜单中保留此应用的快捷方式。",
         ["Desktop shortcut"] = "桌面快捷方式",

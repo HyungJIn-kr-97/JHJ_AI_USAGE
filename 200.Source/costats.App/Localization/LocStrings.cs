@@ -377,7 +377,7 @@ internal static class LocStrings
         ["✓ \"{0}\" signed in as {1}. Refreshing usage now."] = "✓ \"{0}\" 이(가) {1} 로 로그인되었습니다. 사용량을 새로 읽는 중입니다.",
         ["Restart app to apply"] = "앱을 다시 시작해 적용",
         ["SYSTEM"] = "시스템",
-        ["Start at login"] = "로그인 시 자동 실행",
+        ["Start at login"] = "시스템 시작 시 자동 실행",
         ["Start menu shortcut"] = "시작 메뉴 바로가기",
         ["Keep a shortcut to this app in the Start menu."] = "시작 메뉴에 이 앱의 바로가기를 둡니다.",
         ["Desktop shortcut"] = "바탕 화면 바로가기",
