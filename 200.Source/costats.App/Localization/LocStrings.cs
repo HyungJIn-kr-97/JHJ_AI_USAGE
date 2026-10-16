@@ -331,6 +331,7 @@ internal static class LocStrings
         ["Uses the account signed in to the Claude desktop app — no sign-in window, no token."] = "데스크톱 앱에 로그인한 계정 그대로 · 로그인 창·토큰 없음",
         ["Web"] = "웹",
         ["Recommended"] = "추천",
+        ["Disconnected"] = "끊김",
         ["Not installed yet — {0} CLI is installed first (winget), then sign-in continues."] = "아직 설치 안 됨 — {0} CLI 를 먼저 설치(winget)한 뒤 로그인이 이어집니다",
         ["The Claude desktop app is not signed in on this PC."] = "이 PC 의 Claude 데스크톱 앱에 로그인된 계정이 없습니다",
         ["{0} CLI is not on this PC — installing it with winget. Sign-in continues here when it finishes."] = "이 PC 에 {0} CLI 가 없어 winget 으로 설치합니다 — 진행은 아래에 보이고, 끝나면 로그인이 이어집니다.",

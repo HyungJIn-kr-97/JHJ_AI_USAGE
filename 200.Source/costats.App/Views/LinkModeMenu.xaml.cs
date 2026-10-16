@@ -25,6 +25,11 @@ public partial class LinkModeMenu : UserControl
     public LinkModeMenu()
     {
         InitializeComponent();
+        // 왜: WPF 는 한글을 글자 사이 아무 데서나 꺾어 「창\n에」가 된다 — 어절 안에 WORD JOINER 를 넣어 띄어쓰기에서만 꺾이게 한다(061 §7-1 어절 줄바꿈)
+        foreach (var detail in (TextBlock[])[CliDetail, AppDetail, WebDetail])
+        {
+            detail.Text = KeepWords(detail.Text);
+        }
         // 계약: 열릴 때마다 호스트가 State 를 새로 채운다(Opening) — 표지를 붙인 뒤에 폭을 재야 오른쪽 끝이 맞는다
         // 왜: 단추가 카드·줄의 오른쪽 끝에 있어 왼쪽 정렬로 펼치면 메뉴가 창 밖으로 삐져나간다 — 열린 뒤 오른쪽 끝을 단추에 맞춘다
         Menu.Opened += (_, _) =>
@@ -66,21 +71,21 @@ public partial class LinkModeMenu : UserControl
     private void ApplyState()
     {
         var state = State;
-        ApplyRow(CliRow, CliBadge, CliBadgeText, state?.CliLinked == true, state?.Recommended == SettingsViewModel.LinkModeCli);
-        ApplyRow(AppRow, AppBadge, AppBadgeText, state?.AppLinked == true, state?.Recommended == SettingsViewModel.LinkModeApp);
-        ApplyRow(WebRow, WebBadge, WebBadgeText, state?.WebLinked == true, state?.Recommended == SettingsViewModel.LinkModeWeb);
+        ApplyRow(CliRow, CliBadge, CliBadgeText, state?.CliLinked == true, state?.Recommended == SettingsViewModel.LinkModeCli, state?.CliBroken == true);
+        ApplyRow(AppRow, AppBadge, AppBadgeText, state?.AppLinked == true, state?.Recommended == SettingsViewModel.LinkModeApp, false);
+        ApplyRow(WebRow, WebBadge, WebBadgeText, state?.WebLinked == true, state?.Recommended == SettingsViewModel.LinkModeWeb, false);
         var install = state is { CliInstalled: false } ? Loc.T("Not installed yet — {0} CLI is installed first (winget), then sign-in continues.", state.CliName) : string.Empty;
         ShowNote(CliNote, install);
         ShowNote(WebNote, install);
         ShowNote(AppNote, state is { DesktopSignedIn: false } ? Loc.T("The Claude desktop app is not signed in on this PC.") : string.Empty);
     }
 
-    // 계약: 연동된 줄은 「연동됨」 표지와 함께 눌리지 않고, 추천 줄은 강조색 테의 「추천」 표지를 단다
-    private void ApplyRow(Button row, Border badge, TextBlock badgeText, bool linked, bool recommended)
+    // 계약: 연동된 줄은 「연동됨」 표지와 함께 눌리지 않고, 추천 줄은 강조색 테의 「추천」 표지를, 끊긴 줄(추천이 아닐 때)은 「끊김」 표지를 단다 — 끊긴 줄은 다시 고를 수 있다
+    private void ApplyRow(Button row, Border badge, TextBlock badgeText, bool linked, bool recommended, bool broken)
     {
         row.IsEnabled = !linked;
-        badge.Visibility = linked || recommended ? Visibility.Visible : Visibility.Collapsed;
-        badgeText.Text = linked ? Loc.T("Linked") : Loc.T("Recommended");
+        badge.Visibility = linked || recommended || broken ? Visibility.Visible : Visibility.Collapsed;
+        badgeText.Text = linked ? Loc.T("Linked") : recommended ? Loc.T("Recommended") : Loc.T("Disconnected");
         var accent = TryFindResource("AccentBrush") as Brush;
         badge.BorderBrush = recommended ? accent : Brushes.Transparent;
         badge.Background = recommended ? Brushes.Transparent : TryFindResource("SubtleOverlayBrush") as Brush;
@@ -89,8 +94,24 @@ public partial class LinkModeMenu : UserControl
 
     private static void ShowNote(TextBlock note, string text)
     {
-        note.Text = text;
+        note.Text = KeepWords(text);
         note.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // 계약: 공백이 아닌 글자 사이마다 U+2060 을 끼운다 — 줄은 공백(어절 경계)에서만 꺾인다. 표시 전용이라 저장·비교에는 쓰지 않는다
+    private static string KeepWords(string text)
+    {
+        var builder = new System.Text.StringBuilder(text.Length * 2);
+        for (var i = 0; i < text.Length; i++)
+        {
+            builder.Append(text[i]);
+            if (i + 1 < text.Length && !char.IsWhiteSpace(text[i]) && !char.IsWhiteSpace(text[i + 1]))
+            {
+                builder.Append('\u2060');
+            }
+        }
+
+        return builder.ToString();
     }
 
     private void OnModeClick(object sender, RoutedEventArgs e)

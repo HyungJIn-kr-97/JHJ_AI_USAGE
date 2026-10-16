@@ -322,6 +322,7 @@ internal static class LocStringsZh
         ["Uses the account signed in to the Claude desktop app — no sign-in window, no token."] = "直接使用桌面应用已登录的账户 · 无登录窗口·无令牌",
         ["Web"] = "网页",
         ["Recommended"] = "推荐",
+        ["Disconnected"] = "已断开",
         ["Not installed yet — {0} CLI is installed first (winget), then sign-in continues."] = "尚未安装 — 先用 winget 安装 {0} CLI，然后继续登录",
         ["The Claude desktop app is not signed in on this PC."] = "此电脑的 Claude 桌面应用未登录",
         ["{0} CLI is not on this PC — installing it with winget. Sign-in continues here when it finishes."] = "本机没有 {0} CLI，正在用 winget 安装 — 进度显示在下方，完成后继续登录。",

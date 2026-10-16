@@ -108,7 +108,7 @@
                                     <TextBlock x:Name="CliBadgeText" Style="{StaticResource RowBadgeText}" />
                                 </Border>
                             </DockPanel>
-                            <TextBlock Text="{loc:Tr 'Claude Code signs in from its own terminal window — the code goes there too.'}" Style="{StaticResource RowDetail}" />
+                            <TextBlock x:Name="CliDetail" Text="{loc:Tr 'Claude Code signs in from its own terminal window — the code goes there too.'}" Style="{StaticResource RowDetail}" />
                             <TextBlock x:Name="CliNote" Style="{StaticResource RowNote}" Visibility="Collapsed" />
                         </StackPanel>
                     </Button>
@@ -121,7 +121,7 @@
                                     <TextBlock x:Name="AppBadgeText" Style="{StaticResource RowBadgeText}" />
                                 </Border>
                             </DockPanel>
-                            <TextBlock Text="{loc:Tr 'Uses the account signed in to the Claude desktop app — no sign-in window, no token.'}" Style="{StaticResource RowDetail}" />
+                            <TextBlock x:Name="AppDetail" Text="{loc:Tr 'Uses the account signed in to the Claude desktop app — no sign-in window, no token.'}" Style="{StaticResource RowDetail}" />
                             <TextBlock x:Name="AppNote" Style="{StaticResource RowNote}" Visibility="Collapsed" />
                         </StackPanel>
                     </Button>
@@ -133,7 +133,7 @@
                                     <TextBlock x:Name="WebBadgeText" Style="{StaticResource RowBadgeText}" />
                                 </Border>
                             </DockPanel>
-                            <TextBlock Text="{loc:Tr 'This app opens the browser and takes the code here.'}" Style="{StaticResource RowDetail}" />
+                            <TextBlock x:Name="WebDetail" Text="{loc:Tr 'This app opens the browser and takes the code here.'}" Style="{StaticResource RowDetail}" />
                             <TextBlock x:Name="WebNote" Style="{StaticResource RowNote}" Visibility="Collapsed" />
                         </StackPanel>
                     </Button>

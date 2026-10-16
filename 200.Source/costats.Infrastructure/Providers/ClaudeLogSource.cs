@@ -129,7 +129,8 @@ public sealed class ClaudeLogSource : ISignalSource
             Confidence: confidence,
             Source: source)
         {
-            NeedsRelink = oauthResult is null && _oauthFetcher.NeedsRelink
+            // 함정: 조회가 실패해도 캐시가 최대 6시간 옛 값을 낸다 — 그동안 oauthResult 가 있다고 죽은 토큰을 숨기면 「다시 연동」 단추가 사라진다
+            NeedsRelink = _oauthFetcher.NeedsRelink
         };
     }
 

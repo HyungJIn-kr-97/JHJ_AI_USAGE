@@ -701,20 +701,47 @@ public sealed partial class SettingsViewModel : ObservableObject
         return (id, dir, codex);
     }
 
-    /// <summary>「연동 ▾」가 열릴 때 줄마다 붙일 표지 — 지금 효과 중인 방식은 「연동됨」으로 잠그고, 추천은 CLI → 웹 순이다.</summary>
-    // 계약: CLI 는 자리에 토큰이 있으면 연동된 것이다(CLI 가 없으면 설치부터 돈다). 토큰이 있는데도 안 붙으면(needsLink) 웹을 추천한다
+    /// <summary>「연동 ▾」가 열릴 때 줄마다 붙일 표지 — 살아서 효과 중인 방식만 「연동됨」으로 잠그고, 추천은 CLI → 웹 순이다.</summary>
+    // 계약: CLI 는 토큰이 있고 붙어 있을 때 잠근다. 토큰이 죽었으면(needsLink) 「끊김」으로 다시 고를 수 있고 CLI 를 먼저 추천한다 — CLI 재연동이 실패한 자리(_cliFailedSlots)만 웹을 추천한다
     // 계약: App 은 지금 값이 데스크톱 앱 표본에서 오거나(usesDesktopApp) 이 앱이 App 으로 연동시킨 자리면 연동된 것이다. 웹은 이 앱이 웹으로 연동시켜 붙어 있는 동안만이다
     public LinkMenuState LinkMenuStateFor(string providerId, bool needsLink, bool usesDesktopApp = false)
     {
         var (id, dir, codex) = ResolveSlot(providerId);
+        // 왜: 설정 줄은 토큰 파일만 보고 「로그인됨」이라 한다 — 죽은 토큰(만료·401)과 데스크톱 앱 값 사용은 카드만 안다. 카드가 있으면 그 판정을 합친다
+        if (CardOf(id) is { } card)
+        {
+            needsLink |= card.NeedsLink;
+            usesDesktopApp |= card.UsesDesktopAppValues;
+        }
+
         var cliInstalled = (codex ? CliLocator.FindCodex() : CliLocator.FindClaude()) is not null;
         var desktopSignedIn = !codex && ClaudeDesktopUsage.CurrentAccount() is { Length: > 0 };
         var stored = AccountMeta.LinkModeOf(_settings, id) ?? string.Empty;
-        var cliLinked = File.Exists(codex ? CodexTokenFile(dir) : ClaudeTokenFile(dir));
+        var hasToken = File.Exists(codex ? CodexTokenFile(dir) : ClaudeTokenFile(dir));
+        var cliLinked = hasToken && !needsLink;
+        var cliBroken = hasToken && needsLink;
         var appLinked = usesDesktopApp || (!needsLink && stored == LinkModeApp && AccountMeta.MailOf(id) is not null);
-        var webLinked = !needsLink && cliLinked && stored == LinkModeWeb;
-        var recommended = !cliLinked ? LinkModeCli : needsLink ? LinkModeWeb : string.Empty;
-        return new LinkMenuState(cliLinked, appLinked, webLinked, recommended, cliInstalled, desktopSignedIn, CliInstaller.NameOf(codex));
+        var webLinked = cliLinked && stored == LinkModeWeb;
+        var recommended = !needsLink && (cliLinked || appLinked || webLinked) ? string.Empty
+            : _cliFailedSlots.Contains(id) ? LinkModeWeb
+            : LinkModeCli;
+        return new LinkMenuState(cliLinked, cliBroken, appLinked, webLinked, recommended, cliInstalled, desktopSignedIn, CliInstaller.NameOf(codex));
+    }
+
+    // 계약: CLI 로 다시 연동해도 안 붙은 자리 — 메뉴가 그 자리에는 웹을 추천한다(CLI → 웹 순). 어떤 방식으로든 성공하면 지운다
+    private readonly HashSet<string> _cliFailedSlots = new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task TrackCliAttemptAsync(string id, string mode, Task login, Func<bool> linked)
+    {
+        await login;
+        if (linked())
+        {
+            _cliFailedSlots.Remove(id);
+        }
+        else if (mode == LinkModeCli)
+        {
+            _cliFailedSlots.Add(id);
+        }
     }
 
     // 계약: 자리 하나에 계정을 연동한다(이미 연동돼 있으면 다시 연동 = 다른 계정으로 바꾸기). 연동 뒤 VerifyLink 가 결과를 확인한다
@@ -746,13 +773,25 @@ public sealed partial class SettingsViewModel : ObservableObject
         var tokenFile = codex ? CodexTokenFile(dir) : ClaudeTokenFile(dir);
         var stampBefore = TokenStamp(tokenFile);
         // 왜: 터미널 창 로그인은 코드도 그 창이 받는다 — 앱의 코드 칸은 숨긴다
-        _ = RunLoginAsync(label, exe, codex ? "login" : "auth login",
+        var linked = false;
+        _ = TrackCliAttemptAsync(id, mode, RunLoginAsync(label, exe, codex ? "login" : "auth login",
             dir is null ? null : (codex ? "CODEX_HOME" : "CLAUDE_CONFIG_DIR", dir),
             () => codex ? AccountIdentityReader.ReadCodex(dir) : AccountIdentityReader.ReadClaude(dir),
             acceptsCode: !codex && mode != LinkModeCli,
-            verify: account => VerifyLink(id, label, account, File.Exists(tokenFile), TokenStamp(tokenFile) != stampBefore, before) && RememberLinkMode(id, mode),
+            verify: account => VerifyLink(id, label, account, File.Exists(tokenFile), TokenStamp(tokenFile) != stampBefore, before) && RememberLinkMode(id, mode) && (linked = true),
             codex: codex,
-            consoleWindow: mode == LinkModeCli);
+            consoleWindow: mode == LinkModeCli), () => linked);
+    }
+
+    // 계약: 자리의 카드 — 팝업이 띄운 카드 목록(계정별 · 전체)에서 같은 자리를 찾는다. 기본 자리는 "claude"·"claude:default" 둘 다 같은 자리다
+    private ProviderPulseViewModel? CardOf(string id)
+    {
+        static string Norm(string value) =>
+            value.Equals("claude", StringComparison.OrdinalIgnoreCase) ? ClaudeMainId
+            : value.Equals("codex", StringComparison.OrdinalIgnoreCase) ? CodexMainId
+            : value;
+        return _pulseViewModel?.ClaudeProfiles.Concat(_pulseViewModel.Providers)
+            .FirstOrDefault(p => Norm(p.ProviderId).Equals(Norm(id), StringComparison.OrdinalIgnoreCase));
     }
 
     // 계약: 성공한 연동의 방식을 자리에 남긴다 — 「연동 ▾」 메뉴가 그 줄을 「연동됨」으로 잠근다. 늘 true 라 verify 뒤에 && 로 잇는다
